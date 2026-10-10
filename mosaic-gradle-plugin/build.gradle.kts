@@ -56,8 +56,32 @@ tasks.jar {
   })
 }
 
-tasks.test {
+tasks.withType<Test>().configureEach {
   useJUnitPlatform()
+  systemProperty(
+    "mosaic.test.javaInstallations",
+    providers.gradleProperty("org.gradle.java.installations.paths").getOrElse(""),
+  )
+  providers.gradleProperty(
+    "mosaic.test.kotlinVersions",
+  ).orNull?.let { systemProperty("mosaic.test.kotlinVersions", it) }
+  providers.gradleProperty("mosaic.test.runtimeRepository").orNull?.let {
+    systemProperty("mosaic.test.runtimeRepository", it)
+  }
+}
+
+tasks.test {
+  useJUnitPlatform { excludeTags("release-compatibility") }
+}
+
+tasks.register<Test>("releaseCompatibilityTest") {
+  group = "compatibility"
+  description = "Real Maven installation matrix and cross-compiler cache regressions for release certification"
+  testClassesDirs = sourceSets.test.get().output.classesDirs
+  classpath = sourceSets.test.get().runtimeClasspath
+  useJUnitPlatform { includeTags("release-compatibility") }
+  dependsOn(":mosaic-compiler-plugin:jar", ":mosaic-core:jar")
+  outputs.upToDateWhen { false }
 }
 
 tasks.named<PluginUnderTestMetadata>("pluginUnderTestMetadata") {
@@ -87,5 +111,6 @@ tasks.test {
 }
 
 tasks.named("publishPlugins") {
-  mustRunAfter(rootProject.tasks.named("releaseToMavenCentral"))
+  dependsOn(rootProject.tasks.named("releaseAnalysisToMavenCentral"))
+  mustRunAfter(rootProject.tasks.named("releaseAnalysisToMavenCentral"))
 }

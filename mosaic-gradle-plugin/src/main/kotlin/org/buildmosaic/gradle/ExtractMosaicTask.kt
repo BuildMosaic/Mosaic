@@ -1,12 +1,14 @@
 package org.buildmosaic.gradle
 
 import org.buildmosaic.analysis.ANALYSIS_KOTLIN_VERSION
+import org.buildmosaic.analysis.CompilerVersionAdmission
 import org.buildmosaic.analysis.CoreAnalysisRevision
 import org.buildmosaic.analysis.SourceShardCodec
 import org.buildmosaic.analysis.SourceShardPaths
 import org.buildmosaic.analysis.SummaryCodec
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -51,6 +53,8 @@ abstract class ExtractMosaicTask : DefaultTask() {
   @get:Internal abstract val shardDirectory: DirectoryProperty
 
   @get:Classpath abstract val additionalCompilerPlugins: ConfigurableFileCollection
+
+  @get:Classpath abstract val defaultCompilerArtifacts: ConfigurableFileCollection
 
   @get:Classpath abstract val friendPaths: ConfigurableFileCollection
 
@@ -150,19 +154,22 @@ abstract class ExtractMosaicTask : DefaultTask() {
   }
 
   private fun validateConfiguration() {
-    requireSupported(
-      productionCompilerVersion.get().matches(
-        Regex("${Regex.escape(ANALYSIS_KOTLIN_VERSION)}(?:-release-[0-9]+)?"),
-      ),
-      "Mosaic extraction requires Kotlin Gradle plugin $ANALYSIS_KOTLIN_VERSION; " +
-        "found ${productionCompilerVersion.get()}",
-    )
-    val compilerPlugins = additionalCompilerPlugins.files.filter { it.name.startsWith("mosaic-compiler-plugin-") }
+    val compilerApi = CompilerVersionAdmission.compilerApi(productionCompilerVersion.get())
+    val compilerPlugins = additionalCompilerPlugins.files.filter(::isMosaicCompilerArtifact)
     requireSupported(compilerPlugins.size == 1, "Mosaic compiler plugin artifact was not resolved exactly once")
     validateCompilerPluginVersion(compilerPlugins.single(), mosaicVersion.get())
+    val artifactApi =
+      JarFile(
+        compilerPlugins.single(),
+      ).use { it.manifest?.mainAttributes?.getValue("Mosaic-Compiler-API") }
+    requireSupported(
+      artifactApi == compilerApi,
+      "Mosaic compiler API mismatch: Kotlin ${productionCompilerVersion.get()} requires $compilerApi, " +
+        "artifact is $artifactApi",
+    )
     val unsupported =
       additionalCompilerPlugins.files.filterNot {
-        it in compilerPlugins || isDefaultKotlinCompilerArtifact(it)
+        it in compilerPlugins || it in defaultCompilerArtifacts.files
       }
     requireSupported(
       unsupported.isEmpty(),
@@ -203,14 +210,34 @@ private fun requireSupported(
   if (!condition) throw GradleException(reason)
 }
 
-private fun isDefaultKotlinCompilerArtifact(file: File): Boolean =
-  file.name in
-    setOf(
-      "kotlin-scripting-compiler-embeddable-$ANALYSIS_KOTLIN_VERSION.jar",
-      "kotlin-scripting-compiler-impl-embeddable-$ANALYSIS_KOTLIN_VERSION.jar",
-      "kotlin-scripting-jvm-$ANALYSIS_KOTLIN_VERSION.jar",
-      "kotlin-scripting-common-$ANALYSIS_KOTLIN_VERSION.jar",
-      "kotlin-stdlib-$ANALYSIS_KOTLIN_VERSION.jar",
-      "kotlin-script-runtime-$ANALYSIS_KOTLIN_VERSION.jar",
-      "annotations-13.0.jar",
+private fun isMosaicCompilerArtifact(file: File): Boolean =
+  file.isFile && file.extension == "jar" &&
+    JarFile(file).use { archive ->
+      archive.getJarEntry("META-INF/services/org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar")?.let {
+        archive.getInputStream(it).bufferedReader().use { reader ->
+          reader.lineSequence().any { line -> line.trim() == "org.buildmosaic.compiler.MosaicCompilerRegistrar" }
+        }
+      } == true
+    }
+
+internal fun isDefaultKotlinCompilerArtifact(
+  id: ModuleComponentIdentifier,
+  kotlinPluginVersion: String,
+): Boolean =
+  (id.group == "org.jetbrains" && id.module == "annotations" && id.version == "13.0") ||
+    // The default introspector's published component also selects the host stdlib.
+    (
+      id.group == "org.jetbrains.kotlin" && id.module == "kotlin-stdlib" &&
+        id.version in setOf(kotlinPluginVersion, ANALYSIS_KOTLIN_VERSION)
+    ) ||
+    (
+      id.group == "org.jetbrains.kotlin" && id.version == kotlinPluginVersion && id.module in
+        setOf(
+          "kotlin-scripting-compiler-embeddable",
+          "kotlin-scripting-compiler-impl-embeddable",
+          "kotlin-scripting-jvm",
+          "kotlin-scripting-common",
+          "kotlin-stdlib",
+          "kotlin-script-runtime",
+        )
     )

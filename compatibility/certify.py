@@ -19,6 +19,16 @@ ROOT = Path(__file__).resolve().parent.parent
 AREAS = ("runtime", "directCompiler", "metadata", "semanticComparison")
 
 
+def compiler_profiles():
+    path = ROOT / "mosaic-analysis-core/src/main/resources/org/buildmosaic/analysis/compiler-profiles.properties"
+    entries = dict(line.split("=", 1) for line in path.read_text().splitlines() if line and not line.startswith("#"))
+    default = entries.pop("default")
+    profiles = {compiler: api for api, compilers in entries.items() for compiler in compilers.split(",")}
+    if default not in entries or len(profiles) != sum(len(value.split(",")) for value in entries.values()):
+        raise ValueError("Invalid or ambiguous measured introspector mapping")
+    return default, profiles
+
+
 def exact_version(version):
     # Maven ranges, dynamic selectors, mutable snapshots and implicit versions are forbidden.
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
@@ -95,11 +105,14 @@ class Harness:
         exact_version(self.version)
         baseline_text = (ROOT / "gradle/libs.versions.toml").read_text()
         self.baseline = re.search(r'^kotlin = "([^"]+)"', baseline_text, re.M)[1]
-        self.introspector_api = self.introspector_api or self.baseline
-        if self.introspector_api not in ("2.3.0", "2.3.20", self.baseline):
+        self.default_api, profiles = compiler_profiles()
+        self.introspector_api = self.introspector_api or (
+            self.default_api if self.scope == "runtime" else profiles.get(self.version, self.default_api)
+        )
+        if self.introspector_api not in set(profiles.values()):
             raise ValueError("Unknown introspector compiler API")
-        if self.introspector_api != self.baseline and (not self.compatibility_probe or self.scope == "runtime"):
-            raise ValueError("Alternate introspector APIs require Analysis scope and --compatibility-probe")
+        if self.introspector_api != self.default_api and self.scope == "runtime":
+            raise ValueError("Alternate introspector APIs require Analysis scope")
         fingerprint = source_identity()
         self.candidate = "0.0.0-compat-" + fingerprint[:20]
         self.repository = self.directory / "repository"
@@ -110,12 +123,10 @@ class Harness:
             introspectorCompilerApi=self.introspector_api,
         )
         modules = ["mosaic-core", "mosaic-test", "mosaic-opentelemetry"]
-        if self.scope != "runtime":
-            modules += ["mosaic-compiler-plugin"]
         tasks = [f":{module}:publishAllPublicationsToInstallTestRepository" for module in modules]
         if self.scope != "runtime":
-            tasks += [":mosaic-compiler-plugin:testClasses", ":mosaic-analysis-core:testClasses"]
-            if self.introspector_api != self.baseline:
+            tasks += ["publishAnalysisToInstallTestRepository", ":mosaic-compiler-plugin:testClasses", ":mosaic-analysis-core:testClasses"]
+            if self.introspector_api != self.default_api:
                 tasks += [":mosaic-compiler-plugin:introspectorJar" + self.introspector_api.replace(".", "_")]
         self.run("candidateArtifacts", [
             str(ROOT / "gradlew"), *tasks, "--no-configuration-cache", "--console=plain", "--max-workers=2",
@@ -216,12 +227,12 @@ class Harness:
 
     def direct(self):
         area = self.report["areas"]["directCompiler"]
-        area["suites"] = ["mosaic-compiler-plugin: existing direct compiler fixture corpus", "2.4.20 control"]
+        area["suites"] = ["mosaic-compiler-plugin: existing direct compiler fixture corpus", f"{self.baseline} control"]
         extractor = self.artifacts("extractor")
         if len(extractor) != 1 or extractor[0]["version"] != self.candidate:
             raise RuntimeError("Extractor did not resolve exactly the candidate artifact")
         selected = dict(extractor[0])
-        if self.introspector_api != self.baseline:
+        if self.introspector_api != self.default_api:
             jar = ROOT / f"mosaic-compiler-plugin/build/libs/mosaic-compiler-plugin-{self.candidate}-kotlin-{self.introspector_api}.jar"
             snapshot = self.directory / jar.name
             shutil.copyfile(jar, snapshot)
@@ -338,32 +349,89 @@ def compare_summaries(control, selected):
             "preserved": ["contracts", "locations", "binary identities", "unknown boundaries", "limitations", "effect order"]}
 
 
+def certify(harness):
+    try:
+        harness.prepare()
+    except Exception as failure:
+        harness.report["failureDiagnostics"].append(str(failure))
+        print(f"Compatibility harness cannot run: {failure}", flush=True)
+        for name in required_areas(harness.scope):
+            harness.report["areas"][name]["diagnostic"] = f"Cannot run: {failure}"
+    else:
+        if harness.scope in ("all", "runtime"):
+            harness.area("runtime", harness.runtime)
+        if harness.scope in ("all", "analysis"):
+            # Codec coverage remains independent even if selected compiler resolution/ABI fails.
+            harness.area("metadata", harness.metadata)
+            harness.area("directCompiler", harness.direct)
+            harness.area("semanticComparison", harness.compare)
+    return harness.finish()
+
+
+def release_matrix(scope, java_installations):
+    _, profiles = compiler_profiles()
+    versions = sorted(profiles, key=lambda version: tuple(map(int, exact_version(version).split("."))))
+    runtime_identity = None
+    reports = []
+    last = None
+    for version in versions:
+        harness = Harness(version, scope, java_installations)
+        if certify(harness):
+            return 1
+        reports.append(str(harness.directory / "report.json"))
+        identity = sorted((artifact["coordinate"], artifact["sha256"]) for artifact in harness.report["runtimeArtifacts"])
+        if runtime_identity is not None and identity != runtime_identity:
+            print("Release certification failed: Runtime artifact bytes changed between compiler consumers", flush=True)
+            return 1
+        runtime_identity, last = identity, harness
+    if last is None:
+        raise ValueError("Release certification requires a nonempty measured compiler matrix")
+    certification = {"result": "fail", "scope": scope, "compilers": versions, "reports": reports}
+    last.report["releaseCertification"] = certification
+    try:
+        if scope != "runtime":
+            # Use the exact Runtime bytes just certified, with the real Maven installation fixture.
+            last.run("productionInstallation", [
+                str(ROOT / "gradlew"), ":mosaic-gradle-plugin:releaseCompatibilityTest",
+                "--no-configuration-cache", "--console=plain", "--max-workers=2",
+                f"-Pmosaic.test.kotlinVersions={','.join(versions)}",
+                f"-Pmosaic.test.runtimeRepository={last.repository}",
+                f"-Porg.gradle.java.installations.paths={java_installations}",
+            ])
+            results = junit_results(ROOT / "mosaic-gradle-plugin/build/test-results/releaseCompatibilityTest")
+            certification["productionInstallation"] = results
+            if not results["tests"] or results["failed"] or results["skipped"]:
+                raise RuntimeError(f"Required production installation tests failed, skipped or absent: {results}")
+        certification["result"] = "pass"
+    except Exception as failure:
+        certification["diagnostic"] = str(failure)
+        raise
+    finally:
+        last.finish()
+    print(f"Release {scope} compatibility PASS: {', '.join(versions)}", flush=True)
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--kotlin", required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--kotlin")
+    mode.add_argument("--release-matrix", action="store_true")
     parser.add_argument("--scope", choices=("all", "runtime", "analysis"), default="all")
     parser.add_argument("--java-installations", default="")
     parser.add_argument("--compatibility-probe", action="store_true",
                         help="Experimentally bypass compiler-version admission only; does not establish production support")
     parser.add_argument("--introspector-api", default="", choices=("2.3.0", "2.3.20", "2.4.20"))
     args = parser.parse_args()
-    harness = Harness(args.kotlin, args.scope, args.java_installations, args.compatibility_probe, args.introspector_api)
-    try:
-        harness.prepare()
-    except Exception as failure:
-        harness.report["failureDiagnostics"].append(str(failure))
-        print(f"Compatibility harness cannot run: {failure}", flush=True)
-        for name in required_areas(args.scope):
-            harness.report["areas"][name]["diagnostic"] = f"Cannot run: {failure}"
-    else:
-        if args.scope in ("all", "runtime"):
-            harness.area("runtime", harness.runtime)
-        if args.scope in ("all", "analysis"):
-            # Codec coverage remains independent even if selected compiler resolution/ABI fails.
-            harness.area("metadata", harness.metadata)
-            harness.area("directCompiler", harness.direct)
-            harness.area("semanticComparison", harness.compare)
-    return harness.finish()
+    if args.release_matrix:
+        if args.compatibility_probe or args.introspector_api:
+            parser.error("Release certification requires production admission and the measured profile selection")
+        try:
+            return release_matrix(args.scope, args.java_installations)
+        except Exception as failure:
+            print(f"Release certification failed: {failure}", flush=True)
+            return 1
+    return certify(Harness(args.kotlin, args.scope, args.java_installations, args.compatibility_probe, args.introspector_api))
 
 
 if __name__ == "__main__":

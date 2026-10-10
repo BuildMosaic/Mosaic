@@ -37,7 +37,7 @@ internal fun project(
       pluginManagement {
         repositories { gradlePluginPortal(); mavenCentral() }
         resolutionStrategy.eachPlugin {
-          if (requested.id.id == "org.jetbrains.kotlin.jvm") useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20")
+          if (requested.id.id == "org.jetbrains.kotlin.jvm") useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21")
         }
       }
       rootProject.name = "$name"
@@ -48,7 +48,7 @@ internal fun project(
     File(this, "build.gradle.kts").writeText(
       """
       plugins {
-        kotlin("jvm") version "2.4.20"
+        kotlin("jvm") version "2.4.21"
         id("org.buildmosaic.analysis")
       }
       group = "fixture"

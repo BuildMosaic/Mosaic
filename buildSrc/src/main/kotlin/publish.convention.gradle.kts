@@ -1,3 +1,5 @@
+import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
+import org.gradle.api.publish.maven.tasks.PublishToMavenLocal
 import org.gradle.plugins.signing.Sign
 
 plugins {
@@ -71,5 +73,26 @@ publishing {
         url = uri(installRepository)
       }
     }
+  }
+}
+
+// Analysis is one coordinated release. Reject partial publishing even through low-level tasks.
+if (project.name in setOf("mosaic-compiler-plugin", "mosaic-gradle-plugin")) {
+  val requestedTasks = gradle.startParameter.taskNames.map { it.substringAfterLast(':') }
+  val completeMavenRelease = requestedTasks.any {
+    it in setOf("release", "releaseToMavenCentral", "releaseAnalysis", "releaseAnalysisToMavenCentral")
+  }
+  val completeInstallation = "publishAnalysisToInstallTestRepository" in requestedTasks
+  tasks.withType<PublishToMavenRepository>().configureEach {
+    dependsOn(rootProject.tasks.named("prepareAnalysisPublication"))
+    val coordinated = if (installTestRepository != null) completeInstallation else completeMavenRelease
+    doFirst {
+      check(coordinated) {
+        "Publish the complete Mosaic Analysis set with releaseAnalysisToMavenCentral or publishAnalysisToInstallTestRepository"
+      }
+    }
+  }
+  tasks.withType<PublishToMavenLocal>().configureEach {
+    doFirst { error("Use publishAnalysisToInstallTestRepository to install the complete Mosaic Analysis set") }
   }
 }

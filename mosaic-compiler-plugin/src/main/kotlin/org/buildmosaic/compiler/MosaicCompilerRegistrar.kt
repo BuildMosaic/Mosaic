@@ -13,12 +13,15 @@ import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.config.CompilerConfigurationKey
 import org.jetbrains.kotlin.config.KotlinCompilerVersion
+import java.io.File
+import java.util.jar.JarFile
 
 internal val outputKey = CompilerConfigurationKey<String>("Mosaic analysis output")
 internal val moduleKey = CompilerConfigurationKey<String>("Mosaic analysis module identity")
 internal val probeKey = CompilerConfigurationKey<String>("Mosaic IR shape probe")
 internal val sourceRootKey = CompilerConfigurationKey<String>("Mosaic supported source root")
 internal val revisionKey = CompilerConfigurationKey<String>("Mosaic selected Core semantic revision")
+internal val compilerVersionKey = CompilerConfigurationKey<String>("Mosaic selected compiler version")
 internal val modeKey = CompilerConfigurationKey<String>("Mosaic output mode")
 
 @OptIn(ExperimentalCompilerApi::class)
@@ -61,6 +64,13 @@ class MosaicCommandLineProcessor : CommandLineProcessor {
         required = false,
         allowMultipleOccurrences = false,
       ),
+      CliOption(
+        "compilerVersion",
+        "Internal selected compiler",
+        "Compiler version",
+        required = false,
+        allowMultipleOccurrences = false,
+      ),
       CliOption("mode", "Mosaic output mode", "complete or shards", required = false, allowMultipleOccurrences = false),
     )
 
@@ -76,6 +86,7 @@ class MosaicCommandLineProcessor : CommandLineProcessor {
       "sourceRoot" -> configuration.put(sourceRootKey, value)
       "coreRevision" -> configuration.put(revisionKey, value)
       "mode" -> configuration.put(modeKey, value)
+      "compilerVersion" -> configuration.put(compilerVersionKey, value)
       else -> error("Unknown Mosaic compiler option ${option.optionName}")
     }
   }
@@ -87,7 +98,21 @@ class MosaicCompilerRegistrar : CompilerPluginRegistrar() {
   override val supportsK2 = true
 
   override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
-    CompilerVersionAdmission.requireSupported(KotlinCompilerVersion.VERSION)
+    val compilerApi =
+      JarFile(File(MosaicCompilerRegistrar::class.java.protectionDomain.codeSource.location.toURI())).use {
+        requireNotNull(it.manifest?.mainAttributes?.getValue("Mosaic-Compiler-API")) {
+          "Mosaic introspector is missing its compiler API identity"
+        }
+      }
+    CompilerVersionAdmission.requireSupported(KotlinCompilerVersion.VERSION, compilerApi)
+    configuration.get(compilerVersionKey)?.let { expected ->
+      require(
+        CompilerVersionAdmission.stableVersion(expected) ==
+          CompilerVersionAdmission.stableVersion(KotlinCompilerVersion.VERSION),
+      ) {
+        "Mosaic selected Kotlin compiler $expected but executing compiler is ${KotlinCompilerVersion.VERSION}"
+      }
+    }
     val revision =
       requireNotNull(
         CoreAnalysisRevision.selected(

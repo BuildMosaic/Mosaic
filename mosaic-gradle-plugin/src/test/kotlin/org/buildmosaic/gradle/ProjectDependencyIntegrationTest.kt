@@ -27,7 +27,7 @@ class ProjectDependencyIntegrationTest {
       pluginManagement {
         repositories { gradlePluginPortal(); mavenCentral() }
         resolutionStrategy.eachPlugin {
-          if (requested.id.id == "org.jetbrains.kotlin.jvm") useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20")
+          if (requested.id.id == "org.jetbrains.kotlin.jvm") useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21")
         }
       }
       rootProject.name = "project-dependency"
@@ -38,7 +38,7 @@ class ProjectDependencyIntegrationTest {
       val module = File(root, name).apply { mkdirs() }
       File(module, "build.gradle.kts").writeText(
         """
-        plugins { kotlin("jvm") version "2.4.20"; id("org.buildmosaic.analysis") }
+        plugins { kotlin("jvm") version "2.4.21"; id("org.buildmosaic.analysis") }
         group = "fixture"
         ${fixtureRepositories(pluginJar)}
         dependencies {
