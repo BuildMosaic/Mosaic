@@ -1,15 +1,21 @@
 package org.buildmosaic.analysis
 
+import java.util.Properties
+
 /** Internal measured compiler mapping, shared by Gradle selection and compiler admission. */
 object CompilerVersionAdmission {
   const val COMPATIBILITY_PROBE_PROPERTY = "mosaic.analysis.compatibilityProbe"
 
+  private val profiles =
+    Properties().apply {
+      CompilerVersionAdmission::class.java.getResourceAsStream("compiler-profiles.properties")!!.use(::load)
+    }
+  val defaultCompilerApi: String = profiles.getProperty("default")
   private val compilersByApi =
-    mapOf(
-      "2.3.0" to setOf("2.2.0", "2.2.10", "2.2.20", "2.2.21", "2.3.0", "2.3.10"),
-      "2.3.20" to setOf("2.3.20", "2.3.21"),
-      "2.4.20" to setOf("2.4.0", "2.4.10", "2.4.20", "2.4.21"),
-    )
+    profiles.stringPropertyNames().filter { it != "default" }.sorted().associateWith {
+      profiles.getProperty(it).split(',').toSet()
+    }
+  val supportedCompilers: Set<String> = compilersByApi.values.flatten().toSet()
 
   fun stableVersion(actualCompilerVersion: String): String =
     actualCompilerVersion.replace(Regex("-release-[0-9]+$"), "")
@@ -23,7 +29,7 @@ object CompilerVersionAdmission {
 
   fun artifactId(compilerApi: String): String {
     require(compilerApi in compilersByApi) { "Unknown Mosaic introspector compiler API $compilerApi" }
-    return if (compilerApi == ANALYSIS_KOTLIN_VERSION) {
+    return if (compilerApi == defaultCompilerApi) {
       "mosaic-compiler-plugin"
     } else {
       "mosaic-compiler-plugin-kotlin-$compilerApi"
@@ -32,7 +38,7 @@ object CompilerVersionAdmission {
 
   fun requireSupported(
     actualCompilerVersion: String,
-    compilerApi: String = ANALYSIS_KOTLIN_VERSION,
+    compilerApi: String = defaultCompilerApi,
   ) {
     if (System.getProperty(COMPATIBILITY_PROBE_PROPERTY) == "true") {
       System.err.println("MOSAIC_COMPATIBILITY_PROBE: compiler-version admission bypassed for $actualCompilerVersion")

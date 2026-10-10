@@ -80,7 +80,7 @@ dokka {
   moduleName.set("Mosaic")
 }
 
-// Deliberately disconnected from build/check/test and all validation workflows.
+// Deliberately disconnected from build/check/test and ordinary validation workflows.
 listOf(
   "certifyKotlin" to "all",
   "certifyKotlinRuntime" to "runtime",
@@ -106,4 +106,19 @@ listOf(
     // The harness always produces fresh evidence, including failures.
     outputs.upToDateWhen { false }
   }
+}
+
+tasks.register<Exec>("certifyReleaseCompatibility") {
+  group = "compatibility"
+  description = "Certify every supported Kotlin compiler before publication (-Pcompat.scope=runtime|analysis|all)"
+  commandLine(
+    "python3",
+    layout.projectDirectory.file("compatibility/certify.py").asFile.absolutePath,
+    "--release-matrix",
+    "--scope",
+    providers.gradleProperty("compat.scope").getOrElse("all"),
+    "--java-installations",
+    providers.gradleProperty("org.gradle.java.installations.paths").getOrElse(""),
+  )
+  outputs.upToDateWhen { false }
 }

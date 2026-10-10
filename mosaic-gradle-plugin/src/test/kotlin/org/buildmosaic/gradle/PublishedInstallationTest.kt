@@ -87,7 +87,7 @@ class PublishedInstallationTest {
     consumer.resolve("build.gradle.kts").writeText(
       """
       plugins {
-        kotlin("jvm") version "2.4.20"
+        kotlin("jvm") version "2.4.21"
         id("org.buildmosaic.analysis") version "$version"
       }
       version = "99.0.0"
@@ -144,20 +144,20 @@ class PublishedInstallationTest {
       assertEquals(summary, packaged)
       assertEquals(6, packaged.contractVersion)
       assertEquals(version, packaged.producer.analysisVersion)
-      assertEquals("2.4.20", packaged.producer.compilerVersion)
+      assertEquals("2.4.21", packaged.producer.compilerVersion)
     }
 
-    verifyRuntimeConsumer(workspace, maven, version, useBom = false, kotlinVersion = "2.3.0")
+    verifyRuntimeConsumer(workspace, maven, version, useBom = false)
     verifyRuntimeConsumer(workspace, maven, version, useBom = true)
   }
 }
 
-private fun verifyRuntimeConsumer(
+internal fun verifyRuntimeConsumer(
   workspace: File,
   maven: File,
   version: String,
   useBom: Boolean,
-  kotlinVersion: String = "2.4.20",
+  kotlinVersion: String = "2.4.21",
 ) {
   val consumer = workspace.resolve(if (useBom) "bom-consumer" else "runtime-consumer").apply { mkdirs() }
   consumer.resolve("settings.gradle.kts").writeText(
@@ -228,8 +228,9 @@ internal fun runPublished(
   project: File,
   vararg arguments: String,
   expectFailure: Boolean = false,
-): org.gradle.testkit.runner.BuildResult =
-  GradleRunner.create().withProjectDir(project)
+): org.gradle.testkit.runner.BuildResult {
+  println("MOSAIC_PUBLISHED_GRADLE_INVOCATION: ${arguments.joinToString(" ")}")
+  return GradleRunner.create().withProjectDir(project)
     .withArguments(
       *arguments,
       "--stacktrace",
@@ -240,3 +241,4 @@ internal fun runPublished(
       File(System.getProperty("user.home"), ".gradle").absolutePath,
     )
     .let { if (expectFailure) it.buildAndFail() else it.build() }
+}

@@ -7,6 +7,7 @@ import org.buildmosaic.analysis.SourceShardCodec
 import org.buildmosaic.analysis.SummaryCodec
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.jupiter.api.Tag
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -14,6 +15,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Compact production installation matrix: real plugin marker and Maven artifacts, without TestKit injection. */
+@Tag("release-compatibility")
 class IntrospectorSelectionInstallationTest {
   @Test
   fun `published plugin selects all measured compilers`() {
@@ -71,11 +73,7 @@ class IntrospectorSelectionInstallationTest {
         assertTrue(dir.resolve(name).isFile, name)
       }
     }
-    val versions =
-      System.getProperty("mosaic.test.kotlinVersions")?.split(',') ?: listOf(
-        "2.2.0", "2.3.0", "2.3.20", "2.4.20", "2.4.21",
-        "2.2.10", "2.2.20", "2.2.21", "2.3.10", "2.3.21", "2.4.0", "2.4.10",
-      )
+    val versions = installationCompilers()
     workspace.resolve("results.txt").writeText("")
     versions.forEach { compiler ->
       val app = workspace.resolve("consumer-$compiler").apply { mkdirs() }
@@ -172,6 +170,23 @@ class IntrospectorSelectionInstallationTest {
       workspace.resolve("results.txt").appendText("$compiler $api $id ${hashes.getValue(id)} PASS\n")
     }
     if ("2.4.20" in versions) verifyCompilerChanges(workspace.resolve("consumer-2.4.20"), analysisVersion)
+    if ("2.3.0" in versions) {
+      verifyRuntimeConsumer(
+        workspace,
+        maven,
+        runtimeVersion,
+        useBom = false,
+        kotlinVersion = "2.3.0",
+      )
+    }
+  }
+
+  private fun installationCompilers(): List<String> {
+    val boundaries = listOf("2.2.0", "2.3.0", "2.3.20", "2.4.20", "2.4.21")
+    val requested =
+      System.getProperty("mosaic.test.kotlinVersions")?.split(',')
+        ?: CompilerVersionAdmission.supportedCompilers.toList()
+    return boundaries.filter { it in requested } + (requested - boundaries)
   }
 
   private fun verifyCompilerChanges(

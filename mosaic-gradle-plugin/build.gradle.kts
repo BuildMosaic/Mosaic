@@ -56,7 +56,7 @@ tasks.jar {
   })
 }
 
-tasks.test {
+tasks.withType<Test>().configureEach {
   useJUnitPlatform()
   systemProperty(
     "mosaic.test.javaInstallations",
@@ -68,6 +68,20 @@ tasks.test {
   providers.gradleProperty("mosaic.test.runtimeRepository").orNull?.let {
     systemProperty("mosaic.test.runtimeRepository", it)
   }
+}
+
+tasks.test {
+  useJUnitPlatform { excludeTags("release-compatibility") }
+}
+
+tasks.register<Test>("releaseCompatibilityTest") {
+  group = "compatibility"
+  description = "Real Maven installation matrix and cross-compiler cache regressions for release certification"
+  testClassesDirs = sourceSets.test.get().output.classesDirs
+  classpath = sourceSets.test.get().runtimeClasspath
+  useJUnitPlatform { includeTags("release-compatibility") }
+  dependsOn(":mosaic-compiler-plugin:jar", ":mosaic-core:jar")
+  outputs.upToDateWhen { false }
 }
 
 tasks.named<PluginUnderTestMetadata>("pluginUnderTestMetadata") {

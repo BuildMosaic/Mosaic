@@ -14,8 +14,8 @@ import org.buildmosaic.analysis.metadata.toWire
 import java.security.MessageDigest
 import java.util.Properties
 
-/** Host build compiler and default introspector API; production admission uses the measured mapping. */
-const val ANALYSIS_KOTLIN_VERSION = "2.4.20"
+/** Host build compiler; introspector ABI builds are defined separately in the measured mapping. */
+const val ANALYSIS_KOTLIN_VERSION = "2.4.21"
 
 /** Internal JAR resource. Compatibility is decided by the header, not this path. */
 const val SUMMARY_PATH = "META-INF/mosaic-analysis/v1/summary.json"
