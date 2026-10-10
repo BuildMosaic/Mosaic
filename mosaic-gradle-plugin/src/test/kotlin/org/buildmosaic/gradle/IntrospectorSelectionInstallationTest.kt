@@ -46,7 +46,8 @@ class IntrospectorSelectionInstallationTest {
       runPublished(
         repository,
         *runtimeTasks.toTypedArray(),
-        "publishAnalysisToInstallTestRepository",
+        ":mosaic-compiler-plugin:publishAllPublicationsToInstallTestRepository",
+        ":mosaic-gradle-plugin:publishAllPublicationsToInstallTestRepository",
         "-Pmosaic.runtime.version=$runtimeVersion",
         "-Pmosaic.analysis.version=$analysisVersion",
         "-Pmosaic.installTestRepository=${maven.absolutePath}",

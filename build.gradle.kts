@@ -8,12 +8,6 @@ allprojects {
   apply(plugin = "base.convention")
 }
 
-tasks.register("release") {
-  group = "publishing"
-  description = "Publish both Mosaic release trains"
-  dependsOn("releaseRuntime", "releaseAnalysis")
-}
-
 tasks.register("releaseRuntime") {
   group = "publishing"
   description = "Publish Runtime modules and the Runtime-only BOM to Maven Central"
@@ -28,46 +22,11 @@ tasks.register("releaseRuntime") {
 tasks.register("releaseAnalysis") {
   group = "publishing"
   description = "Publish the complete Analysis set to Maven Central and the Gradle Plugin Portal"
-  dependsOn("releaseAnalysisToMavenCentral", ":mosaic-gradle-plugin:publishPlugins")
-}
-
-tasks.register("releaseAnalysisToMavenCentral") {
-  group = "publishing"
-  description = "Publish the shared Gradle plugin and all introspector profiles together"
   dependsOn(
     ":mosaic-compiler-plugin:publishAndReleaseToMavenCentral",
     ":mosaic-gradle-plugin:publishAndReleaseToMavenCentral",
+    ":mosaic-gradle-plugin:publishPlugins",
   )
-}
-
-tasks.register("prepareAnalysisPublication") {
-  group = "publishing"
-  description = "Build every Analysis publication artifact before uploading any part of the release"
-  dependsOn(
-    ":mosaic-compiler-plugin:assemble",
-    ":mosaic-compiler-plugin:sourcesJar",
-    ":mosaic-compiler-plugin:dokkaJavadocJar",
-    ":mosaic-gradle-plugin:assemble",
-    ":mosaic-gradle-plugin:sourcesJar",
-    ":mosaic-gradle-plugin:javadocJar",
-  )
-}
-
-tasks.register("releaseToMavenCentral") {
-  group = "publishing"
-  description = "Publish both release trains to Maven Central"
-  dependsOn("releaseRuntime", "releaseAnalysisToMavenCentral")
-}
-
-if (providers.gradleProperty("mosaic.installTestRepository").isPresent) {
-  tasks.register("publishAnalysisToInstallTestRepository") {
-    group = "publishing"
-    description = "Publish the complete Analysis candidate set to the private installation repository"
-    dependsOn(
-      ":mosaic-compiler-plugin:publishAllPublicationsToInstallTestRepository",
-      ":mosaic-gradle-plugin:publishAllPublicationsToInstallTestRepository",
-    )
-  }
 }
 
 dependencies {

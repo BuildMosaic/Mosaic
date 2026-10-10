@@ -29,7 +29,10 @@ class PublishedInstallationTest {
       ":mosaic-test:publishAllPublicationsToInstallTestRepository",
       ":mosaic-opentelemetry:publishAllPublicationsToInstallTestRepository",
       ":mosaic-bom:publishAllPublicationsToInstallTestRepository",
-      "publishAnalysisToInstallTestRepository",
+      ":mosaic-compiler-plugin:publishAllPublicationsToInstallTestRepository",
+      ":mosaic-gradle-plugin:publishAllPublicationsToInstallTestRepository",
+      "-Pmosaic.runtime.version=$version",
+      "-Pmosaic.analysis.version=$version",
       "-Pmosaic.installTestRepository=${maven.absolutePath}",
     )
 

@@ -125,12 +125,15 @@ class Harness:
         modules = ["mosaic-core", "mosaic-test", "mosaic-opentelemetry"]
         tasks = [f":{module}:publishAllPublicationsToInstallTestRepository" for module in modules]
         if self.scope != "runtime":
-            tasks += ["publishAnalysisToInstallTestRepository", ":mosaic-compiler-plugin:testClasses", ":mosaic-analysis-core:testClasses"]
+            tasks += [":mosaic-compiler-plugin:publishAllPublicationsToInstallTestRepository",
+                      ":mosaic-gradle-plugin:publishAllPublicationsToInstallTestRepository",
+                      ":mosaic-compiler-plugin:testClasses", ":mosaic-analysis-core:testClasses"]
             if self.introspector_api != self.default_api:
                 tasks += [":mosaic-compiler-plugin:introspectorJar" + self.introspector_api.replace(".", "_")]
         self.run("candidateArtifacts", [
             str(ROOT / "gradlew"), *tasks, "--no-configuration-cache", "--console=plain", "--max-workers=2",
-            f"-Pmosaic.version={self.candidate}", f"-Pmosaic.installTestRepository={self.repository}",
+            f"-Pmosaic.version={self.candidate}", f"-Pmosaic.runtime.version={self.candidate}",
+            f"-Pmosaic.analysis.version={self.candidate}", f"-Pmosaic.installTestRepository={self.repository}",
         ])
         resolution_command = [
             str(ROOT / "gradlew"), "-p", str(ROOT / "compatibility"), "resolveEvidence",

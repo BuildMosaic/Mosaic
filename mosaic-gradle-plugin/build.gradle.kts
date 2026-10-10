@@ -111,6 +111,8 @@ tasks.test {
 }
 
 tasks.named("publishPlugins") {
-  dependsOn(rootProject.tasks.named("releaseAnalysisToMavenCentral"))
-  mustRunAfter(rootProject.tasks.named("releaseAnalysisToMavenCentral"))
+  dependsOn(
+    ":mosaic-compiler-plugin:publishAndReleaseToMavenCentral",
+    "publishAndReleaseToMavenCentral",
+  )
 }
