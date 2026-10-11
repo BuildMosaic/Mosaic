@@ -7,7 +7,7 @@
 
 [![Tests](https://github.com/BuildMosaic/Mosaic/workflows/Test%20Badge/badge.svg)](https://github.com/BuildMosaic/Mosaic/actions?query=workflow%3A%22Test+Badge%22)
 [![Build](https://github.com/BuildMosaic/Mosaic/workflows/Build%20Badge/badge.svg)](https://github.com/BuildMosaic/Mosaic/actions?query=workflow%3A%22Build+Badge%22)
-[![Kotlin](https://img.shields.io/badge/kotlin-2.4.20-blue.svg)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/kotlin-JVM-blue.svg)](https://kotlinlang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 **Think from the response up, not the database down.**
@@ -160,9 +160,9 @@ covers application setup, resource ownership, and runtime requirements.
 
 ## 🔗 **Compatibility**
 
-Starting with 1.0.0, Mosaic 1.x supports Kotlin/JVM on Java 17+. Kotlin minor
-families receive an 18-month certification/support window from their first stable
-`.0` release. Runtime and optional Analysis are independently versioned. Find
+Mosaic 1.x targets Java 17+ and officially supports Kotlin minor families for
+18 months after their first stable release, including their stable patches.
+Runtime and optional Analysis are independently versioned. Find
 supported Kotlin versions and compatible Runtime/Analysis combinations in the
 [compatibility reference](https://BuildMosaic.org/reference/compatibility/).
 These guarantees do not apply to published 0.x artifacts.
@@ -186,8 +186,9 @@ can discover application entry points when safe and follow Tile dependencies
 across modules.
 
 It checks Canvas bindings and distinguishes **confirmed missing dependencies**
-from paths it can't verify. Analysis supports **Kotlin/JVM 2.4.20 only**. Runtime composition
-doesn't depend on it. The graph shows static relationships, not runtime traces.
+from paths it can't verify. Analysis selects the appropriate compiler integration
+automatically for its [supported Kotlin versions](https://BuildMosaic.org/reference/compatibility/).
+Runtime composition doesn't depend on it. The graph shows static relationships, not runtime traces.
 
 [Set up architecture reports and verification →](https://BuildMosaic.org/guides/analysis/)
 

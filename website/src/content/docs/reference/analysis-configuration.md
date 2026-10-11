@@ -7,7 +7,7 @@ Use this reference to configure the optional `org.buildmosaic.analysis` plugin. 
 
 ## Plugin setup
 
-Analysis supports exactly Kotlin compiler and Kotlin Gradle plugin **2.4.20**, for pure Kotlin/JVM `main` sources. See the [supported project boundary](#supported-project-boundary) before applying it.
+Analysis supports pure Kotlin/JVM `main` sources with the compiler/KGP versions listed for your release in [compatibility](/reference/compatibility/). See the [supported project boundary](#supported-project-boundary) before applying it.
 
 ```kotlin title="settings.gradle.kts"
 pluginManagement {
@@ -226,11 +226,11 @@ Unsupported control flow, general callbacks, arbitrary virtual dispatch, mutable
 
 Reports show selected roots and receivers, statuses, closed witnesses and source locations, rule severity, suppressed sites, Canvas obligations, and uncertainty. Graph and verification reports use the same analysis findings; a loop in the diagram alone does not prove a cyclic result dependency. The graph represents possible static structure, not runtime timing, call counts, cache occupancy, or exact key batches.
 
-Dependency summary changes can rerun verification without recompiling unchanged application sources. Clean, incremental, and cache-restored paths preserve summary and verification results. Summary compatibility is determined by the header, not the `v1` resource directory: the writer and extractor support only Kotlin 2.4.20, while the reader accepts valid **`contractVersion = 6`**, complete `main` summaries from other nonblank Analysis and compiler producer versions, preserving those identities as provenance. Successful decoding does not certify compiler, Runtime, or Gradle interoperability. Construction-time lookup is serialized as `CONSTRUCTION`; required and optional Canvas/Mosaic lookups remain `REQUIRED` and `OPTIONAL`. `contractVersion` covers both serialized structure and meaning. The producer records the Analysis artifact build version in `producer.analysisVersion` and the normalized supported Kotlin version in `producer.compilerVersion`. Legacy format 5 and unsupported contract versions are rejected. Regenerate dependency summaries with the matching Mosaic analysis version.
+Dependency summary changes can rerun verification without recompiling unchanged application sources. Clean, incremental, and cache-restored paths preserve summary and verification results. Summary compatibility is determined by the header, not the `v1` resource directory. The reader accepts valid **`contractVersion = 6`**, complete `main` summaries from other nonblank Analysis and compiler producer versions, preserving those identities as provenance. Successful decoding does not certify compiler, Runtime, or Gradle interoperability. Construction-time lookup is serialized as `CONSTRUCTION`; required and optional Canvas/Mosaic lookups remain `REQUIRED` and `OPTIONAL`. `contractVersion` covers both serialized structure and meaning. The producer records the Analysis artifact build version in `producer.analysisVersion` and the normalized supported Kotlin version in `producer.compilerVersion`. Legacy format 5 and unsupported contract versions are rejected. Regenerate dependency summaries with the matching Mosaic analysis version.
 
 ## Supported project boundary
 
-Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. The plugin requires Kotlin compiler and Kotlin Gradle plugin **2.4.20**, and validates the Java toolchain against Kotlin's toolchain. The repository build and examples use JDK 21 and Gradle 8.14.4; these analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
+Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibility](/reference/compatibility/). The plugin validates the Java toolchain against Kotlin's toolchain. The repository build and examples use JDK 21 and Gradle 8.14.4; these analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
 
 The plugin rejects:
 

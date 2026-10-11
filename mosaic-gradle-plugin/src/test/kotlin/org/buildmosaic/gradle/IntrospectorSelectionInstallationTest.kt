@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Tag
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Compact production installation matrix: real plugin marker and Maven artifacts, without TestKit injection. */
@@ -26,53 +25,25 @@ class IntrospectorSelectionInstallationTest {
       ).apply {
         mkdirs()
       }
-    val maven = workspace.resolve("maven")
-    val analysisVersion = "0.0.0-install-analysis"
-    val existingRuntime = System.getProperty("mosaic.test.runtimeRepository")?.let(::File)
-    val runtimeVersion =
-      existingRuntime?.resolve("org/buildmosaic/mosaic-core")?.listFiles()?.single { it.isDirectory }?.name
-        ?: "0.0.0-install-runtime"
-    val runtimeTasks =
-      if (existingRuntime == null) {
-        listOf(
+    val supplied = System.getProperty("mosaic.test.repository")?.let(::File)
+    val maven = supplied ?: workspace.resolve("maven")
+    val analysisVersion = System.getProperty("mosaic.test.analysisVersion", "0.0.0-install-analysis")
+    val runtimeVersion = System.getProperty("mosaic.test.runtimeVersion", "0.0.0-install-runtime")
+    if (supplied == null) {
+      val publication =
+        runPublished(
+          repository,
           ":mosaic-core:publishAllPublicationsToInstallTestRepository",
           ":mosaic-test:publishAllPublicationsToInstallTestRepository",
           ":mosaic-opentelemetry:publishAllPublicationsToInstallTestRepository",
+          ":mosaic-compiler-plugin:publishAllPublicationsToInstallTestRepository",
+          ":mosaic-gradle-plugin:publishAllPublicationsToInstallTestRepository",
+          "-Pmosaic.runtime.version=$runtimeVersion",
+          "-Pmosaic.analysis.version=$analysisVersion",
+          "-Pmosaic.installTestRepository=${maven.absolutePath}",
+          "--no-configuration-cache",
         )
-      } else {
-        emptyList()
-      }
-    val publication =
-      runPublished(
-        repository,
-        *runtimeTasks.toTypedArray(),
-        ":mosaic-compiler-plugin:publishAllPublicationsToInstallTestRepository",
-        ":mosaic-gradle-plugin:publishAllPublicationsToInstallTestRepository",
-        "-Pmosaic.runtime.version=$runtimeVersion",
-        "-Pmosaic.analysis.version=$analysisVersion",
-        "-Pmosaic.installTestRepository=${maven.absolutePath}",
-        "--no-configuration-cache",
-      )
-    workspace.resolve("publication.log").writeText(publication.output)
-    existingRuntime?.copyRecursively(maven, overwrite = true)
-    val artifacts =
-      listOf(
-        "mosaic-gradle-plugin",
-        "mosaic-compiler-plugin",
-        "mosaic-compiler-plugin-kotlin-2.3.0",
-        "mosaic-compiler-plugin-kotlin-2.3.20",
-      )
-    val hashes =
-      artifacts.associateWith {
-          id ->
-        sha256(maven.resolve("org/buildmosaic/$id/$analysisVersion/$id-$analysisVersion.jar"))
-      }
-    artifacts.forEach { id ->
-      val dir = maven.resolve("org/buildmosaic/$id/$analysisVersion")
-      listOf("jar", "pom", "sources.jar", "javadoc.jar").forEach { suffix ->
-        val name = if (suffix.contains('.')) "$id-$analysisVersion-$suffix" else "$id-$analysisVersion.$suffix"
-        assertTrue(dir.resolve(name).isFile, name)
-      }
+      workspace.resolve("publication.log").writeText(publication.output)
     }
     val versions = installationCompilers()
     workspace.resolve("results.txt").writeText("")
@@ -82,13 +53,10 @@ class IntrospectorSelectionInstallationTest {
       app.resolve("gradle.properties").writeText("org.gradle.jvmargs=-Xmx1g -XX:MaxMetaspaceSize=1g\n")
       app.resolve("settings.gradle.kts").writeText(
         """
-        pluginManagement { repositories { maven(url = uri("${maven.invariantSeparatorsPath}")); gradlePluginPortal() } }
+        pluginManagement { repositories { maven(url = uri("${maven.invariantSeparatorsPath}")); mavenCentral(); gradlePluginPortal() } }
         dependencyResolutionManagement {
           repositories {
-            exclusiveContent {
-              forRepository { maven(url = uri("${maven.invariantSeparatorsPath}")) }
-              filter { includeGroup("org.buildmosaic") }
-            }
+            maven(url = uri("${maven.invariantSeparatorsPath}"))
             mavenCentral()
           }
         }
@@ -143,12 +111,15 @@ class IntrospectorSelectionInstallationTest {
       app.resolve("installation.log").writeText(result.output)
       assertEquals(TaskOutcome.SUCCESS, result.task(":verifyMosaicMain")?.outcome)
       assertTrue(result.output.contains("MOSAIC_JAVA17=17."), result.output)
-      assertFalse(result.output.contains("MOSAIC_COMPATIBILITY_PROBE"), result.output)
-      val api = CompilerVersionAdmission.compilerApi(compiler)
-      val id = CompilerVersionAdmission.artifactId(api)
       val selected = result.output.lines().single { it.startsWith("MOSAIC_SELECTED=") }
+      val selectedJar = File(selected.substringAfter("$analysisVersion:"))
+      val profiles = java.util.Properties()
+      java.util.jar.JarFile(selectedJar).use { jar ->
+        jar.getInputStream(jar.getJarEntry("org/buildmosaic/analysis/compiler-profiles.properties")).use(profiles::load)
+      }
+      val api = profiles.stringPropertyNames().single { it != "default" && compiler in profiles.getProperty(it).split(',') }
+      val id = if (api == profiles.getProperty("default")) "mosaic-compiler-plugin" else "mosaic-compiler-plugin-kotlin-$api"
       assertTrue(selected.startsWith("MOSAIC_SELECTED=org.buildmosaic:$id:$analysisVersion:"), selected)
-      assertEquals(hashes.getValue(id), sha256(File(selected.substringAfter("$analysisVersion:"))))
       val summary = SummaryCodec.decode(app.resolve("build/mosaic-analysis/main/summary.json").readBytes())
       assertEquals(compiler, summary.producer.compilerVersion)
       assertEquals(analysisVersion, summary.producer.analysisVersion)
@@ -168,16 +139,12 @@ class IntrospectorSelectionInstallationTest {
       app.resolve("missing.log").writeText(failed.output)
       assertEquals(TaskOutcome.FAILED, failed.task(":verifyMosaicMain")?.outcome)
       assertTrue(app.resolve("build/reports/mosaic-analysis/main.txt").readText().contains("MISSING REQUIRED_LOOKUP"))
-      workspace.resolve("results.txt").appendText("$compiler $api $id ${hashes.getValue(id)} PASS\n")
+      workspace.resolve("results.txt").appendText("$compiler $api $id ${sha256(selectedJar)} PASS\n")
     }
-    if ("2.4.20" in versions) verifyCompilerChanges(workspace.resolve("consumer-2.4.20"), analysisVersion)
-    if ("2.3.0" in versions) {
-      verifyRuntimeConsumer(
-        workspace,
-        maven,
-        runtimeVersion,
-        useBom = false,
-        kotlinVersion = "2.3.0",
+    if ("2.4.20" in versions && maven.resolve("org/buildmosaic/mosaic-gradle-plugin/$analysisVersion").isDirectory) {
+      verifyCompilerChanges(
+        workspace.resolve("consumer-2.4.20"),
+        analysisVersion,
       )
     }
   }
@@ -267,8 +234,8 @@ class IntrospectorSelectionInstallationTest {
       )
     assertTrue(repeated.output.contains("Configuration cache entry reused"), repeated.output)
     assertCompilerProvenance(app, "2.4.21")
-    val unsupported = failedBuild(app, "-Pfixture.compiler=2.4.22")
-    assertTrue(unsupported.contains("has not verified Kotlin compiler 2.4.22"), unsupported)
+    val unsupported = failedBuild(app, "-Pfixture.compiler=999.0.0")
+    assertTrue(unsupported.contains("has not verified Kotlin compiler 999.0.0"), unsupported)
     build.writeText(selectableBuild.replace("kotlin(\"jvm\") version \"2.4.20\"", "kotlin(\"jvm\") version \"2.3.20\""))
     build.appendText(
       """

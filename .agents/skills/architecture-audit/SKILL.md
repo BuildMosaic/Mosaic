@@ -33,7 +33,7 @@ Read affected module guides: [runtime](../../../mosaic-core/README.md),
 Pay particular attention to their boundaries with runtime execution,
 Canvas/configuration and public compatibility. Preserve deliberate conservative
 unknowns and assess the [public API matrix](../../../mosaic-compiler-plugin/src/test/PUBLIC_API_MATRIX.md)
-and [published compatibility](../../../website/src/content/docs/reference/compatibility.md).
+and [published compatibility](../../../website/src/content/docs/reference/compatibility.mdx).
 Absence of local callers does not establish that consumers do not use a public API;
 source, JVM binary and SPI obligations need separate consideration. A deeper module
 does not automatically mean fewer internal types or tests: compiler/runtime

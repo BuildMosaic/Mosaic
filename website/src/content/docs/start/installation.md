@@ -3,7 +3,7 @@ title: 'Installation'
 description: 'Add Mosaic to a Kotlin/JVM application and align optional runtime modules.'
 ---
 
-Use a Kotlin/JVM project with Maven Central. Runtime artifacts require Java 17 or later and a Kotlin 2.3.0 or later consumer. See the [compatibility reference](/reference/compatibility/) for tested versions.
+Use a Kotlin/JVM project with Maven Central. Runtime artifacts require Java 17 or later. Choose a Kotlin version from the [compatibility reference](/reference/compatibility/) for your Runtime release.
 
 Add core to your Gradle Kotlin DSL build:
 

@@ -3,8 +3,8 @@
 ## Installation
 
 `org.buildmosaic.analysis` supports pure Kotlin/JVM
-`main` sources under `src/main/kotlin` with Kotlin Gradle plugin and compiler
-**2.4.20 only**.
+`main` sources under `src/main/kotlin`. Choose the compiler/KGP and Runtime versions
+listed for your Analysis release in [compatibility](https://BuildMosaic.org/reference/compatibility/).
 It is build tooling: it does not apply Kotlin or add Mosaic application runtime
 dependencies. Add Maven Central to plugin and dependency repositories. Install
 version 0.7.0 with:
@@ -64,45 +64,18 @@ mosaicAnalysis {
 }
 ```
 
-The Gradle plugin uses Kotlin 2.4.20’s
-`KotlinCompilerPluginSupportPlugin` API to resolve the same-version
-`mosaic-compiler-plugin` artifact for the `main` Kotlin/JVM
-compilation. No compiler JAR path or application dependency is needed. The
-compiler artifact is self-contained; its publication does not add a second
-analysis-core or serialization runtime to the compiler plugin classpath.
+The plugin automatically selects the compiler integration for your Kotlin version.
+No compiler JAR path or application dependency is needed.
 
 Applications also export contracts. A library with roots is contradictory and
 fails with a configuration error.
 
-## Build and task architecture
+## Build integration
 
-`compileKotlin` runs Mosaic’s IR extractor inside the normal Kotlin/JVM `main`
-compilation. There is no second Kotlin compiler process in supported production
-builds. Kotlin decides which sources to recompile. The extractor writes one
-internal shard for each file Kotlin presents, including a shard when a file no
-longer contributes Mosaic declarations. `compileKotlin` declares the complete
-shard directory as an output, so a build-cache restore supplies all shards
-required by a clean workspace. After writing affected shards, the compiler
-plugin removes shards for sources no longer under `src/main/kotlin`. Shard
-storage is versioned internally and is not dependency metadata or a public
-compatibility format.
-
-`extractMosaicMain` assembles and validates a complete summary without running a
-compiler. It uses the current `src/main/kotlin` source manifest, so stale shards
-from deleted or renamed files cannot enter the result or its Gradle input
-fingerprint. Only paths for current source shards are declared as task inputs.
-If all Kotlin sources are removed, it emits an explicit empty complete summary
-without invoking Mosaic’s compiler plugin, even if `compileKotlin` reports
-`NO_SOURCE` and leaves physical shards behind. A missing current shard or
-malformed shard fails assembly. Every current shard must have been extracted
-under the selected Core semantic revision; stale or mixed revisions fail.
-Assembly retains dependency semantic requirements in the packaged payload,
-including for an empty source set.
-`jar` embeds the complete summary at
-`META-INF/mosaic-analysis/v1/summary.json`. `verifyMosaicMain` reads that local
-summary and selected dependency summaries, writes
-`build/reports/mosaic-analysis/main.txt`, and is aggregated by `verifyMosaic`
-and `check`.
+Normal Kotlin compilation produces analysis metadata. `verifyMosaicMain` checks
+application roots, and `mosaicGraph` generates architecture reports. Libraries
+package their summaries for consumers automatically. Incremental and cached
+builds retain the same verification results as clean builds.
 
 ## Dependency documentation
 
@@ -129,30 +102,10 @@ selected dependency summaries, so it launches no separate compiler process.
 
 ## Incremental and cache behavior
 
-The selected Core JAR declares `Mosaic-Core-Analysis-Revision`; Analysis
-understands exactly revision 1, independently of release versions. Missing,
-malformed, ambiguous, unsupported, or conflicting compile/runtime Core semantics
-fail packaging, verification, and graph generation in both enforcement modes.
-Consumed summaries must also retain only understood semantic requirements.
-`NO_SOURCE` preserves these checks without fabricating compiler execution.
-
-The selected revision is an explicit compiler-plugin option. Changing it
-invalidates Kotlin's incremental state and re-extracts every current source,
-unless an exact complete compilation cache entry is restored. Changing only the
-Core release number adds no semantic invalidation. Current shards and selected
-semantics participate in assembly inputs; metadata bodies remain downstream
-verification and graph inputs.
-
-Dependency contract invalidation is separate from source compilation.
-Verification reads the raw summary resource copied by a cacheable per-JAR
-artifact transform. A dependency Mosaic contract change reruns verification
-without forcing unchanged application source extraction. A JAR without the
-resource produces no summary. Assembly validates present dependency summaries
-before retaining their semantic requirements, so malformed metadata fails
-packaging as well as verification and graph generation.
-Kotlin’s own incremental compilation handles public constants, typealiases,
-inline bodies, and other source-resolution changes. Mosaic does no additional
-source-resolution fingerprinting or separate K2 compilation.
+Changing a dependency's analysis metadata reruns verification without forcing
+unchanged application sources to recompile. Incompatible runtime semantics or
+metadata fail with a compatibility diagnostic. Choose a supported Runtime/Analysis
+pair or regenerate dependency summaries with compatible tooling.
 
 In APPLICATION mode verification checks discovered or configured roots. In LIBRARY mode it
 validates and exports the complete local summary as `EXPORT_ONLY`. Both roles
@@ -203,18 +156,12 @@ regenerate incompatible summaries with the supported Mosaic analysis toolchain.
 
 The canonical [supported project boundary](https://BuildMosaic.org/reference/analysis-configuration/#supported-project-boundary)
 lists all Kotlin/JVM, source-layout, compiler-option, plugin, and platform
-restrictions. The DSL, format-5 metadata, and report format are provisional.
+restrictions. The configuration DSL and report formats are provisional.
 Analysis tooling is not included in the runtime BOM.
 
-## Publication
+## Version alignment
 
-The release publishes `org.buildmosaic:mosaic-compiler-plugin` and
-`org.buildmosaic:mosaic-gradle-plugin` to Maven Central at the same Mosaic
-version. Gradle also generates the `org.buildmosaic.analysis` plugin marker.
-Both plugins bundle the internal analysis-core implementation they need;
-`mosaic-analysis-core` is not published separately. The compiler plugin remains
-a separate artifact loaded through Kotlin Gradle Plugin's standard
-`getPluginArtifact()` resolution. These analysis artifacts are not application
-dependencies or BOM entries. The root `release` task publishes the six Mosaic
-modules to Maven Central, then submits the Gradle plugin through the Plugin
-Portal. Local installation tests use a temporary Maven repository.
+Analysis has its own release version. Its Gradle plugin selects matching compiler
+artifacts automatically; these are build tooling and are outside the Runtime BOM.
+Your Runtime and Analysis versions need not match. Use the
+[compatibility table](https://BuildMosaic.org/reference/compatibility/) to choose a pair.

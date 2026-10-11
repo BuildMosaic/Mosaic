@@ -5,7 +5,7 @@ description: 'Replace dependency Tiles with values, failures, and virtual-time d
 
 Test real response logic by replacing its dependency Tiles. `mosaic-test` uses the same runtime as production, with selected substitutions inside a scoped execution. `withMosaic` inherits the calling coroutine context, including the enclosing `runTest` Job, dispatcher, and virtual-time scheduler. Use Canvas sources for request input and service fakes.
 
-The examples on `develop` use the unreleased scoped test API. For the published 0.7.0 artifact, use the [release test guide](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/mosaic-test/README.md); see [scoped execution migration](/reference/compatibility/#scoped-execution-migration) when updating consumers.
+The examples on `develop` use the unreleased scoped test API. For the published 0.7.0 artifact, use the [release test guide](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/mosaic-test/README.md); see [scoped execution migration](/reference/releases/#scoped-execution-migration) when updating consumers.
 
 ## Quick Start
 
@@ -20,7 +20,7 @@ dependencies {
 }
 ```
 
-Mosaic targets JVM 17 and uses Kotlin 2.4.20 with language/API level 2.4. Runtime artifacts are tested with Kotlin 2.3.0 consumers and use stdlib/`kotlin-test` 2.4.20 and coroutines core/test 1.11.0. See [runtime compatibility](/reference/compatibility/).
+Use the same version of `mosaic-test` and `mosaic-core`. See [runtime compatibility](/reference/compatibility/) for supported Kotlin versions and Java requirements.
 
 `mosaic-test` exposes Mosaic core and coroutine test APIs and must use the same Mosaic version as `mosaic-core`. Use the [BOM](https://github.com/BuildMosaic/Mosaic/blob/main/mosaic-bom/README.md) to keep runtime modules aligned and omit versions on Mosaic dependencies.
 

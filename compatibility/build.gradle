@@ -5,6 +5,7 @@ import java.security.MessageDigest
 plugins { id 'java' }
 
 def candidate = providers.gradleProperty('compat.candidate').get()
+def runtimeCandidate = providers.gradleProperty('compat.runtimeCandidate').orElse(candidate).get()
 def requested = providers.gradleProperty('compat.kotlin').get()
 def baseline = providers.gradleProperty('compat.baseline').get()
 def evidence = file(providers.gradleProperty('compat.evidence').get())
@@ -12,15 +13,10 @@ def scope = providers.gradleProperty('compat.scope').get()
 def required = scope == 'runtime' ? ['compiler', 'consumer'] : ['compiler', 'controlCompiler', 'consumer', 'extractor', 'runner']
 
 repositories {
-    exclusiveContent {
-        forRepository {
-            maven {
-                url = uri(providers.gradleProperty('compat.repository').get())
-                // Exercise published POM transitivity, never project substitution or mavenLocal.
-                metadataSources { mavenPom(); artifact() }
-            }
-        }
-        filter { includeGroup 'org.buildmosaic' }
+    maven {
+        url = uri(providers.gradleProperty('compat.repository').get())
+        // Exercise published POM transitivity; candidates have unique versions.
+        metadataSources { mavenPom(); artifact() }
     }
     mavenCentral()
 }
@@ -46,7 +42,7 @@ dependencies {
     compiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly requested } }
     controlCompiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly baseline } }
     ['mosaic-core', 'mosaic-test', 'mosaic-opentelemetry'].each {
-        consumer("org.buildmosaic:$it:$candidate") { version { strictly candidate } }
+        consumer("org.buildmosaic:$it:$runtimeCandidate") { version { strictly runtimeCandidate } }
     }
     extractor("org.buildmosaic:mosaic-compiler-plugin:$candidate") { version { strictly candidate } }
     runner 'org.junit.platform:junit-platform-console-standalone:1.12.2'
@@ -57,25 +53,17 @@ tasks.register('resolveEvidence') {
     doLast {
         evidence.mkdirs()
         def result = [gradle: gradle.gradleVersion, java: System.getProperty('java.version'), configurations: [:]]
-        try {
-            def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }.get()
-            result.java17 = launcher.executablePath.asFile.absolutePath
-            result.java17Version = launcher.metadata.javaRuntimeVersion
-        } catch (Exception failure) {
-            result.java17Error = failure.toString()
-        }
+        def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }.get()
+        result.java17 = launcher.executablePath.asFile.absolutePath
+        result.java17Version = launcher.metadata.javaRuntimeVersion
         configurations.findAll { it.name in required }.each { config ->
-            try {
-                def artifacts = config.resolvedConfiguration.resolvedArtifacts.collect { artifact ->
-                    def id = artifact.moduleVersion.id
-                    def hash = MessageDigest.getInstance('SHA-256').digest(artifact.file.bytes).encodeHex().toString()
-                    [coordinate: "$id.group:$id.name:$id.version", group: id.group, module: id.name,
-                     version: id.version, file: artifact.file.absolutePath, sha256: hash]
-                }.sort { it.coordinate }
-                result.configurations[config.name] = [artifacts: artifacts]
-            } catch (Exception failure) {
-                result.configurations[config.name] = [error: failure.toString()]
-            }
+            def artifacts = config.resolvedConfiguration.resolvedArtifacts.collect { artifact ->
+                def id = artifact.moduleVersion.id
+                def hash = MessageDigest.getInstance('SHA-256').digest(artifact.file.bytes).encodeHex().toString()
+                [coordinate: "$id.group:$id.name:$id.version", group: id.group, module: id.name,
+                 version: id.version, file: artifact.file.absolutePath, sha256: hash]
+            }.sort { it.coordinate }
+            result.configurations[config.name] = [artifacts: artifacts]
         }
         new File(evidence, 'resolution.json').text = JsonOutput.prettyPrint(JsonOutput.toJson(result)) + '\n'
     }
