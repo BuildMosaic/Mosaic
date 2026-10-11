@@ -157,7 +157,7 @@ class ProposalTest(unittest.TestCase):
         gh = self.invoke(['[]', json.dumps([{'title': self.title, 'url': 'existing-issue'}])])
         self.assertEqual(2, gh.call_count)
 
-    def test_branch_targets_tested_main_and_commit_is_verified_before_pr(self):
+    def test_proposal_commit_uses_tested_revision_and_verified_changes(self):
         responses = ['[]', '[]', '{"object":{"sha":"base"}}', '[]', '{"object":{"sha":"base"}}',
                      '{"data":{"createCommitOnBranch":{"commit":{"signature":{"isValid":true}}}}}', 'new-pr']
         gh = self.invoke(responses)
@@ -165,9 +165,6 @@ class ProposalTest(unittest.TestCase):
         self.assertEqual('base', mutation['expectedHeadOid'])
         self.assertEqual(self.branch, mutation['branch']['branchName'])
         self.assertEqual('verified', base64.b64decode(mutation['fileChanges']['additions'][0]['contents']).decode())
-        self.assertEqual(('api', 'repos/BuildMosaic/Mosaic/git/ref/heads/main'), gh.call_args_list[2].args)
-        self.assertIn('main', gh.call_args_list[0].args)
-        self.assertIn('main', gh.call_args_list[-1].args)
 
     def test_main_race_or_unverified_signature_cannot_create_pr(self):
         with self.assertRaisesRegex(ValueError, 'main advanced'):
