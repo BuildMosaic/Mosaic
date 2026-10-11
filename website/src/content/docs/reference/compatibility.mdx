@@ -1,0 +1,102 @@
+---
+title: 'Compatibility'
+description: 'Runtime, test, tracing, and optional analysis requirements.'
+---
+
+import CompatibilityTables from '../../../components/CompatibilityTables.astro';
+
+Mosaic Runtime and optional Analysis release independently. Choose a Runtime release for your application; add a
+compatible Analysis release when you want architecture reports and dependency verification.
+
+## Supported versions
+
+Mosaic's support floor is **Kotlin 2.2.0**. Every stable Kotlin release from that version onward is in scope, including
+backported patches; support does not expire with age. New compiler versions become supported after verification.
+Prereleases are outside this policy.
+
+<CompatibilityTables />
+
+These tables describe published, verified combinations. Unlisted versions or relationships are **not yet certified**,
+rather than implicitly compatible. For Analysis, use the listed Kotlin compiler and matching Kotlin Gradle Plugin (KGP)
+version. Older Analysis binaries may need an upgrade to admit a new Kotlin version, even when the underlying compiler
+API is unchanged.
+
+## Runtime libraries
+
+Runtime supports Kotlin/JVM consumers on **Java 17 or later**. Choose a compiler from the supported versions above.
+Applications supply their OpenTelemetry SDK or agent. Runtime use needs no analysis plugin or registration processor.
+
+## 1.x compatibility guarantees
+
+**Effective starting with 1.0.0.** The released 1.0.0 artifacts define the Runtime compatibility baseline for 1.x.
+Historical 0.x releases are not compatibility baselines.
+
+Runtime preserves **Kotlin source compatibility** for supported public APIs on certified compilers, **JVM binary
+linkage** for already-compiled supported Kotlin/JVM consumers with compatible runtime dependencies, and **documented
+observable behavior**. The [Kotlin API reference](/api/) covers usable public declarations, including Tile/MultiTile
+constructors, provider-visible `CanvasFactory.source`, generated `CanvasKey` methods, delegation, composition overloads,
+and conforming third-party interface implementations. Named/default arguments, inline/reified targets, suspend
+signatures, overloads/JVM names, and interface implementation compatibility are covered. Inlined code retains its
+compiled body.
+
+| Surface                                                               | Guarantee                                                                                                                         |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `mosaic-core`                                                         | Public Canvas, Tile, MultiTile, and Mosaic APIs and documented semantics.                                                         |
+| `mosaic-test`                                                         | Public builders, scoped execution, source substitution, mocks, and assertions.                                                    |
+| [Observation SPI](/api/mosaic-core/org.buildmosaic.core.observation/) | Public callbacks, tokens/references, metadata, relationships, concurrency, lifecycle, noninterference, and privacy.               |
+| [OpenTelemetry tracing](/guides/tracing/)                             | Both installation overloads and documented execution, context, relationship, completion, failure-isolation, and privacy behavior. |
+
+Behavior includes [scoped cancellation/cleanup and identity-based sharing](/concepts/shared-work/), equal-key outcome
+retention, [bulk/per-key/chunk failure boundaries](/concepts/batching/),
+[eager Canvas construction, lookup, and layering](/concepts/canvas/),
+[resource ownership and documented `Canvas.close` guarantees](/guides/resources/), and
+[testing semantics](/guides/testing/). Automatic observation excludes application keys, values, Canvas contents, request
+identifiers, and raw exception contents. Integrations own their tokens; applications own telemetry SDKs, sampling,
+export, and shutdown.
+
+Runtime minors add compatible capabilities; patches make compatible fixes; breaking supported APIs or semantics require
+a major release. Dependency upgrades preserve supported consumption and behavior. Exact batches, scheduling, internal
+implementation structure, fixed performance measurements, noncontractual exception-message formatting, arbitrary Java
+source compatibility, and multiplatform support are excluded. Reflection does not expand the supported API.
+
+## Release trains and module alignment
+
+**Runtime** comprises `mosaic-core`, `mosaic-test`, `mosaic-opentelemetry`, and `mosaic-bom`. Their `org.buildmosaic`
+coordinates are preserved, and their Runtime versions align. The BOM aligns Runtime modules only; arbitrary mixed
+Runtime module versions are unsupported.
+
+**Analysis**, including the optional `org.buildmosaic.analysis` Gradle plugin, has its own version and release cadence,
+independent of Runtime.
+
+Runtime and Analysis versions need not match. An older Analysis release remains supported with newer Runtime releases
+when the combination is certified compatible. New Runtime releases do not automatically require Analysis upgrades.
+Upgrades are necessary only when compiler compatibility, runtime analysis semantics, or metadata compatibility require
+them. Certification determines support, not version ordering; a compatible older plugin is not rejected merely because a
+newer plugin exists.
+
+## Optional analysis
+
+Analysis supports certified Kotlin compiler/KGP combinations within its pure Kotlin/JVM `main` source boundary.
+Plugin/artifact identities and documented soundness guarantees are retained; configuration DSL, compiler integration,
+metadata formats, diagnostic IDs, and report formats remain provisional rather than sharing Runtime's 1.x public API
+guarantees. Breaking tooling changes carry migration/regeneration guidance without weakening `VERIFIED`, `MISSING`, or
+`UNVERIFIED` distinctions.
+
+Missing dependency metadata retains conservative `UNVERIFIED` behavior. Present but incompatible metadata produces an
+explicit compatibility failure. Unsupported Runtime semantics never silently produce `VERIFIED`. Compatibility
+diagnostics identify the offending dependency, relevant installed/producer versions, the incompatibility, and actionable
+remediation. Regenerate incompatible summaries with compatible Analysis tooling.
+
+Analysis excludes nonstandard/generated Kotlin source paths, scripts, mixed Java/Kotlin, friend paths, other compiler
+plugins, plugin options, opt-ins, free compiler arguments, progressive mode, nondefault JVM interface mode, no-JDK
+compilation, and KSP. Android, multiplatform, test sources, framework lifecycle callbacks, and arbitrary virtual
+dispatch are unsupported. Java and Kotlin toolchains must agree.
+
+[Configure analysis](/guides/analysis/) and consult the
+[supported source and control-flow boundary](/reference/analysis-configuration/#supported-project-boundary). Unknown
+paths remain visible; a STANDARD warning pass does not prove every lookup safe.
+
+<p id="scoped-execution-migration">
+  For upgrade instructions, see the{' '}
+  <a href="/reference/releases/#scoped-execution-migration">release notes and migration guidance</a>.
+</p>

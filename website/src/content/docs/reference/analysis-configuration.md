@@ -7,7 +7,7 @@ Use this reference to configure the optional `org.buildmosaic.analysis` plugin. 
 
 ## Plugin setup
 
-Analysis supports exactly Kotlin compiler and Kotlin Gradle plugin **2.4.20**, for pure Kotlin/JVM `main` sources. See the [supported project boundary](#supported-project-boundary) before applying it.
+Analysis supports pure Kotlin/JVM `main` sources with the compiler/KGP versions listed for your release in [compatibility](/reference/compatibility/). See the [supported project boundary](#supported-project-boundary) before applying it.
 
 ```kotlin title="settings.gradle.kts"
 pluginManagement {
@@ -230,7 +230,7 @@ Dependency summary changes can rerun verification without recompiling unchanged 
 
 ## Supported project boundary
 
-Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. The plugin requires Kotlin compiler and Kotlin Gradle plugin **2.4.20**, and validates the Java toolchain against Kotlin's toolchain. The repository build and examples use JDK 21 and Gradle 8.14.4; these analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
+Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibility](/reference/compatibility/). The plugin validates the Java toolchain against Kotlin's toolchain. The repository build and examples use JDK 21 and Gradle 8.14.4; these analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
 
 The plugin rejects:
 

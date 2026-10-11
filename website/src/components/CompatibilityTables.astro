@@ -1,0 +1,69 @@
+---
+import records from '../../../compatibility/registry.json';
+
+const { runtime, analysis } = records as {
+  runtime: Record<string, string[]>;
+  analysis: Record<string, { kotlin: string[]; runtime: Record<string, string[]> }>;
+};
+const descending = ([a]: [string, unknown], [b]: [string, unknown]) => b.localeCompare(a, undefined, { numeric: true });
+---
+
+{
+  Object.keys(runtime).length === 0 ? (
+    <p>
+      No independently versioned releases are recorded yet. Consult the <a href="/reference/releases/">release notes</a>{' '}
+      for published 0.x requirements.
+    </p>
+  ) : (
+    <table>
+      <caption>Runtime and Kotlin</caption>
+      <thead>
+        <tr>
+          <>
+            <th>Runtime release</th>
+            <th>Supported Kotlin versions</th>
+          </>
+        </tr>
+      </thead>
+      <tbody>
+        {Object.entries(runtime)
+          .sort(descending)
+          .map(([release, kotlin]) => (
+            <tr>
+              <td>{release}</td>
+              <td>{kotlin.join(', ')}</td>
+            </tr>
+          ))}
+      </tbody>
+    </table>
+  )
+}
+{
+  Object.keys(analysis).length > 0 && (
+    <table>
+      <caption>Analysis, Runtime, and Kotlin</caption>
+      <thead>
+        <tr>
+          <>
+            <th>Analysis release</th>
+            <th>Runtime release</th>
+            <th>Supported Kotlin/KGP versions</th>
+          </>
+        </tr>
+      </thead>
+      <tbody>
+        {Object.entries(analysis)
+          .sort(descending)
+          .flatMap(([release, entry]) =>
+            Object.entries(entry.runtime).map(([version, kotlin]) => (
+              <tr>
+                <td>{release}</td>
+                <td>{version}</td>
+                <td>{kotlin.join(', ')}</td>
+              </tr>
+            )),
+          )}
+      </tbody>
+    </table>
+  )
+}

@@ -65,8 +65,8 @@ tasks.withType<Test>().configureEach {
   providers.gradleProperty(
     "mosaic.test.kotlinVersions",
   ).orNull?.let { systemProperty("mosaic.test.kotlinVersions", it) }
-  providers.gradleProperty("mosaic.test.runtimeRepository").orNull?.let {
-    systemProperty("mosaic.test.runtimeRepository", it)
+  listOf("repository", "runtimeVersion", "analysisVersion").forEach { name ->
+    providers.gradleProperty("mosaic.test.$name").orNull?.let { systemProperty("mosaic.test.$name", it) }
   }
 }
 

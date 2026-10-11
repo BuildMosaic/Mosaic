@@ -14,9 +14,8 @@ dependencies {
 }
 ```
 
-Runtime use needs no registration plugin or processor. Java 17 or later and a
-Kotlin 2.3.0 or later consumer are required. Mosaic exposes coroutines 1.11.0;
-see [compatibility](https://BuildMosaic.org/reference/compatibility/) and the
+Runtime use needs no registration plugin or processor. Java 17 or later is required.
+Choose a Kotlin version supported by your Runtime release; see [compatibility](https://BuildMosaic.org/reference/compatibility/) and the
 [BOM](../mosaic-bom/README.md) for runtime alignment.
 
 ## Compose a response

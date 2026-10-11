@@ -10,6 +10,10 @@ on:
         options:
           - runtime
           - analysis
+      counterparts:
+        description: Published versions of the other train to check (comma-separated; blank uses latest recorded)
+        required: false
+        type: string
       version:
         description: Version to release
         required: true
@@ -23,7 +27,7 @@ jobs:
   release:
     name: Publish release
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     environment: release
     permissions:
       contents: write
@@ -84,8 +88,12 @@ jobs:
       - name: Certify release compatibility
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
-          MOSAIC_RELEASE_VERSION: ${{ steps.release.outputs.version }}
-        run: ./gradlew certifyReleaseCompatibility -Pcompat.scope="$RELEASE_TRAIN" --no-configuration-cache -Porg.gradle.java.installations.paths="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          COUNTERPARTS: ${{ inputs.counterparts }}
+        run: |
+          args=()
+          if [ -n "$COUNTERPARTS" ]; then args+=("-Pcompat.counterparts=$COUNTERPARTS"); fi
+          ./gradlew certifyReleaseCompatibility -Pcompat.scope="$RELEASE_TRAIN" -Pcompat.release="$RELEASE_VERSION" "${args[@]}" --no-configuration-cache -Porg.gradle.java.installations.paths="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
 
       - name: Publish Runtime
         if: ${{ success() && inputs.train == 'runtime' }}
@@ -138,6 +146,7 @@ jobs:
 
       # Default success() gates this on publication AND GitHub Release creation.
       - name: Propose the certified published compatibility registry
+        if: success() && !contains(steps.release.outputs.version, '-')
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
@@ -147,7 +156,7 @@ jobs:
           evidence="$GITHUB_WORKSPACE/build/reports/compatibility/release-$RELEASE_TRAIN.json"
           git fetch --no-tags origin main
           git checkout --detach FETCH_HEAD
-          python3 compatibility/maintain.py registry --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"
+          python3 compatibility/maintain.py record --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"
 
       - uses: actions/upload-artifact@v4
         if: always()

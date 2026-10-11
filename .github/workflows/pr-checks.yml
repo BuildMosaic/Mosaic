@@ -32,6 +32,11 @@ jobs:
     - name: Run comprehensive PR validation
       run: ./gradlew check --no-daemon
 
+    - name: Validate compatibility facts
+      run: |
+        python3 compatibility/registry.py validate
+        python3 -m unittest discover -s compatibility -p 'test_*.py'
+
     - name: Verify benchmark harness
       run: python3 -m unittest discover -s performance/benchmark/tests -v
 

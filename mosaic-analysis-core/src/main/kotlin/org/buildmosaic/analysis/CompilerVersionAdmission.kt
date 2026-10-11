@@ -4,8 +4,6 @@ import java.util.Properties
 
 /** Internal measured compiler mapping, shared by Gradle selection and compiler admission. */
 object CompilerVersionAdmission {
-  const val COMPATIBILITY_PROBE_PROPERTY = "mosaic.analysis.compatibilityProbe"
-
   private val profiles =
     Properties().apply {
       CompilerVersionAdmission::class.java.getResourceAsStream("compiler-profiles.properties")!!.use(::load)
@@ -40,10 +38,6 @@ object CompilerVersionAdmission {
     actualCompilerVersion: String,
     compilerApi: String = defaultCompilerApi,
   ) {
-    if (System.getProperty(COMPATIBILITY_PROBE_PROPERTY) == "true") {
-      System.err.println("MOSAIC_COMPATIBILITY_PROBE: compiler-version admission bypassed for $actualCompilerVersion")
-      return
-    }
     require(stableVersion(actualCompilerVersion) in compilersByApi[compilerApi].orEmpty()) {
       "Mosaic introspector compiler API $compilerApi does not support Kotlin compiler $actualCompilerVersion. " +
         "Verified compilers: ${compilersByApi[compilerApi].orEmpty().joinToString()}"

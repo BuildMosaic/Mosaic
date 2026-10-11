@@ -1,60 +1,38 @@
 # Release procedure
 
-Runtime and Analysis release independently. Keep `mosaic.version` in the root
-`gradle.properties` as the development default. Release tags are `runtime-<version>`
-or `analysis-<version>`, for example `runtime-1.0.0`. The workflow derives the
-tag from the selected train and version and overrides only `mosaic.runtime.version`
-or `mosaic.analysis.version` for publication. Existing historical tags remain unchanged.
+Runtime and Analysis release independently. Prepare maintenance on `main`; merge
+ready features from `develop` before releasing them. Keep `mosaic.version` as the
+development default. The workflow overrides the selected train's version.
 
-Prepare hotfixes and maintenance releases directly against `main`. New features
-are developed on `develop` and reach `main` through a validated feature-release
-PR when ready. Compatibility mapping and registry PRs target `main` and do not
-require unreleased features. Include a dated changelog heading using the full tag,
-such as `## [runtime-1.0.0] - YYYY-MM-DD`, and a companion
-`docs/releases/runtime-1.0.0.md`. Create the immutable train tag at that validated
-main commit. Release preparation itself does not tag, publish, or deploy.
-
-Run the manual **Release** workflow from `main` with the train and version:
+1. Add a dated changelog entry and `docs/releases/TRAIN-VERSION.md`.
+2. Validate the release commit, then create its immutable `runtime-VERSION` or
+   `analysis-VERSION` tag.
+3. Dispatch **Release** from `main` with the train and version.
+4. After a stable publication, review and merge the generated compatibility registry PR.
+   Prereleases are verified but do not establish public compatibility records.
 
 ```bash
 gh workflow run release.yml --ref main -f train=runtime -f version=1.0.0
 ```
 
-Configure a protected GitHub Environment named `release` before running it.
-Provide these environment secrets there: `MAVEN_CENTRAL_USERNAME`,
+Configure the protected `release` environment with `MAVEN_CENTRAL_USERNAME`,
 `MAVEN_CENTRAL_PASSWORD`, `SIGNING_PRIVATE_KEY`, and `SIGNING_PASSWORD`.
-Analysis publication also needs `GRADLE_PUBLISH_KEY` and `GRADLE_PUBLISH_SECRET`;
-Runtime publication does not use Plugin Portal credentials. Do not put credentials
-in repository files.
+Analysis also requires `GRADLE_PUBLISH_KEY` and `GRADLE_PUBLISH_SECRET`.
+Enable GitHub Actions pull-request creation in repository workflow permissions.
 
-The job validates and checks out the tag's exact commit, sets up JDKs 17 and 21,
-and runs `./gradlew check` and `./gradlew check -p examples`. It then runs
-`./gradlew certifyReleaseCompatibility -Pcompat.scope=runtime` or `analysis`.
-Certification covers all supported Kotlin patches and must succeed before publication;
-synthetic certification versions are separate from release versions.
+The workflow checks the repository and examples, certifies every stable Kotlin
+version from 2.2.0, and tests the latest recorded counterpart release. The optional
+`counterparts` input selects additional published versions to certify. Runtime
+can release before any Analysis exists; Analysis requires a recorded Runtime.
+See [compatibility maintenance](../kotlin-certification.md) for local commands.
 
-`releaseRuntime` publishes `mosaic-core`, `mosaic-test`, `mosaic-opentelemetry`,
-and the Runtime-only `mosaic-bom` to Maven Central. `releaseAnalysis` publishes
-`mosaic-gradle-plugin`, all measured introspector artifacts, and the generated plugin
-marker to Maven Central, then publishes `org.buildmosaic.analysis` to the Plugin
-Portal after both module-level Central tasks succeed. All Analysis artifacts share
-one version. Neither task publishes the other train.
+`releaseRuntime` publishes Core, Test, OpenTelemetry, and the Runtime BOM.
+`releaseAnalysis` publishes the Gradle plugin, plugin marker, and introspectors,
+then submits the plugin to the Plugin Portal. Publication is not atomic; inspect
+partial success before retrying and never republish released coordinates.
 
-The workflow does not wait for Maven Central public visibility. Publication is not
-atomic: if a later step fails after artifacts are published, inspect what succeeded
-before retrying; do not republish released coordinates.
-
-After Gradle publication succeeds, the workflow creates a published GitHub
-Release from the checked-in release-notes companion and dated changelog entry.
-The workflow never creates or moves a tag.
-
-After GitHub Release creation succeeds, the workflow proposes a compatibility
-registry PR against `main` from that release's certification evidence. Review
-its continuous Kotlin interval and frozen ceilings for older releases; it records
-only the actual released train and does not infer Runtime/Analysis relationship
-bounds. Failed publication or GitHub Release creation cannot trigger this proposal.
-The `release-compatibility` Actions artifact retains evidence for 30 days. See
-[automatic maintenance](../kotlin-certification.md#automatic-kotlin-maintenance)
-for token permissions and handling a blocked PR. Registry proposal failure occurs
-after publication: retry the proposal from retained evidence, never republish the
-release solely to repair its registry PR.
+After publication and GitHub Release creation, the workflow proposes only the
+compatibility facts it verified. Evidence remains in the `release-compatibility`
+Actions artifact for 30 days. If the registry proposal fails, retry only that
+proposal from retained evidence; publication has already happened. No workflow
+creates or moves release tags, merges PRs, or invents historical support.

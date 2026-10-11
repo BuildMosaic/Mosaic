@@ -58,10 +58,6 @@ listOf(
       "--java-installations",
       providers.gradleProperty("org.gradle.java.installations.paths").getOrElse(""),
     )
-    if (providers.gradleProperty("compat.probe").orNull == "true") {
-      args("--compatibility-probe")
-    }
-    providers.gradleProperty("compat.introspectorApi").orNull?.let { args("--introspector-api", it) }
     // The harness always produces fresh evidence, including failures.
     outputs.upToDateWhen { false }
   }
@@ -73,11 +69,12 @@ tasks.register<Exec>("certifyReleaseCompatibility") {
   commandLine(
     "python3",
     layout.projectDirectory.file("compatibility/certify.py").asFile.absolutePath,
-    "--release-matrix",
     "--scope",
     providers.gradleProperty("compat.scope").getOrElse("all"),
     "--java-installations",
     providers.gradleProperty("org.gradle.java.installations.paths").getOrElse(""),
   )
+  providers.gradleProperty("compat.release").orNull?.let { args("--release", it) }
+  providers.gradleProperty("compat.counterparts").orNull?.let { args("--counterparts", it) }
   outputs.upToDateWhen { false }
 }

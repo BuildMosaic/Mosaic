@@ -1,6 +1,5 @@
 package org.buildmosaic.compiler
 
-import org.buildmosaic.analysis.CompilerVersionAdmission
 import org.buildmosaic.analysis.ModuleContract
 import org.buildmosaic.analysis.SUMMARY_PATH
 import org.buildmosaic.analysis.SummaryCodec
@@ -105,17 +104,9 @@ private fun compileIsolated(
   File(evidence, "$name.sources").writeText(input)
   val command =
     listOf(
-      System.getProperty("mosaic.compat.java"), "-Xmx768m",
-    ) +
-      listOfNotNull(
-        System.getProperty(CompilerVersionAdmission.COMPATIBILITY_PROBE_PROPERTY)?.let {
-          "-D${CompilerVersionAdmission.COMPATIBILITY_PROBE_PROPERTY}=$it"
-        },
-      ) +
-      listOf(
-        "-cp",
-        System.getProperty("mosaic.compat.compiler.classpath"), "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
-      ) + args
+      System.getProperty("mosaic.compat.java"), "-Xmx768m", "-cp",
+      System.getProperty("mosaic.compat.compiler.classpath"), "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
+    ) + args
   File(evidence, "$name.command").writeText(command.joinToString("\n"))
   val log = File(evidence, "$name.log")
   val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log).start()

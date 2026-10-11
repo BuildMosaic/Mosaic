@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: '23 7 * * *'
   workflow_dispatch:
+    inputs:
+      kotlin:
+        description: Exact stable version to retry (blank discovers new releases)
+        type: string
 
 concurrency:
   group: kotlin-compatibility-maintenance
@@ -15,23 +19,38 @@ jobs:
       contents: read
       issues: read
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     outputs:
       versions: ${{ steps.discover.outputs.versions }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
       - id: discover
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 compatibility/maintain.py discover --plan
+          REQUESTED_KOTLIN: ${{ inputs.kotlin }}
+        run: |
+          if [ -n "$REQUESTED_KOTLIN" ]; then
+            python3 - <<'PY'
+          import json, os, sys
+          sys.path.insert(0, 'compatibility')
+          from registry import version
+          requested = os.environ['REQUESTED_KOTLIN']
+          assert version(requested) >= (2, 2, 0)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('versions=' + json.dumps([requested]) + '\n')
+          PY
+          else
+            python3 compatibility/maintain.py discover
+          fi
 
   investigate:
     needs: discover
-    if: ${{ needs.discover.outputs.versions != '[]' }}
+    if: needs.discover.outputs.versions != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        kotlin: ${{ fromJSON(needs.discover.outputs.versions) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 180
     permissions:
       contents: write
       pull-requests: write
@@ -49,16 +68,43 @@ jobs:
           distribution: zulu
           java-version: '21'
           cache: gradle
-      - name: Investigate and propose verified mapping or report failure
+      - name: Verify compiler and installation
+        id: verify
+        env:
+          KOTLIN_VERSION: ${{ matrix.kotlin }}
+        run: python3 compatibility/maintain.py investigate --kotlin "$KOTLIN_VERSION" --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+      - name: Propose the verified mapping
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 compatibility/maintain.py discover --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+          KOTLIN_VERSION: ${{ matrix.kotlin }}
+        run: python3 compatibility/maintain.py propose --kotlin "$KOTLIN_VERSION"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: kotlin-compatibility
+          name: compatibility-${{ matrix.kotlin }}
           path: |
             build/reports/compatibility/
             mosaic-gradle-plugin/build/reports/introspector-installation/
             mosaic-gradle-plugin/build/test-results/releaseCompatibilityTest/
           retention-days: 30
+      - name: Open investigation and hand off to Codex Cloud
+        if: failure() && steps.verify.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KOTLIN_VERSION: ${{ matrix.kotlin }}
+          CODEX_ENVIRONMENT: ${{ vars.CODEX_COMPATIBILITY_ENVIRONMENT }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        run: |
+          report="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          issue=$(gh issue create --title "Kotlin compatibility: $KOTLIN_VERSION" --body "Compatibility checks failed. Logs: $report (artifact compatibility-$KOTLIN_VERSION). Close this issue or use manual dispatch to retry.")
+          if [ -z "$CODEX_ENVIRONMENT" ] || [ -z "$CODEX_AUTH_JSON" ]; then
+            echo '::error::Configure CODEX_COMPATIBILITY_ENVIRONMENT and CODEX_AUTH_JSON to enable the Codex Cloud handoff.'
+            exit 1
+          fi
+          npm install --global @openai/codex@0.162.1
+          codex_auth_dir="$HOME/.codex"
+          mkdir -p "$codex_auth_dir"
+          trap 'rm -f "$codex_auth_dir/auth.json"' EXIT
+          (umask 077; printf '%s' "$CODEX_AUTH_JSON" > "$codex_auth_dir/auth.json")
+          task=$(codex cloud exec --env "$CODEX_ENVIRONMENT" --branch "$GITHUB_REF_NAME" "Fix Kotlin $KOTLIN_VERSION compatibility in $GITHUB_REPOSITORY. Start with issue $issue and the logs at $report. Reproduce with python3 compatibility/maintain.py investigate --kotlin $KOTLIN_VERSION. Preserve Kotlin 2.2.0 and later support, exact production admission, and existing analysis semantics. Keep administrative tests minimal; reuse compiler fixtures. Open a PR against $GITHUB_REF_NAME; do not merge or publish a release.")
+          gh issue comment "$issue" --body "$task"

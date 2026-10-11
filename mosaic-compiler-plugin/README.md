@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This build-tooling module is a read-only Kotlin 2.4.20 K2 compiler plugin. It uses
+This build-tooling module is a read-only K2 compiler plugin for the [supported Kotlin versions](https://BuildMosaic.org/reference/compatibility/). It uses
 `CompilerPluginRegistrar` and `IrGenerationExtension` before IR lowering. It
 does not transform Kotlin or run Mosaic code. The Gradle plugin installs it into the normal Kotlin/JVM `main`
 compilation through Kotlin’s compiler-subplugin API. It emits per-source internal
