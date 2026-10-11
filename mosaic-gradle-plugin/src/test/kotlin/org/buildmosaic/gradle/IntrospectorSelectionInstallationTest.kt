@@ -56,12 +56,9 @@ class IntrospectorSelectionInstallationTest {
     workspace.resolve("publication.log").writeText(publication.output)
     existingRuntime?.copyRecursively(maven, overwrite = true)
     val artifacts =
-      listOf(
-        "mosaic-gradle-plugin",
-        "mosaic-compiler-plugin",
-        "mosaic-compiler-plugin-kotlin-2.3.0",
-        "mosaic-compiler-plugin-kotlin-2.3.20",
-      )
+      listOf("mosaic-gradle-plugin") +
+        CompilerVersionAdmission.supportedCompilers
+          .map { CompilerVersionAdmission.artifactId(CompilerVersionAdmission.compilerApi(it)) }.distinct()
     val hashes =
       artifacts.associateWith {
           id ->
@@ -267,8 +264,8 @@ class IntrospectorSelectionInstallationTest {
       )
     assertTrue(repeated.output.contains("Configuration cache entry reused"), repeated.output)
     assertCompilerProvenance(app, "2.4.21")
-    val unsupported = failedBuild(app, "-Pfixture.compiler=2.4.22")
-    assertTrue(unsupported.contains("has not verified Kotlin compiler 2.4.22"), unsupported)
+    val unsupported = failedBuild(app, "-Pfixture.compiler=999.0.0")
+    assertTrue(unsupported.contains("has not verified Kotlin compiler 999.0.0"), unsupported)
     build.writeText(selectableBuild.replace("kotlin(\"jvm\") version \"2.4.20\"", "kotlin(\"jvm\") version \"2.3.20\""))
     build.appendText(
       """

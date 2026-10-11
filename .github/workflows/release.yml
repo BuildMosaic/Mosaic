@@ -27,6 +27,8 @@ jobs:
     environment: release
     permissions:
       contents: write
+      pull-requests: write
+      issues: write
     steps:
       - name: Require dispatch from main
         env:
@@ -60,6 +62,7 @@ jobs:
           echo "Validated $RELEASE_TAG at $sha"
           echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 17 for compatibility consumers
         uses: actions/setup-java@v4
@@ -83,6 +86,7 @@ jobs:
       - name: Certify release compatibility
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
+          MOSAIC_RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: ./gradlew certifyReleaseCompatibility -Pcompat.scope="$RELEASE_TRAIN" --no-configuration-cache -Porg.gradle.java.installations.paths="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
 
       - name: Publish Runtime
@@ -133,3 +137,26 @@ jobs:
             echo "::error::Could not inspect GitHub Release for $RELEASE_TAG: $existing_release"
             exit 1
           fi
+
+      # Default success() gates this on publication AND GitHub Release creation.
+      - name: Propose the certified published compatibility registry
+        env:
+          RELEASE_TRAIN: ${{ inputs.train }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          evidence="$GITHUB_WORKSPACE/build/reports/compatibility/release-$RELEASE_TRAIN.json"
+          git fetch --no-tags origin develop
+          git checkout --detach FETCH_HEAD
+          python3 compatibility/maintain.py registry --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-compatibility
+          path: |
+            build/reports/compatibility/
+            mosaic-gradle-plugin/build/reports/introspector-installation/
+            mosaic-gradle-plugin/build/test-results/releaseCompatibilityTest/
+          retention-days: 30

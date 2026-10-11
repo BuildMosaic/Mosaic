@@ -5,6 +5,7 @@ import java.security.MessageDigest
 plugins { id 'java' }
 
 def candidate = providers.gradleProperty('compat.candidate').get()
+def runtimeCandidate = providers.gradleProperty('compat.runtimeCandidate').orElse(candidate).get()
 def requested = providers.gradleProperty('compat.kotlin').get()
 def baseline = providers.gradleProperty('compat.baseline').get()
 def evidence = file(providers.gradleProperty('compat.evidence').get())
@@ -46,7 +47,7 @@ dependencies {
     compiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly requested } }
     controlCompiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly baseline } }
     ['mosaic-core', 'mosaic-test', 'mosaic-opentelemetry'].each {
-        consumer("org.buildmosaic:$it:$candidate") { version { strictly candidate } }
+        consumer("org.buildmosaic:$it:$runtimeCandidate") { version { strictly runtimeCandidate } }
     }
     extractor("org.buildmosaic:mosaic-compiler-plugin:$candidate") { version { strictly candidate } }
     runner 'org.junit.platform:junit-platform-console-standalone:1.12.2'

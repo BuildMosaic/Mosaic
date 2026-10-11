@@ -35,22 +35,26 @@ To probe the shared-source introspector ABI builds:
 ./gradlew certifyKotlinAnalysis -Pcompat.kotlin=2.3.21 -Pcompat.introspectorApi=2.3.20 -Pcompat.probe=true
 ```
 
-The default compiler API is `2.4.20`; the alternate builds target `2.3.0` and
-`2.3.20`. All three compile one extraction source tree with the repository's
-Kotlin 2.4.20 build compiler and bundle the same Analysis core. Alternate jars
-have local `kotlin-<API>` classifiers and are not added to Maven publications.
+The default compiler API and alternate targets come from the measured mapping.
+Each profile compiles one extraction source tree with the repository's fixed
+build compiler and bundles the same Analysis core. Alternate jars have local
+`kotlin-<API>` classifiers and publish as classifier-free
+`mosaic-compiler-plugin-kotlin-<API>` artifacts.
 Their manifest records `Mosaic-Compiler-API`; reproducible packaging permits
 SHA-256 comparisons across runs. The harness snapshots the selected alternate
 jar, records both control and selected identities, and checks those bytes again
-after fixture execution.
+after fixture execution. The measured mapping in
+[`compiler-profiles.properties`](../mosaic-analysis-core/src/main/resources/org/buildmosaic/analysis/compiler-profiles.properties)
+is the single owner of production compiler admission, public plugin selection,
+shared-source ABI build targets, and the release matrix. It does not document
+published release guarantees.
 
 `compat.probe=true` forwards `-Dmosaic.analysis.compatibilityProbe=true` to the
 actual isolated compiler JVM. It bypasses only compiler-version admission;
 Core revision validation, extraction, metadata checks, and fixture assertions
-remain active. Reports explicitly mark probing. Without that exact opt-in,
-production admission remains Kotlin 2.4.20, including for the alternate jars.
-These builds do not introduce production profile selection or additional support
-guarantees. Use `compat.introspectorApi` only with Analysis probing.
+remain active. Reports explicitly mark probing. A passing probe cannot enable
+production support: add a tentative measured mapping, rerun without the probe,
+and verify the real public plugin installation before proposing that mapping.
 
 `harnessResult=pass` means every required area of the requested scope passed.
 `harnessComplete=true` means `scope=all` and all four harness areas passed.
@@ -123,8 +127,9 @@ automatic support announcement, or a compatibility registry.
 ## Validation boundary
 
 These tasks have no connection to root `build`, `check`, or `test`, examples,
-ordinary PR validation, or scheduled workflows. `compatibility/` is a standalone
-resolution build, not an included project. There is no compatibility workflow.
+or ordinary PR validation. `compatibility/` is a standalone resolution build,
+not an included project. Scheduled maintenance runs targeted checks only for
+previously unhandled Kotlin releases.
 The ordinary direct compiler fixtures retain their fixed in-process compiler.
 
 To check the harness's reporting and comparison rules:
@@ -133,13 +138,60 @@ To check the harness's reporting and comparison rules:
 python3 -m unittest discover -s compatibility -p 'test_*.py' -v
 ```
 
-A separate future on-demand Gradle integration suite will select Kotlin compiler,
-Kotlin Gradle Plugin, and Gradle distribution versions independently (initially
-defaulting compiler/KGP to a matching pair). It will own public plugins DSL
-installation, extractor selection, Gradle tasks, incremental compilation,
-configuration/build caches, and Gradle-version compatibility. This harness tests
-none of those integration dimensions and introduces no production artifact
-selection, metadata adapters, release discovery, or release trains.
+The release-only `:mosaic-gradle-plugin:releaseCompatibilityTest` reuses the real
+Maven installation fixture. It selects exact compiler/KGP pairs and verifies the
+public plugins DSL, introspector artifact and bytes, actual compiler provenance,
+VERIFIED/MISSING/UNVERIFIED results, and Java 17 execution. Release certification
+runs the entire measured matrix through `certifyReleaseCompatibility`;
+maintenance selects only the newly discovered version. Neither task is part of
+ordinary builds. A targeted pass is not full release certification.
+
+## Automatic Kotlin maintenance
+
+[`kotlin-compatibility.yml`](../.github/workflows/kotlin-compatibility.yml) runs
+daily at **07:23 UTC** and accepts manual dispatch. GitHub loads scheduled workflow
+definitions from default branch `main`; its jobs check out `develop` and target
+all maintenance PRs there. Integrate the workflow into `main` through the normal
+release-quality branch process before expecting scheduled runs.
+
+`compatibility/maintain.py discover --plan` reads Maven Central's
+`kotlin-compiler-embeddable/maven-metadata.xml`, accepts only exact stable versions,
+and checks compiler and KGP POMs/jars before scheduling expensive work. It compares
+all stable patches against the measured mapping, including backports. Existing
+mapped families remain eligible without automatic removal. New families must be
+within 18 calendar months of their `.0` compiler POM publication (`Last-Modified`);
+missing publication evidence defers investigation conservatively. No pending
+versions means no JDK setup or compatibility jobs.
+
+The investigation job builds one Runtime candidate for the batch. For each
+pending version, maintenance tests those unchanged Maven artifacts on Java 17. Analysis attempts reuse those exact Runtime bytes, trying
+existing introspectors in order of nearby proven compilers. Each attempt runs the
+controlled probe with the existing direct-compiler corpus, metadata checks and
+semantic comparison. A passing profile gets a tentative exact mapping, then must
+pass the same checks with production admission and the real compiler/KGP public
+plugin installation. Only after every existing profile fails does maintenance
+attempt another API target from the same introspector sources. Build targets and
+publications derive from the mapping; no additional kernel or plugin is created.
+
+A verified result produces `automation/kotlin-<version>` and a focused mapping
+PR. Failures produce an issue with attempted APIs, actual diagnostics and Actions
+evidence; source adaptation requires implementation and review. Tentative mappings
+are restored on failure. Neither result changes the public registry. Reports and
+installation logs are uploaded as `kotlin-compatibility` for 30 days;
+retain relevant evidence elsewhere if review takes longer.
+
+PRs and issues titled `Kotlin compatibility: <version>` (including closed ones)
+prevent repeated investigation. To retry a failed version after implementing its
+adaptation, rename the prior issue to remove that exact title, then manually
+dispatch maintenance. No automatically generated PR merges itself.
+
+Automation uses `GITHUB_TOKEN` with contents, pull-request and issue write
+permissions only where it proposes changes. GitHub signs and verifies generated
+commits through `createCommitOnBranch`; no signing secret or long-lived credential
+is needed. Enable **Settings → Actions → General → Workflow permissions → Allow
+GitHub Actions to create and approve pull requests**. If PR creation is blocked,
+maintenance leaves its branch and opens an actionable issue for a manual PR.
+Approve any workflow runs GitHub holds on token-created PRs before reviewing CI.
 
 ## Compatibility ranges
 
@@ -161,12 +213,27 @@ python3 compatibility/registry.py check --runtime 1.0.0 --kotlin 2.4.20
 python3 compatibility/registry.py check --runtime 1.0.0 --analysis 1.0.0 --kotlin 2.4.20
 ```
 
-Maintain boundaries through reviewed PRs linked to actual CI certification reports.
-Future automation should discover stable Kotlin releases, try existing introspectors,
-build a profile only when needed, run certification, and propose boundary/frontier
-updates. Any incompatible stable patch lowers the affected release's `maxKotlin`
-to the last supported version before the failure; fix the gap before extending it.
-Cap failing releases before advancing the global frontier. Test reports retain
-failures; the registry stores guarantees only.
+After publication and GitHub Release creation both succeed, the release workflow
+proposes `automation/registry-<train>-<version>` against `develop`. It uses the
+successful full certification reports from that immutable release commit, bound
+to the actual released version. Stable releases only qualify. The updater rejects
+probes, failed/incomplete checks, mismatched compiler provenance or source revision,
+changed Runtime bytes, missing production installation, and any untested stable
+compiler inside the proposed interval. A newly visible backport can therefore
+block the registry proposal until it is certified. Development probes and mapping
+PRs cannot populate the registry.
+
+The updater adds only the released train's Kotlin interval, with no inferred
+Runtime/Analysis relationship bounds or historical entries. Before advancing the
+global frontier, it gives every older implicit interval an explicit ceiling at its
+previous frontier. An older binary's guarantee cannot expand merely because a
+newer release passed. A release certified below an existing frontier gets its own
+explicit ceiling. `registry.py` validates the result; human review owns approval.
+Release evidence and logs are uploaded as `release-compatibility` for 30 days.
+
+Maintain boundaries through reviewed PRs linked to actual certification evidence.
+Any incompatible stable patch lowers the affected release's `maxKotlin` to the
+last supported version before the failure; fix the gap before extending it. Test
+reports retain failures; the registry stores guarantees only.
 The [18-month support policy](../website/src/content/docs/reference/compatibility.md)
 remains separate. This tool checks recorded ranges, not evidence or environments.

@@ -57,13 +57,14 @@ def source_identity():
 
 
 class Harness:
-    def __init__(self, version, scope, java_installations="", compatibility_probe=False, introspector_api=""):
+    def __init__(self, version, scope, java_installations="", compatibility_probe=False, introspector_api="", runtime_candidate=None):
         self.version, self.scope = version, scope
         self.compatibility_probe = compatibility_probe
         self.introspector_api = introspector_api
         self.java_installations = java_installations
+        self.runtime_candidate = runtime_candidate
         safe_version = version if re.fullmatch(r"[\w.-]+", version) else "invalid"
-        # Each invocation is fresh; never reuse a previous report, repository or compiler output.
+        # Each invocation has fresh reports and compiler output; Runtime bytes may be shared explicitly.
         self.directory = ROOT / "build/reports/compatibility" / safe_version / scope / str(time.time_ns())
         self.directory.mkdir(parents=True)
         self.report = {
@@ -123,7 +124,10 @@ class Harness:
             introspectorCompilerApi=self.introspector_api,
         )
         modules = ["mosaic-core", "mosaic-test", "mosaic-opentelemetry"]
-        tasks = [f":{module}:publishAllPublicationsToInstallTestRepository" for module in modules]
+        tasks = [":mosaic-core:jar"] if self.runtime_candidate else [f":{module}:publishAllPublicationsToInstallTestRepository" for module in modules]
+        self.runtime_version = self.runtime_candidate.candidate if self.runtime_candidate else self.candidate
+        if self.runtime_candidate:
+            shutil.copytree(self.runtime_candidate.repository, self.repository)
         if self.scope != "runtime":
             tasks += [":mosaic-compiler-plugin:publishAllPublicationsToInstallTestRepository",
                       ":mosaic-gradle-plugin:publishAllPublicationsToInstallTestRepository",
@@ -132,13 +136,13 @@ class Harness:
                 tasks += [":mosaic-compiler-plugin:introspectorJar" + self.introspector_api.replace(".", "_")]
         self.run("candidateArtifacts", [
             str(ROOT / "gradlew"), *tasks, "--no-configuration-cache", "--console=plain", "--max-workers=2",
-            f"-Pmosaic.version={self.candidate}", f"-Pmosaic.runtime.version={self.candidate}",
+            f"-Pmosaic.version={self.candidate}", f"-Pmosaic.runtime.version={self.runtime_version}",
             f"-Pmosaic.analysis.version={self.candidate}", f"-Pmosaic.installTestRepository={self.repository}",
         ])
         resolution_command = [
             str(ROOT / "gradlew"), "-p", str(ROOT / "compatibility"), "resolveEvidence",
             "--no-configuration-cache", "--console=plain", f"-Pcompat.kotlin={self.version}",
-            f"-Pcompat.baseline={self.baseline}", f"-Pcompat.candidate={self.candidate}",
+            f"-Pcompat.baseline={self.baseline}", f"-Pcompat.candidate={self.candidate}", f"-Pcompat.runtimeCandidate={self.runtime_version}",
             f"-Pcompat.repository={self.repository}", f"-Pcompat.evidence={self.directory}",
             f"-Pcompat.scope={self.scope}",
         ]
@@ -156,10 +160,15 @@ class Harness:
         expected = {"mosaic-core", "mosaic-test", "mosaic-opentelemetry"}
         resolved_mosaic = {a["module"] for a in self.consumer if a["group"] == "org.buildmosaic"}
         if resolved_mosaic != expected or any(
-            a["version"] != self.candidate for a in self.consumer if a["group"] == "org.buildmosaic"
+            a["version"] != self.runtime_version for a in self.consumer if a["group"] == "org.buildmosaic"
         ):
             raise RuntimeError("Consumer did not resolve exactly the candidate Runtime artifacts")
         self.report["runtimeArtifacts"] = [a for a in self.consumer if a["group"] == "org.buildmosaic"]
+        if self.runtime_candidate:
+            def identity(report):
+                return sorted((a["coordinate"], a["sha256"]) for a in report["runtimeArtifacts"])
+            if identity(self.report) != identity(self.runtime_candidate.report):
+                raise RuntimeError("Shared Runtime candidate bytes changed")
 
     def artifacts(self, name):
         entry = self.resolution["configurations"][name]
@@ -371,6 +380,21 @@ def certify(harness):
     return harness.finish()
 
 
+def production_installation(harness, versions, java_installations):
+    """Use the existing real-Maven fixture with only the requested compiler/KGP pairs."""
+    harness.run("productionInstallation", [
+        str(ROOT / "gradlew"), ":mosaic-gradle-plugin:releaseCompatibilityTest",
+        "--no-configuration-cache", "--console=plain", "--max-workers=2",
+        f"-Pmosaic.test.kotlinVersions={','.join(versions)}",
+        f"-Pmosaic.test.runtimeRepository={harness.repository}",
+        f"-Porg.gradle.java.installations.paths={java_installations}",
+    ])
+    results = junit_results(ROOT / "mosaic-gradle-plugin/build/test-results/releaseCompatibilityTest")
+    if not results["tests"] or results["failed"] or results["skipped"]:
+        raise RuntimeError(f"Required production installation tests failed, skipped or absent: {results}")
+    return results
+
+
 def release_matrix(scope, java_installations):
     _, profiles = compiler_profiles()
     versions = sorted(profiles, key=lambda version: tuple(map(int, exact_version(version).split("."))))
@@ -381,7 +405,7 @@ def release_matrix(scope, java_installations):
         harness = Harness(version, scope, java_installations)
         if certify(harness):
             return 1
-        reports.append(str(harness.directory / "report.json"))
+        reports.append(os.path.relpath(harness.directory / "report.json", ROOT))
         identity = sorted((artifact["coordinate"], artifact["sha256"]) for artifact in harness.report["runtimeArtifacts"])
         if runtime_identity is not None and identity != runtime_identity:
             print("Release certification failed: Runtime artifact bytes changed between compiler consumers", flush=True)
@@ -393,24 +417,16 @@ def release_matrix(scope, java_installations):
     last.report["releaseCertification"] = certification
     try:
         if scope != "runtime":
-            # Use the exact Runtime bytes just certified, with the real Maven installation fixture.
-            last.run("productionInstallation", [
-                str(ROOT / "gradlew"), ":mosaic-gradle-plugin:releaseCompatibilityTest",
-                "--no-configuration-cache", "--console=plain", "--max-workers=2",
-                f"-Pmosaic.test.kotlinVersions={','.join(versions)}",
-                f"-Pmosaic.test.runtimeRepository={last.repository}",
-                f"-Porg.gradle.java.installations.paths={java_installations}",
-            ])
-            results = junit_results(ROOT / "mosaic-gradle-plugin/build/test-results/releaseCompatibilityTest")
-            certification["productionInstallation"] = results
-            if not results["tests"] or results["failed"] or results["skipped"]:
-                raise RuntimeError(f"Required production installation tests failed, skipped or absent: {results}")
+            certification["productionInstallation"] = production_installation(last, versions, java_installations)
         certification["result"] = "pass"
     except Exception as failure:
         certification["diagnostic"] = str(failure)
         raise
     finally:
         last.finish()
+    evidence = ROOT / "build/reports/compatibility" / f"release-{scope}.json"
+    evidence.write_text(json.dumps({**certification, "releaseVersion": os.environ.get("MOSAIC_RELEASE_VERSION"),
+                                    "sourceRevision": last.report.get("sourceRevision")}, indent=2) + "\n")
     print(f"Release {scope} compatibility PASS: {', '.join(versions)}", flush=True)
     return 0
 
@@ -424,7 +440,7 @@ def main():
     parser.add_argument("--java-installations", default="")
     parser.add_argument("--compatibility-probe", action="store_true",
                         help="Experimentally bypass compiler-version admission only; does not establish production support")
-    parser.add_argument("--introspector-api", default="", choices=("2.3.0", "2.3.20", "2.4.20"))
+    parser.add_argument("--introspector-api", default="")
     args = parser.parse_args()
     if args.release_matrix:
         if args.compatibility_probe or args.introspector_api:

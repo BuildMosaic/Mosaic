@@ -33,7 +33,7 @@ synthetic certification versions are separate from release versions.
 
 `releaseRuntime` publishes `mosaic-core`, `mosaic-test`, `mosaic-opentelemetry`,
 and the Runtime-only `mosaic-bom` to Maven Central. `releaseAnalysis` publishes
-`mosaic-gradle-plugin`, all three introspector artifacts, and the generated plugin
+`mosaic-gradle-plugin`, all measured introspector artifacts, and the generated plugin
 marker to Maven Central, then publishes `org.buildmosaic.analysis` to the Plugin
 Portal after both module-level Central tasks succeed. All Analysis artifacts share
 one version. Neither task publishes the other train.
@@ -45,3 +45,14 @@ before retrying; do not republish released coordinates.
 After Gradle publication succeeds, the workflow creates a published GitHub
 Release from the checked-in release-notes companion and dated changelog entry.
 The workflow never creates or moves a tag.
+
+After GitHub Release creation succeeds, the workflow proposes a compatibility
+registry PR against `develop` from that release's certification evidence. Review
+its continuous Kotlin interval and frozen ceilings for older releases; it records
+only the actual released train and does not infer Runtime/Analysis relationship
+bounds. Failed publication or GitHub Release creation cannot trigger this proposal.
+The `release-compatibility` Actions artifact retains evidence for 30 days. See
+[automatic maintenance](../kotlin-certification.md#automatic-kotlin-maintenance)
+for token permissions and handling a blocked PR. Registry proposal failure occurs
+after publication: retry the proposal from retained evidence, never republish the
+release solely to repair its registry PR.
