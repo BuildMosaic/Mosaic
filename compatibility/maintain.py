@@ -64,7 +64,7 @@ def pending_versions(versions, mapping, handled, now=None):
     cutoff = now.replace(year=year, month=month + 1,
                          day=min(now.day, calendar.monthrange(year, month + 1)[1]))
     families = {registry.version(v)[:2] for v in mapping}
-    eligibility = {}
+    eligibility = dict.fromkeys(families, True)
     result = []
     for version in versions:
         parsed = registry.version(version)
@@ -74,7 +74,7 @@ def pending_versions(versions, mapping, handled, now=None):
         if family not in eligibility:
             initial = f"{family[0]}.{family[1]}.0"
             headers = artifact_headers(ARTIFACTS[0], initial, "pom") if initial in versions else None
-            eligibility[family] = family in families or (
+            eligibility[family] = (
                 headers is not None and headers.get("Last-Modified") is not None
                 and parsedate_to_datetime(headers["Last-Modified"]) >= cutoff)
         if eligibility[family] and available(version):
@@ -134,8 +134,7 @@ def investigate(version, java_installations, runtime=None):
                 continue
             path.write_text(admit(original, version, api))
             production = certify.Harness(version, "analysis", java_installations, False, api, runtime)
-            result["productionReport"] = str(production.directory / "report.json")
-            attempts[-1]["productionReport"] = result["productionReport"]
+            attempts[-1]["productionReport"] = str(production.directory / "report.json")
             if certify.certify(production):
                 attempts[-1]["production"] = "fail"
                 attempts[-1]["diagnostics"].extend(production.report["failureDiagnostics"])
@@ -227,16 +226,15 @@ def gh(*args, payload=None):
 
 
 def handled_versions():
-    titles = []
-    for endpoint in ("pulls?state=all&per_page=100", "issues?state=all&per_page=100"):
-        pages = json.loads(gh("api", f"repos/{{owner}}/{{repo}}/{endpoint}", "--paginate", "--slurp"))
-        titles.extend(item["title"] for page in pages for item in page)
+    # The issue API includes pull requests.
+    pages = json.loads(gh("api", "repos/{owner}/{repo}/issues?state=all&per_page=100", "--paginate", "--slurp"))
     prefix = "Kotlin compatibility: "
-    return {title[len(prefix):] for title in titles if title.startswith(prefix)}
+    return {item["title"][len(prefix):] for page in pages for item in page if item["title"].startswith(prefix)}
 
 
-def propose(branch, title, body, files):
-    prs = json.loads(gh("pr", "list", "--state", "all", "--head", branch, "--base", "main", "--json", "url"))
+def propose(branch, title, body, path, content):
+    base = os.environ["GITHUB_REF_NAME"]
+    prs = json.loads(gh("pr", "list", "--state", "all", "--head", branch, "--base", base, "--json", "url"))
     if prs:
         print(f"Already proposed: {prs[0]['url']}")
         return
@@ -246,10 +244,10 @@ def propose(branch, title, body, files):
         print(f"Already reported: {existing['url']}")
         return
     repository = os.environ["GITHUB_REPOSITORY"]
-    sha = json.loads(gh("api", f"repos/{repository}/git/ref/heads/main"))["object"]["sha"]
-    # Never publish tested files on a different main revision.
+    sha = json.loads(gh("api", f"repos/{repository}/git/ref/heads/{base}"))["object"]["sha"]
+    # Never publish tested files on a different revision.
     if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip() != sha:
-        raise ValueError("main advanced during verification; rerun against its new revision")
+        raise ValueError(f"{base} advanced during verification; rerun against its new revision")
     refs = json.loads(gh("api", f"repos/{repository}/git/matching-refs/heads/{branch}"))
     ref = next((r for r in refs if r["ref"] == f"refs/heads/{branch}"), None)
     if ref is None:
@@ -259,10 +257,9 @@ def propose(branch, title, body, files):
         commit = json.loads(gh("api", f"repos/{repository}/commits/{ref['object']['sha']}"))
         if [parent["sha"] for parent in commit["parents"]] != [sha] or not commit["commit"]["verification"]["verified"]:
             raise ValueError(f"Existing {branch} needs manual review/rebase; refusing to overwrite it")
-        for path, content in files.items():
-            blob = json.loads(gh("api", f"repos/{repository}/contents/{path}?ref={branch}"))
-            if base64.b64decode(blob["content"]).decode() != content:
-                raise ValueError(f"Existing {branch} differs from verified changes; refusing to overwrite it")
+        blob = json.loads(gh("api", f"repos/{repository}/contents/{path}?ref={branch}"))
+        if base64.b64decode(blob["content"]).decode() != content:
+            raise ValueError(f"Existing {branch} differs from verified changes; refusing to overwrite it")
     else:
         mutation = """mutation($input: CreateCommitOnBranchInput!) {
           createCommitOnBranch(input: $input) { commit { oid signature { isValid } } }
@@ -270,19 +267,18 @@ def propose(branch, title, body, files):
         result = json.loads(gh("api", "graphql", payload={"query": mutation, "variables": {"input": {
             "branch": {"repositoryNameWithOwner": repository, "branchName": branch},
             "expectedHeadOid": sha, "message": {"headline": title},
-            "fileChanges": {"additions": [{"path": path, "contents": base64.b64encode(content.encode()).decode()}
-                                           for path, content in files.items()]},
+            "fileChanges": {"additions": [{"path": path, "contents": base64.b64encode(content.encode()).decode()}]},
         }}}))
-        signature = result.get("data", {}).get("createCommitOnBranch", {}).get("commit", {}).get("signature")
-        if not signature or not signature.get("isValid"):
+        signature = result["data"]["createCommitOnBranch"]["commit"]["signature"]
+        if not signature or not signature["isValid"]:
             raise ValueError("GitHub did not verify the automation commit signature")
     try:
-        print(gh("pr", "create", "--base", "main", "--head", branch, "--title", title, "--body", body))
+        print(gh("pr", "create", "--base", base, "--head", branch, "--title", title, "--body", body))
     except subprocess.CalledProcessError as failure:
         diagnostic = ("Automatic PR creation failed: " + failure.stderr +
                       "\nEnable Settings → Actions → General → Workflow permissions → "
                       "Allow GitHub Actions to create and approve pull requests. "
-                      f"The verified branch is `{branch}`; open its PR against main manually.\n")
+                      f"The verified branch is `{branch}`; open its PR against `{base}` manually.\n")
         print(diagnostic)
         print(gh("issue", "create", "--title", title, "--body", body + "\n" + diagnostic))
 
@@ -291,12 +287,9 @@ def evidence_url():
     return f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
 
 
-def discover(java_installations, plan=False, kotlin=None):
+def discover(java_installations, plan=False):
     _, mapping = certify.compiler_profiles()
     versions = pending_versions(central_versions(), mapping, handled_versions())
-    if kotlin is not None:
-        registry.version(kotlin)
-        versions = [v for v in versions if v == kotlin]
     if plan:
         with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
             output.write("versions=" + json.dumps(versions) + "\n")
@@ -326,7 +319,7 @@ def discover(java_installations, plan=False, kotlin=None):
                      "compiler provenance, VERIFIED/MISSING/UNVERIFIED semantics and Java 17 execution.\n\n"
                      "Only this new compiler was targeted. This unreleased candidate establishes no published "
                      "compatibility guarantee; no registry update, release publication or merge is performed.")
-            propose(f"automation/kotlin-{version}", title, body, {str(MAPPING): result["mapping"]})
+            propose(f"automation/kotlin-{version}", title, body, str(MAPPING), result["mapping"])
         else:
             attempts = copy.deepcopy(result["attempts"])
             for attempt in attempts:
@@ -343,7 +336,6 @@ def main():
     discovery = commands.add_parser("discover")
     discovery.add_argument("--java-installations", default="")
     discovery.add_argument("--plan", action="store_true")
-    discovery.add_argument("--kotlin")
     release = commands.add_parser("registry")
     release.add_argument("--evidence", type=Path, required=True)
     release.add_argument("--train", choices=("runtime", "analysis"), required=True)
@@ -351,7 +343,7 @@ def main():
     release.add_argument("--revision", required=True)
     args = parser.parse_args()
     if args.command == "discover":
-        discover(args.java_installations, args.plan, args.kotlin)
+        discover(args.java_installations, args.plan)
     else:
         # Stable releases only; prerelease publication never becomes a registry guarantee.
         try:
@@ -377,7 +369,7 @@ def main():
                 "the interval. Older implicit ceilings are frozen before advancing the frontier. "
                 "No Runtime/Analysis relationship bounds are inferred from synthetic candidate versions.")
         propose(f"automation/registry-{tag}", f"Compatibility registry: {tag}", body,
-                {"compatibility/registry.json": json.dumps(updated, indent=2) + "\n"})
+                "compatibility/registry.json", json.dumps(updated, indent=2) + "\n")
 
 
 if __name__ == "__main__":

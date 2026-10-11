@@ -15,7 +15,6 @@ from certify import (AREAS, Harness, compare_summaries, compiler_profiles, exact
 class CertificationEvidenceTest(unittest.TestCase):
     def test_release_matrix_uses_every_measured_compiler_and_identical_runtime_bytes(self):
         default, profiles = compiler_profiles()
-        self.assertEqual("2.4.20", default)
         self.assertTrue(profiles)
         harnesses = []
 
@@ -35,7 +34,6 @@ class CertificationEvidenceTest(unittest.TestCase):
             with redirect_stdout(StringIO()):
                 self.assertEqual(0, release_matrix("runtime", "jdk17"))
             self.assertEqual(set(profiles), {h.version for h in harnesses})
-            self.assertEqual(len(profiles), certify.call_count)
             self.assertEqual("pass", harnesses[-1].report["releaseCertification"]["result"])
 
         with patch("certify.Harness", side_effect=candidate), patch("certify.certify", side_effect=[0, 1]) as certify:

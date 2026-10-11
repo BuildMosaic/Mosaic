@@ -150,10 +150,10 @@ ordinary builds. A targeted pass is not full release certification.
 
 [`kotlin-compatibility.yml`](../.github/workflows/kotlin-compatibility.yml) runs
 daily at **07:23 UTC** and accepts manual dispatch. GitHub loads scheduled workflow
-definitions from default branch `main`; its jobs check out `main` and target
-all maintenance PRs there. Compatibility maintenance tests the released-code
-branch independently of new features on `develop`. The workflow and compatibility
-infrastructure must be present on `main` before scheduled maintenance can run.
+definitions from default branch `main`. Checkout uses the triggering revision;
+scheduled runs propose maintenance PRs against `main`, and manual runs use the
+selected branch. The workflow and compatibility infrastructure must be present
+on `main` before scheduled maintenance can run.
 
 `compatibility/maintain.py discover --plan` reads Maven Central's
 `kotlin-compiler-embeddable/maven-metadata.xml`, accepts only exact stable versions,

@@ -9,24 +9,18 @@ concurrency:
   group: kotlin-compatibility-maintenance
   cancel-in-progress: false
 
-permissions:
-  contents: read
-
 jobs:
   discover:
     permissions:
       contents: read
-      pull-requests: read
       issues: read
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       versions: ${{ steps.discover.outputs.versions }}
     steps:
-      # Investigate the released-code branch; propose maintenance directly against main.
       - uses: actions/checkout@v4
         with:
-          ref: main
           persist-credentials: false
       - id: discover
         env:
@@ -45,7 +39,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:

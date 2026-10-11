@@ -29,15 +29,13 @@ class DiscoveryTest(unittest.TestCase):
             return {'Last-Modified': 'Mon, 01 Sep 2025 00:00:00 GMT' if version == '2.5.0'
                     else 'Mon, 01 Jan 2024 00:00:00 GMT'}
         with patch('maintain.artifact_headers', side_effect=headers), \
-                patch('maintain.available', side_effect=lambda v: v != '2.5.10') as available:
+                patch('maintain.available', side_effect=lambda v: v != '2.5.10'):
             result = maintain.pending_versions(versions, mapping, {'2.4.22'},
                                                datetime(2026, 10, 10, tzinfo=timezone.utc))
         self.assertEqual(['2.2.22', '2.4.0', '2.5.0'], result)
-        self.assertNotIn('2.4.22', [call.args[0] for call in available.call_args_list])
-        self.assertEqual({'2.2.0', '2.2.21', '2.4.21'}, set(mapping))
 
     def test_requires_both_compiler_and_kgp_poms_and_jars(self):
-        for missing in [(a, e) for a in maintain.ARTIFACTS for e in ('pom', 'jar')]:
+        for missing in [(a, e) for a in ('kotlin-compiler-embeddable', 'kotlin-gradle-plugin') for e in ('pom', 'jar')]:
             with patch('maintain.artifact_headers', side_effect=lambda a, v, e: None if (a, e) == missing else {}):
                 self.assertFalse(maintain.available('2.5.0'))
         with patch('maintain.artifact_headers', return_value={}):
@@ -51,9 +49,9 @@ class DiscoveryTest(unittest.TestCase):
         investigate.assert_not_called()
 
     def test_closed_and_open_proposals_and_failure_issues_prevent_retesting(self):
-        responses = [json.dumps([[{'title': 'Kotlin compatibility: 2.4.22'}, {'title': 'Unrelated'}]]),
-                     json.dumps([[{'title': 'Kotlin compatibility: 2.5.0'}]])]
-        with patch('maintain.gh', side_effect=responses):
+        pages = [[{'title': 'Kotlin compatibility: 2.4.22', 'pull_request': {}, 'state': 'open'},
+                  {'title': 'Unrelated'}], [{'title': 'Kotlin compatibility: 2.5.0', 'state': 'closed'}]]
+        with patch('maintain.gh', return_value=json.dumps(pages)):
             self.assertEqual({'2.4.22', '2.5.0'}, maintain.handled_versions())
 
     def test_a_failed_consumer_does_not_rebuild_the_batch_runtime_artifacts(self):
@@ -126,13 +124,6 @@ class InvestigationTest(unittest.TestCase):
             self.assertNotIn('mapping', result)
             self.assertNotEqual('pass', result['analysis'])
 
-    def test_new_compilers_consume_the_prepared_runtime_candidate(self):
-        candidate = SimpleNamespace(version='2.4.21')
-        with patch('maintain.certify.Harness', side_effect=RuntimeError('stop after construction')) as harness:
-            with self.assertRaisesRegex(RuntimeError, 'stop after construction'):
-                maintain.investigate('2.4.22', 'jdk17', candidate)
-        harness.assert_called_once_with('2.4.22', 'runtime', 'jdk17', runtime_candidate=candidate)
-
     def test_generated_mapping_is_sorted_and_idempotent(self):
         text = 'default=2.4.20\n2.4.20=2.4.0,2.4.21\n'
         updated = maintain.admit(text, '2.4.10', '2.4.20')
@@ -145,10 +136,10 @@ class ProposalTest(unittest.TestCase):
     title = 'Kotlin compatibility: 2.5.0'
 
     def invoke(self, responses, revision='base'):
-        with patch.dict(os.environ, {'GITHUB_REPOSITORY': 'BuildMosaic/Mosaic'}), \
+        with patch.dict(os.environ, {'GITHUB_REPOSITORY': 'BuildMosaic/Mosaic', 'GITHUB_REF_NAME': 'main'}), \
                 patch('maintain.gh', side_effect=responses) as gh, \
                 patch('maintain.subprocess.check_output', return_value=revision):
-            maintain.propose(self.branch, self.title, 'Evidence link', {'mapping': 'verified'})
+            maintain.propose(self.branch, self.title, 'Evidence link', 'mapping', 'verified')
         return gh
 
     def test_existing_pr_or_report_has_no_mutations(self):

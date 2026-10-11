@@ -37,8 +37,6 @@ jobs:
           test "$WORKFLOW_REF" = refs/heads/main
 
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
 
       - name: Fetch and validate the immutable tag
         id: release
