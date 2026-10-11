@@ -10,8 +10,8 @@ on:
         options:
           - runtime
           - analysis
-      tag:
-        description: Existing immutable train tag, for example runtime-1.0.0 or analysis-1.0.0
+      version:
+        description: Version to release
         required: true
         type: string
 
@@ -42,12 +42,11 @@ jobs:
         id: release
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           case "$RELEASE_TRAIN" in runtime|analysis) ;; *) exit 1 ;; esac
-          [[ "$RELEASE_TAG" == "$RELEASE_TRAIN-"* ]]
-          version="${RELEASE_TAG#"$RELEASE_TRAIN-"}"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          RELEASE_TAG="${RELEASE_TRAIN}-${RELEASE_VERSION}"
           git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null
           git fetch --no-tags origin "refs/tags/$RELEASE_TAG"
           git checkout --detach 'FETCH_HEAD^{commit}'
@@ -59,7 +58,8 @@ jobs:
           test -s "docs/releases/$RELEASE_TAG.md"
           test -z "$(git status --porcelain)"
           echo "Validated $RELEASE_TAG at $sha"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 17 for compatibility consumers
         uses: actions/setup-java@v4
@@ -111,7 +111,7 @@ jobs:
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: |
           entry="$(grep -F "## [$RELEASE_TAG] - " CHANGELOG.md)"

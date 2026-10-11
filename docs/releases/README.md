@@ -3,8 +3,8 @@
 Runtime and Analysis release independently. Keep `mosaic.version` in the root
 `gradle.properties` as the development default. Release tags are `runtime-<version>`
 or `analysis-<version>`, for example `runtime-1.0.0`. The workflow derives the
-version from the tag and overrides only `mosaic.runtime.version` or
-`mosaic.analysis.version` for publication. Existing historical tags remain unchanged.
+tag from the selected train and version and overrides only `mosaic.runtime.version`
+or `mosaic.analysis.version` for publication. Existing historical tags remain unchanged.
 
 Integrate the release-prep feature PR into `develop`, then merge a validated
 `develop` → `main` release PR. Include a dated changelog heading using the full tag,
@@ -12,10 +12,10 @@ such as `## [runtime-1.0.0] - YYYY-MM-DD`, and a companion
 `docs/releases/runtime-1.0.0.md`. Create the immutable train tag at that validated
 main commit. Release preparation itself does not tag, publish, or deploy.
 
-Run the manual **Release** workflow from `main` with the matching train and tag:
+Run the manual **Release** workflow from `main` with the train and version:
 
 ```bash
-gh workflow run release.yml --ref main -f train=runtime -f tag=runtime-1.0.0
+gh workflow run release.yml --ref main -f train=runtime -f version=1.0.0
 ```
 
 Configure a protected GitHub Environment named `release` before running it.
