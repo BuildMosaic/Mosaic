@@ -8,6 +8,7 @@ import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.util.Properties
 
 abstract class CompilerFixtureArguments : CommandLineArgumentProvider {
   @get:InputFile
@@ -32,8 +33,16 @@ plugins {
   id("library.convention")
 }
 
+// The host compiler may advance without changing the measured compiler-facing ABI builds.
+val compilerProfiles =
+  Properties().apply {
+    rootProject.file("mosaic-analysis-core/src/main/resources/org/buildmosaic/analysis/compiler-profiles.properties")
+      .inputStream().use(::load)
+  }
+val defaultCompilerApi = compilerProfiles.getProperty("default")
+
 dependencies {
-  compileOnly("org.jetbrains.kotlin:kotlin-compiler-embeddable:${libs.versions.kotlin.get()}")
+  compileOnly("org.jetbrains.kotlin:kotlin-compiler-embeddable:$defaultCompilerApi")
   compileOnly(project(":mosaic-analysis-core"))
   testImplementation(project(":mosaic-analysis-core"))
   testImplementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:${libs.versions.kotlin.get()}")
@@ -61,17 +70,18 @@ fun Jar.bundleIntrospector(compilerApi: String) {
   })
 }
 
-tasks.jar { bundleIntrospector(libs.versions.kotlin.get()) }
+tasks.jar { bundleIntrospector(defaultCompilerApi) }
 
 // Recompile the same compiler-facing sources against each demonstrated ABI boundary.
-// The host compiler, contract kernel, bundled runtime, and production admission stay fixed.
+// The host compiler, contract kernel, and bundled runtime are built once.
 val introspectorJars =
   tasks.register("introspectorJars") {
     group = "build"
     description = "Build the shared-source introspector jars for the measured compiler ABI boundaries"
     dependsOn(tasks.jar)
   }
-listOf("2.3.0", "2.3.20").forEach { compilerApi ->
+compilerProfiles.stringPropertyNames().filter { it != "default" && it != defaultCompilerApi }.sorted().forEach {
+    compilerApi ->
   val suffix = compilerApi.replace(".", "_")
   val profileSources = sourceSets.create("introspector$suffix")
   kotlin.sourceSets.named(profileSources.name) { kotlin.srcDir("src/main/kotlin") }
@@ -96,6 +106,14 @@ listOf("2.3.0", "2.3.20").forEach { compilerApi ->
       from(sourceSets.main.get().output.resourcesDir)
       dependsOn(tasks.processResources)
     }
+  afterEvaluate {
+    publishing.publications.create<MavenPublication>("introspector$suffix") {
+      artifactId = "mosaic-compiler-plugin-kotlin-$compilerApi"
+      artifact(jar) { classifier = null }
+      artifact(tasks.named("sourcesJar"))
+      artifact(tasks.named("dokkaJavadocJar"))
+    }
+  }
   introspectorJars.configure { dependsOn(jar) }
 }
 tasks.assemble { dependsOn(introspectorJars) }
@@ -103,11 +121,13 @@ tasks.assemble { dependsOn(introspectorJars) }
 tasks.test {
   useJUnitPlatform()
   dependsOn(tasks.jar, ":mosaic-core:jar")
+  // The in-process compiler must load the packaged registrar, including its ABI identity.
+  classpath = classpath.minus(sourceSets.main.get().output).plus(files(tasks.jar.flatMap { it.archiveFile }))
   val fixtureArguments = objects.newInstance<CompilerFixtureArguments>()
   fixtureArguments.pluginJar.set(tasks.jar.flatMap { it.archiveFile })
   fixtureArguments.fixtureClasspath.from(classpath.filter { !it.path.contains("mosaic-core/build/classes") })
   fixtureArguments.fixtureClasspath.from(
-    project(":mosaic-core").layout.buildDirectory.file("libs/mosaic-core-${project.version}.jar"),
+    project(":mosaic-core").tasks.named<Jar>("jar").flatMap { it.archiveFile },
   )
   jvmArgumentProviders.add(fixtureArguments)
 }

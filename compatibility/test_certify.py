@@ -6,11 +6,71 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
-from certify import AREAS, Harness, compare_summaries, exact_version, junit_results, main, required_areas, scope_passed
+from certify import (AREAS, Harness, compare_summaries, compiler_profiles, exact_version, junit_results,
+                     main, release_matrix, required_areas, scope_passed)
 
 
 class CertificationEvidenceTest(unittest.TestCase):
+    def test_release_matrix_uses_every_measured_compiler_and_identical_runtime_bytes(self):
+        default, profiles = compiler_profiles()
+        self.assertEqual("2.4.20", default)
+        self.assertEqual(12, len(profiles))
+        harnesses = []
+
+        def candidate(version, scope, java_installations):
+            harness = SimpleNamespace(
+                version=version, scope=scope, directory=Path(version),
+                report={"runtimeArtifacts": [{"coordinate": "runtime:one", "sha256": "identical"}]},
+                finish=lambda: 0,
+            )
+            harnesses.append(harness)
+            return harness
+
+        with patch("certify.Harness", side_effect=candidate), patch("certify.certify", return_value=0) as certify:
+            with redirect_stdout(StringIO()):
+                self.assertEqual(0, release_matrix("runtime", "jdk17"))
+            self.assertEqual(set(profiles), {h.version for h in harnesses})
+            self.assertEqual(12, certify.call_count)
+            self.assertEqual("pass", harnesses[-1].report["releaseCertification"]["result"])
+
+        with patch("certify.Harness", side_effect=candidate), patch("certify.certify", side_effect=[0, 1]) as certify:
+            self.assertEqual(1, release_matrix("runtime", "jdk17"))
+            self.assertEqual(2, certify.call_count)
+
+        def changed(harness):
+            harness.report["runtimeArtifacts"][0]["sha256"] = harness.version
+            return 0
+
+        with patch("certify.Harness", side_effect=candidate), patch("certify.certify", side_effect=changed):
+            with redirect_stdout(StringIO()):
+                self.assertEqual(1, release_matrix("runtime", "jdk17"))
+
+    def test_release_analysis_requires_unskipped_production_installation(self):
+        def candidate(version, scope, java_installations):
+            return SimpleNamespace(
+                directory=Path(version), repository=Path("certified-runtime"),
+                report={"runtimeArtifacts": [{"coordinate": "runtime:one", "sha256": "identical"}]},
+                run=lambda name, command: commands.append(command), finish=lambda: 0,
+            )
+
+        for result in ({"tests": 1, "failed": 0, "skipped": 0},
+                       {"tests": 0, "failed": 0, "skipped": 0},
+                       {"tests": 1, "failed": 0, "skipped": 1}):
+            commands = []
+            with patch("certify.Harness", side_effect=candidate), patch("certify.certify", return_value=0), \
+                    patch("certify.junit_results", return_value=result), redirect_stdout(StringIO()):
+                if result["tests"] and not result["skipped"]:
+                    self.assertEqual(0, release_matrix("analysis", "jdk17"))
+                else:
+                    with self.assertRaisesRegex(RuntimeError, "failed, skipped or absent"):
+                        release_matrix("analysis", "jdk17")
+            self.assertIn(":mosaic-gradle-plugin:releaseCompatibilityTest", commands[0])
+            self.assertIn("-Pmosaic.test.runtimeRepository=certified-runtime", commands[0])
+            matrix = next(arg.split("=", 1)[1] for arg in commands[0] if arg.startswith("-Pmosaic.test.kotlinVersions="))
+            self.assertEqual(set(compiler_profiles()[1]), set(matrix.split(',')))
+
     def test_requires_exact_stable_version(self):
         for version in ("2.4.20", "2.3.21", "2.2.0"):
             self.assertEqual(version, exact_version(version))

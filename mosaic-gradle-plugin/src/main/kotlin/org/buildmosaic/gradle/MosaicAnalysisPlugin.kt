@@ -1,7 +1,12 @@
 @file:Suppress("LargeClass")
+@file:OptIn(
+  org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi::class,
+  org.jetbrains.kotlin.buildtools.api.ExperimentalBuildToolsApi::class,
+)
 
 package org.buildmosaic.gradle
 
+import org.buildmosaic.analysis.CompilerVersionAdmission
 import org.buildmosaic.analysis.CoreAnalysisRevision
 import org.buildmosaic.analysis.MosaicRule
 import org.buildmosaic.analysis.MosaicRuleSeverity
@@ -26,6 +31,7 @@ import org.gradle.api.tasks.bundling.Jar
 import org.gradle.jvm.toolchain.JavaToolchainService
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.jetbrains.kotlin.gradle.plugin.FilesSubpluginOption
+import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilerPluginSupportPlugin
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
@@ -91,8 +97,13 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
 
   override fun getCompilerPluginId(): String = "org.buildmosaic.analysis"
 
-  override fun getPluginArtifact(): SubpluginArtifact =
-    SubpluginArtifact("org.buildmosaic", "mosaic-compiler-plugin", mosaicVersion)
+  private val compilerVersion
+    get() = project.extensions.getByType(KotlinJvmProjectExtension::class.java).compilerVersion
+
+  override fun getPluginArtifact(): SubpluginArtifact {
+    val api = CompilerVersionAdmission.compilerApi(compilerVersion.get())
+    return SubpluginArtifact("org.buildmosaic", CompilerVersionAdmission.artifactId(api), mosaicVersion)
+  }
 
   override fun applyToCompilation(
     kotlinCompilation: KotlinCompilation<*>,
@@ -100,6 +111,7 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
     val output = project.layout.buildDirectory.dir("mosaic-analysis/main/shards")
     val root = project.file("src/main/kotlin")
     val module = project.group.toString() + ":" + project.name
+    val selectedCompiler = compilerVersion.get()
     val selectedRevision =
       project.providers.of(SelectedCoreRevision::class.java) {
         it.parameters.artifacts.from(coreCompileArtifacts)
@@ -111,6 +123,7 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
         SubpluginOption("mode", "shards"),
         SubpluginOption("coreRevision", revision.toString()),
         SubpluginOption("module", module),
+        SubpluginOption("compilerVersion", selectedCompiler),
       )
     }
   }
@@ -198,8 +211,16 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
     project: Project,
     compile: TaskProvider<KotlinJvmCompile>,
   ): TaskProvider<ExtractMosaicTask> {
-    val kotlinPluginVersion =
-      project.plugins.findPlugin("org.jetbrains.kotlin.jvm")?.javaClass?.`package`?.implementationVersion ?: "unknown"
+    val kotlinPluginVersion = (project.plugins.getPlugin("org.jetbrains.kotlin.jvm") as KotlinBasePlugin).pluginVersion
+    val defaultCompilerArtifacts =
+      project.configurations.named("kotlinCompilerPluginClasspathMain").flatMap { configuration ->
+        configuration.incoming.artifacts.resolvedArtifacts.map { artifacts ->
+          artifacts.filter { artifact ->
+            val id = artifact.id.componentIdentifier
+            id is ModuleComponentIdentifier && isDefaultKotlinCompilerArtifact(id, kotlinPluginVersion)
+          }.map { it.file }
+        }
+      }
     val javaExtension = project.extensions.getByType(JavaPluginExtension::class.java)
     val launcher = project.extensions.getByType(JavaToolchainService::class.java).launcherFor(javaExtension.toolchain)
     val mainSources =
@@ -224,10 +245,11 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
         },
       )
       task.additionalCompilerPlugins.from(compile.map { it.pluginClasspath })
+      task.defaultCompilerArtifacts.from(defaultCompilerArtifacts)
       task.friendPaths.from(compile.map { it.friendPaths })
       task.mosaicVersion.set(mosaicVersion)
       task.moduleId.set(project.provider { project.group.toString() + ":" + project.name })
-      task.productionCompilerVersion.set(kotlinPluginVersion)
+      task.productionCompilerVersion.set(compilerVersion)
       task.unsupportedCompilerOptions.set(compile.map(::unsupportedCompilerOptions))
       task.unsupportedProjectPlugins.set(project.provider { unsupportedProjectPlugins(project) })
       task.selectedJavaVersion.set(launcher.map { it.metadata.languageVersion.asInt().toString() })

@@ -47,8 +47,9 @@ Neither skill is required for routine edits or authorizes unrelated cleanup.
 
 ## Analysis invariants
 
-- Support exactly Kotlin compiler and Gradle plugin 2.4.20. Reject unsupported
-  project configurations conservatively.
+- Admit only empirically verified compiler/introspector combinations from
+  [CompilerVersionAdmission](mosaic-analysis-core/src/main/kotlin/org/buildmosaic/analysis/CompilerVersionAdmission.kt).
+  Reject unsupported project configurations conservatively.
 - Mosaic analysis runs inside normal `main` Kotlin compilation. Production
   builds launch no separate Mosaic compiler process.
 - The compiler writes source-relative shards for affected files. Shards are

@@ -61,10 +61,14 @@ class SupportedBoundaryIntegrationTest {
     )
     File(project, "src/main/kotlin/Script.kts").delete()
     buildFile.writeText(
-      validBuild + "\ntasks.named<org.buildmosaic.gradle.ExtractMosaicTask>(\"extractMosaicMain\") { productionCompilerVersion.set(\"2.2.10\") }",
+      validBuild + "\ntasks.named<org.buildmosaic.gradle.ExtractMosaicTask>(\"extractMosaicMain\") { productionCompilerVersion.set(\"2.4.22\") }",
     )
     assertTrue(
-      run(project, "extractMosaicMain", expectFailure = true).output.contains("requires Kotlin Gradle plugin 2.4.20"),
+      run(
+        project,
+        "extractMosaicMain",
+        expectFailure = true,
+      ).output.contains("has not verified Kotlin compiler 2.4.22"),
     )
     buildFile.writeText(
       validBuild + "\ntasks.named<org.buildmosaic.gradle.ExtractMosaicTask>(\"extractMosaicMain\") { selectedJavaVersion.set(\"999\") }",
