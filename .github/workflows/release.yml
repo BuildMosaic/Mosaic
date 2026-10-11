@@ -147,7 +147,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           evidence="$GITHUB_WORKSPACE/build/reports/compatibility/release-$RELEASE_TRAIN.json"
-          git fetch --no-tags origin develop
+          git fetch --no-tags origin main
           git checkout --detach FETCH_HEAD
           python3 compatibility/maintain.py registry --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"
 

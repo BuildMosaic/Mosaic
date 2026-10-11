@@ -23,10 +23,10 @@ jobs:
     outputs:
       versions: ${{ steps.discover.outputs.versions }}
     steps:
-      # Schedules load this workflow from main; maintenance code and PRs use develop.
+      # Investigate the released-code branch; propose maintenance directly against main.
       - uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: main
           persist-credentials: false
       - id: discover
         env:
@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: main
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:

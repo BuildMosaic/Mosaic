@@ -4,12 +4,12 @@ Thanks for your interest in contributing! 🎉
 
 ## How to Contribute
 - **Issues**: Use GitHub Issues for bug reports or feature requests. Please include steps to reproduce bugs.
-- **Pull Requests**: Fork the repo, create a branch from `develop`, and target `develop` for feature, fix, and documentation PRs. Link PRs to an issue when possible.
+- **Pull Requests**: Fork the repo and branch from the intended target: `develop` for new features; `main` for hotfixes and maintenance, including compatibility updates. Target documentation changes at the branch whose behavior they describe. Link PRs to an issue when possible.
 - **Code Style**: Styling is enforced by ktlint. Use `./gradlew ktlintFormat` to auto-fix most issues. Keep commits small and descriptive.
 - **Tests**: PRs must meet coverage requirements enforced by Kover. Add or update tests for any new functionality.
 - **Commit Messages**: Use clear, imperative titles (e.g., "Add X" not "Added X").
 
-`develop` is the integration branch for unreleased work. `main` remains the default, release-quality branch; releases are integrated from `develop` into `main`. Contributors should not normally target `main` directly.
+`main` owns the released code. Maintenance releases proceed directly from `main`, independently of features in progress on `develop`. Integrate ready new features from `develop` into `main` through a reviewed release PR, and carry applicable maintenance fixes back into `develop`.
 
 ## Development Setup
 1. Clone the repo and open in IntelliJ IDEA.

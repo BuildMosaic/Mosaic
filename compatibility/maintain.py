@@ -236,7 +236,7 @@ def handled_versions():
 
 
 def propose(branch, title, body, files):
-    prs = json.loads(gh("pr", "list", "--state", "all", "--head", branch, "--base", "develop", "--json", "url"))
+    prs = json.loads(gh("pr", "list", "--state", "all", "--head", branch, "--base", "main", "--json", "url"))
     if prs:
         print(f"Already proposed: {prs[0]['url']}")
         return
@@ -246,10 +246,10 @@ def propose(branch, title, body, files):
         print(f"Already reported: {existing['url']}")
         return
     repository = os.environ["GITHUB_REPOSITORY"]
-    sha = json.loads(gh("api", f"repos/{repository}/git/ref/heads/develop"))["object"]["sha"]
-    # Never publish tested files on a different develop revision.
+    sha = json.loads(gh("api", f"repos/{repository}/git/ref/heads/main"))["object"]["sha"]
+    # Never publish tested files on a different main revision.
     if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip() != sha:
-        raise ValueError("develop advanced during verification; rerun against its new revision")
+        raise ValueError("main advanced during verification; rerun against its new revision")
     refs = json.loads(gh("api", f"repos/{repository}/git/matching-refs/heads/{branch}"))
     ref = next((r for r in refs if r["ref"] == f"refs/heads/{branch}"), None)
     if ref is None:
@@ -277,12 +277,12 @@ def propose(branch, title, body, files):
         if not signature or not signature.get("isValid"):
             raise ValueError("GitHub did not verify the automation commit signature")
     try:
-        print(gh("pr", "create", "--base", "develop", "--head", branch, "--title", title, "--body", body))
+        print(gh("pr", "create", "--base", "main", "--head", branch, "--title", title, "--body", body))
     except subprocess.CalledProcessError as failure:
         diagnostic = ("Automatic PR creation failed: " + failure.stderr +
                       "\nEnable Settings → Actions → General → Workflow permissions → "
                       "Allow GitHub Actions to create and approve pull requests. "
-                      f"The verified branch is `{branch}`; open its PR against develop manually.\n")
+                      f"The verified branch is `{branch}`; open its PR against main manually.\n")
         print(diagnostic)
         print(gh("issue", "create", "--title", title, "--body", body + "\n" + diagnostic))
 
@@ -324,7 +324,7 @@ def discover(java_installations, plan=False, kotlin=None):
                      "Production admission passed without the probe flag. The existing real Maven public-plugin "
                      "installation fixture passed for this exact compiler/KGP, checking selected artifact bytes, "
                      "compiler provenance, VERIFIED/MISSING/UNVERIFIED semantics and Java 17 execution.\n\n"
-                     "Only this new compiler was targeted. This development candidate establishes no published "
+                     "Only this new compiler was targeted. This unreleased candidate establishes no published "
                      "compatibility guarantee; no registry update, release publication or merge is performed.")
             propose(f"automation/kotlin-{version}", title, body, {str(MAPPING): result["mapping"]})
         else:

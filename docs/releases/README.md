@@ -6,8 +6,10 @@ or `analysis-<version>`, for example `runtime-1.0.0`. The workflow derives the
 tag from the selected train and version and overrides only `mosaic.runtime.version`
 or `mosaic.analysis.version` for publication. Existing historical tags remain unchanged.
 
-Integrate the release-prep feature PR into `develop`, then merge a validated
-`develop` → `main` release PR. Include a dated changelog heading using the full tag,
+Prepare hotfixes and maintenance releases directly against `main`. New features
+are developed on `develop` and reach `main` through a validated feature-release
+PR when ready. Compatibility mapping and registry PRs target `main` and do not
+require unreleased features. Include a dated changelog heading using the full tag,
 such as `## [runtime-1.0.0] - YYYY-MM-DD`, and a companion
 `docs/releases/runtime-1.0.0.md`. Create the immutable train tag at that validated
 main commit. Release preparation itself does not tag, publish, or deploy.
@@ -47,7 +49,7 @@ Release from the checked-in release-notes companion and dated changelog entry.
 The workflow never creates or moves a tag.
 
 After GitHub Release creation succeeds, the workflow proposes a compatibility
-registry PR against `develop` from that release's certification evidence. Review
+registry PR against `main` from that release's certification evidence. Review
 its continuous Kotlin interval and frozen ceilings for older releases; it records
 only the actual released train and does not infer Runtime/Analysis relationship
 bounds. Failed publication or GitHub Release creation cannot trigger this proposal.

@@ -150,9 +150,10 @@ ordinary builds. A targeted pass is not full release certification.
 
 [`kotlin-compatibility.yml`](../.github/workflows/kotlin-compatibility.yml) runs
 daily at **07:23 UTC** and accepts manual dispatch. GitHub loads scheduled workflow
-definitions from default branch `main`; its jobs check out `develop` and target
-all maintenance PRs there. Integrate the workflow into `main` through the normal
-release-quality branch process before expecting scheduled runs.
+definitions from default branch `main`; its jobs check out `main` and target
+all maintenance PRs there. Compatibility maintenance tests the released-code
+branch independently of new features on `develop`. The workflow and compatibility
+infrastructure must be present on `main` before scheduled maintenance can run.
 
 `compatibility/maintain.py discover --plan` reads Maven Central's
 `kotlin-compiler-embeddable/maven-metadata.xml`, accepts only exact stable versions,
@@ -214,7 +215,7 @@ python3 compatibility/registry.py check --runtime 1.0.0 --analysis 1.0.0 --kotli
 ```
 
 After publication and GitHub Release creation both succeed, the release workflow
-proposes `automation/registry-<train>-<version>` against `develop`. It uses the
+proposes `automation/registry-<train>-<version>` against `main`. It uses the
 successful full certification reports from that immutable release commit, bound
 to the actual released version. Stable releases only qualify. The updater rejects
 probes, failed/incomplete checks, mismatched compiler provenance or source revision,
