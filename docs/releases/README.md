@@ -32,7 +32,8 @@ then submits the plugin to the Plugin Portal. Publication is not atomic; inspect
 partial success before retrying and never republish released coordinates.
 
 After publication and GitHub Release creation, the workflow proposes only the
-compatibility facts it verified. Evidence remains in the `release-compatibility`
-Actions artifact for 30 days. If the registry proposal fails, retry only that
-proposal from retained evidence; publication has already happened. No workflow
-creates or moves release tags, merges PRs, or invents historical support.
+compatibility facts it verified. The certification step prints its compact JSON
+result in the Actions log. If the registry proposal fails, save that result to a
+local file and retry only the proposal with it; publication has already happened.
+There is no separate report archive. No workflow creates or moves release tags,
+merges PRs, or invents historical support.

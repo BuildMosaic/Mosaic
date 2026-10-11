@@ -66,9 +66,13 @@ class Certification:
     def run(self, name, command):
         log = self.directory / f'{name}.log'
         print(f'{name}: {log}', flush=True)
-        with log.open('a') as output:
-            subprocess.run(list(map(str, command)), cwd=ROOT, stdout=output, stderr=subprocess.STDOUT,
-                           check=True, timeout=1800)
+        try:
+            with log.open('a') as output:
+                subprocess.run(list(map(str, command)), cwd=ROOT, stdout=output, stderr=subprocess.STDOUT,
+                               check=True, timeout=1800)
+        except subprocess.SubprocessError:
+            print(''.join(log.read_text(errors='replace').splitlines(keepends=True)[-200:]), file=sys.stderr, flush=True)
+            raise
 
     def gradle(self, name, *args):
         self.run(name, [ROOT / 'gradlew', *args, '--no-configuration-cache', '--console=plain', '--max-workers=2',

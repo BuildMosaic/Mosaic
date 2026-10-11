@@ -32,7 +32,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      issues: write
     steps:
       - name: Require dispatch from main
         env:
@@ -94,6 +93,7 @@ jobs:
           args=()
           if [ -n "$COUNTERPARTS" ]; then args+=("-Pcompat.counterparts=$COUNTERPARTS"); fi
           ./gradlew certifyReleaseCompatibility -Pcompat.scope="$RELEASE_TRAIN" -Pcompat.release="$RELEASE_VERSION" "${args[@]}" --no-configuration-cache -Porg.gradle.java.installations.paths="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+          cat "build/reports/compatibility/release-$RELEASE_TRAIN.json"
 
       - name: Publish Runtime
         if: ${{ success() && inputs.train == 'runtime' }}
@@ -157,13 +157,3 @@ jobs:
           git fetch --no-tags origin main
           git checkout --detach FETCH_HEAD
           python3 compatibility/maintain.py record --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: release-compatibility
-          path: |
-            build/reports/compatibility/
-            mosaic-gradle-plugin/build/reports/introspector-installation/
-            mosaic-gradle-plugin/build/test-results/releaseCompatibilityTest/
-          retention-days: 30

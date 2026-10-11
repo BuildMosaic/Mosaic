@@ -10,16 +10,19 @@ compatible Analysis release when you want architecture reports and dependency ve
 
 ## Supported versions
 
-Mosaic's support floor is **Kotlin 2.2.0**. Every stable Kotlin release from that version onward is in scope, including
-backported patches; support does not expire with age. New compiler versions become supported after verification.
-Prereleases are outside this policy.
+Mosaic officially supports each Kotlin minor family for **18 months after its first stable release**, including stable
+patches in that family. New compiler versions become supported after verification. Prereleases are outside this policy.
+
+Aging out of this window does not automatically disable a verified Kotlin version or remove its compatibility records.
+Older combinations may continue to work, but fall outside official support.
 
 <CompatibilityTables />
 
-These tables describe published, verified combinations. Unlisted versions or relationships are **not yet certified**,
-rather than implicitly compatible. For Analysis, use the listed Kotlin compiler and matching Kotlin Gradle Plugin (KGP)
-version. Older Analysis binaries may need an upgrade to admit a new Kotlin version, even when the underlying compiler
-API is unchanged.
+These tables describe published, verified combinations, including historical results outside the support window.
+Guaranteed compatibility requires both a listed combination and a Kotlin family within the 18-month window. Unlisted
+versions or relationships are **not yet certified**; a newer entry does not imply support for unlisted versions below
+it. For Analysis, use the listed Kotlin compiler and matching Kotlin Gradle Plugin (KGP) version. Older Analysis
+binaries may need an upgrade to admit a new Kotlin version, even when the underlying compiler API is unchanged.
 
 ## Runtime libraries
 

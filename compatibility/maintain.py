@@ -64,7 +64,7 @@ def propose(branch, title, path, content):
         'variables': {'input': {'branch': {'repositoryNameWithOwner': repository, 'branchName': branch},
             'expectedHeadOid': head, 'message': {'headline': title}, 'fileChanges': {'additions': [
                 {'path': path, 'contents': base64.b64encode(content.encode()).decode()}]}}}})
-    body = f'Verified by {run_url()}. See the compatibility artifact for compiler and installation logs.\n\nReview before merging.'
+    body = f'Verified by {run_url()}. Review before merging.'
     print(gh('pr', 'create', '--base', base, '--head', branch, '--title', title, '--body', body))
 
 
@@ -74,7 +74,7 @@ def run_url():
 
 def discover():
     _, mapping = certify.compiler_profiles()
-    pages = json.loads(gh('api', 'repos/{owner}/{repo}/issues?state=open&per_page=100', '--paginate', '--slurp'))
+    pages = json.loads(gh('api', 'repos/{owner}/{repo}/pulls?state=open&per_page=100', '--paginate', '--slurp'))
     active = {item['title'] for page in pages for item in page}
     pending = [v for v in central_versions() if v not in mapping and f'Kotlin compatibility: {v}' not in active and available(v)]
     print(json.dumps(pending))
@@ -84,7 +84,7 @@ def discover():
 
 def investigate(version, java_installations):
     if registry.version(version) < (2, 2, 0):
-        raise ValueError('Kotlin support starts at 2.2.0')
+        raise ValueError('Compatibility discovery starts at Kotlin 2.2.0')
     original = certify.MAPPING.read_text()
     default, mapping = certify.compiler_profiles()
     # Try the nearest demonstrated profile first; add a shared-source API target only if needed.

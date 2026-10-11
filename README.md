@@ -160,7 +160,8 @@ covers application setup, resource ownership, and runtime requirements.
 
 ## 🔗 **Compatibility**
 
-Mosaic 1.x targets Java 17+ and every stable Kotlin version from 2.2.0 onward.
+Mosaic 1.x targets Java 17+ and officially supports Kotlin minor families for
+18 months after their first stable release, including their stable patches.
 Runtime and optional Analysis are independently versioned. Find
 supported Kotlin versions and compatible Runtime/Analysis combinations in the
 [compatibility reference](https://BuildMosaic.org/reference/compatibility/).

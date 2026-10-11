@@ -60,4 +60,4 @@ if __name__ == '__main__':
         parser.error('check requires --runtime and --kotlin')
     data = load()
     print('valid' if args.command == 'validate' else
-          'supported' if compatible(data, args.runtime, args.kotlin, args.analysis) else 'unknown')
+          'verified' if compatible(data, args.runtime, args.kotlin, args.analysis) else 'unknown')

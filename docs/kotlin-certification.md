@@ -1,17 +1,28 @@
 # Kotlin compatibility maintenance
 
+Official support covers Kotlin minor families for 18 months after their first
+stable release, including stable patches. Existing mappings and published
+verification records do not expire automatically; older combinations can remain
+usable outside that support window.
+
 The daily `kotlin-compatibility.yml` workflow checks stable Kotlin releases from
-2.2.0 onward, including backports. It runs only for unmapped versions without an
-open investigation. Close the investigation to retry discovery, or dispatch the
-workflow with an exact `kotlin` version. Scheduled runs use `main`; manual runs
-use the selected branch. The workflow must reach `main` before scheduling starts.
+2.2.0 onward, including backports. This discovery range preserves coverage of
+older versions without extending the official support guarantee. It runs only
+for unmapped versions without an open compatibility PR. Failed versions are
+retried on the next scan; dispatch with an exact `kotlin` version to retry sooner.
+Scheduled runs use `main`; manual runs use the selected branch. The workflow
+must reach `main` before scheduling starts.
 
 For a new compiler, maintenance tentatively selects an existing introspector,
 runs the existing compiler corpus and real Gradle installation fixture, and
 proposes the passing mapping. If needed, it tries a new compiler API target using
 the same extraction sources. Production admission is always enforced. Failures
-retain logs in the Actions artifact and open a Codex Cloud investigation.
-No workflow merges a PR or publishes a release automatically.
+print diagnostic output in Actions logs and go directly to Codex Cloud.
+The workflow creates no administrative issues, report archives, or automatic
+merges or releases. The Actions run records a completed scan; a passing mapping
+PR records newly verified development compatibility. Neither expands the public
+matrix until a published release is verified, so no separate last-checked field
+is needed.
 
 ## One-time configuration
 
@@ -24,9 +35,9 @@ No workflow merges a PR or publishes a release automatically.
   authentication expires. The workflow uses a pinned CLI and removes the runner's
   credential file after submitting the task.
 
-If the Codex target or credentials are absent, the workflow opens an issue with
-the failure logs and reports the missing configuration. It does not claim to
-have launched a task. An explicit retry can open a new investigation.
+If the Codex target or credentials are absent, the workflow fails with a clear
+configuration message and leaves diagnostics in its logs. It does not claim to
+have launched a task.
 
 ## Local verification
 
@@ -79,8 +90,9 @@ compiler lists.
 
 Publication and GitHub Release creation must succeed before the workflow
 proposes a registry PR. The success record identifies the train, release, source
-commit, compiler versions, and tested counterparts. Existing pairings never grow merely because another release passed. Review and merge the registry PR before
-releasing a dependent train. If proposal creation fails after publication, retry
-only the proposal using the retained evidence; do not republish artifacts.
-Actions retains evidence for 30 days. Unpublished candidates establish no public
-guarantees.
+commit, compiler versions, and tested counterparts. Existing pairings never grow
+merely because another release passed. Review and merge the registry PR before
+releasing a dependent train. If proposal creation fails after publication, copy
+the compact JSON result from the certification step's Actions log into a local
+file and retry only `maintain.py record` with that evidence; do not republish
+artifacts. Unpublished candidates establish no public guarantees.
