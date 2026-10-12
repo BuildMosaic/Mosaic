@@ -8,8 +8,9 @@ usable outside that support window.
 The daily `kotlin-compatibility.yml` workflow checks stable Kotlin releases from
 2.2.0 onward, including backports. This discovery range preserves coverage of
 older versions without extending the official support guarantee. It runs only
-for unmapped versions without an open compatibility PR. Failed versions are
-retried on the next scan; dispatch with an exact `kotlin` version to retry sooner.
+for unmapped versions without an open compatibility issue or PR. Dispatch with
+an exact `kotlin` version to retry while an issue or PR is open. Closing an issue
+without a verified mapping makes that version eligible for the next scan.
 Scheduled runs use `main`; manual runs use the selected branch. The workflow
 must reach `main` before scheduling starts.
 
@@ -17,27 +18,20 @@ For a new compiler, maintenance tentatively selects an existing introspector,
 runs the existing compiler corpus and real Gradle installation fixture, and
 proposes the passing mapping. If needed, it tries a new compiler API target using
 the same extraction sources. Production admission is always enforced. Failures
-print diagnostic output in Actions logs and go directly to Codex Cloud.
-The workflow creates no administrative issues, report archives, or automatic
-merges or releases. The Actions run records a completed scan; a passing mapping
-PR records newly verified development compatibility. Neither expands the public
-matrix until a published release is verified, so no separate last-checked field
-is needed.
+print diagnostic output in Actions logs and open a GitHub issue with the failing
+revision, a log link, and reproduction instructions. Failed manual retries add
+a comment to the existing issue. The workflow creates no report archives or
+automatic merges or releases. The Actions run records a completed scan; a passing
+mapping PR records newly verified development compatibility. After a verified
+release is published, the release workflow automatically proposes its public
+matrix update. The website renders the registry when that PR is merged. No
+separate last-checked field is needed.
 
 ## One-time configuration
 
-- Enable GitHub Actions pull-request creation in repository workflow permissions.
-- Set repository variable `CODEX_COMPATIBILITY_ENVIRONMENT` to the Codex Cloud
-  environment ID for this repository. This is intentionally left unconfigured
-  until an environment is selected.
-- Set secret `CODEX_AUTH_JSON` to the authenticated Codex CLI's file credentials
-  for that environment. Keep credentials out of the repository; renew them if
-  authentication expires. The workflow uses a pinned CLI and removes the runner's
-  credential file after submitting the task.
-
-If the Codex target or credentials are absent, the workflow fails with a clear
-configuration message and leaves diagnostics in its logs. It does not claim to
-have launched a task.
+Enable GitHub Actions pull-request creation in repository workflow permissions
+and keep repository Issues enabled. The workflow uses the built-in `GITHUB_TOKEN`
+with issue and pull-request permissions; no external credentials are needed.
 
 ## Local verification
 

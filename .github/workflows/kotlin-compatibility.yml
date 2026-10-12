@@ -17,6 +17,7 @@ jobs:
   discover:
     permissions:
       contents: read
+      issues: read
       pull-requests: read
     runs-on: ubuntu-latest
     outputs:
@@ -53,6 +54,7 @@ jobs:
     timeout-minutes: 180
     permissions:
       contents: write
+      issues: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
@@ -77,21 +79,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           KOTLIN_VERSION: ${{ matrix.kotlin }}
         run: python3 compatibility/maintain.py propose --kotlin "$KOTLIN_VERSION"
-      - name: Hand failure to Codex Cloud
+      - name: Report compatibility failure
         if: failure() && steps.verify.outcome == 'failure'
         env:
+          GH_TOKEN: ${{ github.token }}
           KOTLIN_VERSION: ${{ matrix.kotlin }}
-          CODEX_ENVIRONMENT: ${{ vars.CODEX_COMPATIBILITY_ENVIRONMENT }}
-          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
-        run: |
-          report="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-          if [ -z "$CODEX_ENVIRONMENT" ] || [ -z "$CODEX_AUTH_JSON" ]; then
-            echo '::error::Configure CODEX_COMPATIBILITY_ENVIRONMENT and CODEX_AUTH_JSON to enable the Codex Cloud handoff.'
-            exit 1
-          fi
-          npm install --global @openai/codex@0.162.1
-          codex_auth_dir="$HOME/.codex"
-          mkdir -p "$codex_auth_dir"
-          trap 'rm -f "$codex_auth_dir/auth.json"' EXIT
-          (umask 077; printf '%s' "$CODEX_AUTH_JSON" > "$codex_auth_dir/auth.json")
-          codex cloud exec --env "$CODEX_ENVIRONMENT" --branch "$GITHUB_REF_NAME" "Fix Kotlin $KOTLIN_VERSION compatibility in $GITHUB_REPOSITORY. Start with the failure logs at $report. Reproduce with python3 compatibility/maintain.py investigate --kotlin $KOTLIN_VERSION. Follow the 18-month Kotlin minor-family support policy; preserve existing verified mappings without automatic age-based removal, exact production admission, and existing analysis semantics. Keep administrative tests minimal; reuse compiler fixtures. Open a PR titled 'Kotlin compatibility: $KOTLIN_VERSION' against $GITHUB_REF_NAME; do not merge or publish a release."
+        run: python3 compatibility/maintain.py report-failure --kotlin "$KOTLIN_VERSION"

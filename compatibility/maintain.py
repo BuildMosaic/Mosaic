@@ -72,10 +72,33 @@ def run_url():
     return f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
 
 
+def open_issues():
+    # GitHub's issues endpoint includes pull requests.
+    pages = json.loads(gh('api', 'repos/{owner}/{repo}/issues?state=open&per_page=100', '--paginate', '--slurp'))
+    return [item for page in pages for item in page]
+
+
+def report_failure(version):
+    registry.version(version)
+    title = f'Kotlin compatibility: {version}'
+    issue = next((item for item in open_issues() if item['title'] == title and 'pull_request' not in item), None)
+    body = (f'Kotlin {version} compatibility verification failed on `{os.environ["GITHUB_REF_NAME"]}` '
+            f'at `{os.environ["GITHUB_SHA"]}`.\n\n'
+            f'[Failure logs]({run_url()})\n\n'
+            'Reproduce with JDK 17 and 21 available:\n\n'
+            f'```bash\npython3 compatibility/maintain.py investigate --kotlin {version}\n```\n\n'
+            'After fixing the failure, dispatch Kotlin compatibility maintenance with this Kotlin version '
+            'to propose the verified mapping. Close this issue when the fix is merged.')
+    if issue:
+        result = gh('api', f'repos/{{owner}}/{{repo}}/issues/{issue["number"]}/comments', payload={'body': body})
+    else:
+        result = gh('api', 'repos/{owner}/{repo}/issues', payload={'title': title, 'body': body})
+    print(json.loads(result)['html_url'])
+
+
 def discover():
     _, mapping = certify.compiler_profiles()
-    pages = json.loads(gh('api', 'repos/{owner}/{repo}/pulls?state=open&per_page=100', '--paginate', '--slurp'))
-    active = {item['title'] for page in pages for item in page}
+    active = {item['title'] for item in open_issues()}
     pending = [v for v in central_versions() if v not in mapping and f'Kotlin compatibility: {v}' not in active and available(v)]
     print(json.dumps(pending))
     with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
@@ -153,6 +176,8 @@ if __name__ == '__main__':
     investigation.add_argument('--java-installations', default='')
     proposal = commands.add_parser('propose')
     proposal.add_argument('--kotlin', required=True)
+    failure = commands.add_parser('report-failure')
+    failure.add_argument('--kotlin', required=True)
     release = commands.add_parser('record')
     release.add_argument('--evidence', type=Path, required=True)
     release.add_argument('--train', choices=('runtime', 'analysis'), required=True)
@@ -163,6 +188,8 @@ if __name__ == '__main__':
         discover()
     elif args.command == 'investigate':
         investigate(args.kotlin, args.java_installations)
+    elif args.command == 'report-failure':
+        report_failure(args.kotlin)
     elif args.command == 'propose':
         registry.version(args.kotlin)
         propose(f'automation/kotlin-{args.kotlin}-{os.environ["GITHUB_RUN_ID"]}-{os.environ.get("GITHUB_RUN_ATTEMPT", "1")}', f'Kotlin compatibility: {args.kotlin}',
