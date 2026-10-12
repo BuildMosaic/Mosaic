@@ -106,8 +106,8 @@ entries, and duplicate parameters are rejected.
 `contractVersion = 6` covers serialized structure and meaning. The envelope has
 `producer.analysisVersion`, `producer.compilerVersion`, `moduleId`, `sourceSet`,
 and `complete` header fields. The Analysis version comes from its bundled build
-resource; the compiler version is normalized to the supported Kotlin 2.4.20.
-The writer and extractor support only Kotlin 2.4.20; the reader accepts valid
+resource; the compiler version records the actual stable Kotlin compiler.
+The writer and extractor admit bounded compatible compiler ABIs; the reader accepts valid
 contract-6, complete `main` summaries from other nonblank Analysis and compiler
 producer versions, preserving those identities as provenance. Successful decoding
 does not certify compiler, Runtime, or Gradle interoperability. The module identity

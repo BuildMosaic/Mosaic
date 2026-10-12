@@ -14,7 +14,7 @@ import org.buildmosaic.analysis.metadata.toWire
 import java.security.MessageDigest
 import java.util.Properties
 
-/** Host build compiler; introspector ABI builds are defined separately in the measured mapping. */
+/** Host build compiler; introspector ABI builds are defined separately in the compatibility bounds. */
 const val ANALYSIS_KOTLIN_VERSION = "2.4.21"
 
 /** Internal JAR resource. Compatibility is decided by the header, not this path. */

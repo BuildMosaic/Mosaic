@@ -47,9 +47,10 @@ Neither skill is required for routine edits or authorizes unrelated cleanup.
 
 ## Analysis invariants
 
-- Admit only empirically verified compiler/introspector combinations from
+- Admit only bounded compatible compiler ABIs from
   [CompilerVersionAdmission](mosaic-analysis-core/src/main/kotlin/org/buildmosaic/analysis/CompilerVersionAdmission.kt).
-  Reject unsupported project configurations conservatively.
+  Keep admission separate from exact published certification in the compatibility
+  registry. Reject unsupported project configurations conservatively.
 - Mosaic analysis runs inside normal `main` Kotlin compilation. Production
   builds launch no separate Mosaic compiler process.
 - The compiler writes source-relative shards for affected files. Shards are

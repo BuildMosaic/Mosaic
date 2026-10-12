@@ -21,8 +21,12 @@ Older combinations may continue to work, but fall outside official support.
 These tables describe published, verified combinations, including historical results outside the support window.
 Guaranteed compatibility requires both a listed combination and a Kotlin family within the 18-month window. Unlisted
 versions or relationships are **not yet certified**; a newer entry does not imply support for unlisted versions below
-it. For Analysis, use the listed Kotlin compiler and matching Kotlin Gradle Plugin (KGP) version. Older Analysis
-binaries may need an upgrade to admit a new Kotlin version, even when the underlying compiler API is unchanged.
+it. For Analysis, use matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions.
+
+Published Analysis plugins can accept later stable Kotlin patches within their compatible compiler families without an
+Analysis upgrade. A patch can work before certification; the tables gain that version only after the unchanged published
+artifacts and their combination pass verification. New compiler families and incompatible compiler APIs require
+compatible Analysis tooling.
 
 ## Runtime libraries
 

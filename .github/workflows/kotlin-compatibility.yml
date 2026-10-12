@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       kotlin:
-        description: Exact stable version to retry (blank discovers new releases)
+        description: Exact stable version to retry (blank discovers uncertified combinations)
         type: string
 
 concurrency:
@@ -14,49 +14,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  discover:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
     permissions:
       contents: read
-      issues: read
-      pull-requests: read
-    runs-on: ubuntu-latest
-    outputs:
-      versions: ${{ steps.discover.outputs.versions }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: discover
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REQUESTED_KOTLIN: ${{ inputs.kotlin }}
-        run: |
-          if [ -n "$REQUESTED_KOTLIN" ]; then
-            python3 - <<'PY'
-          import json, os, sys
-          sys.path.insert(0, 'compatibility')
-          from registry import version
-          requested = os.environ['REQUESTED_KOTLIN']
-          assert version(requested) >= (2, 2, 0)
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('versions=' + json.dumps([requested]) + '\n')
-          PY
-          else
-            python3 compatibility/maintain.py discover
-          fi
-
-  investigate:
-    needs: discover
-    if: needs.discover.outputs.versions != '[]'
-    strategy:
-      fail-fast: false
-      matrix:
-        kotlin: ${{ fromJSON(needs.discover.outputs.versions) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-    permissions:
-      contents: write
       issues: write
-      pull-requests: write
+      actions: write
     steps:
+      - name: Require main
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
+        run: test "$WORKFLOW_REF" = refs/heads/main
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -69,19 +38,23 @@ jobs:
           distribution: zulu
           java-version: '21'
           cache: gradle
-      - name: Verify compiler and installation
+      - name: Certify published artifacts and report failures
         id: verify
         env:
-          KOTLIN_VERSION: ${{ matrix.kotlin }}
-        run: python3 compatibility/maintain.py investigate --kotlin "$KOTLIN_VERSION" --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
-      - name: Propose the verified mapping
-        env:
           GH_TOKEN: ${{ github.token }}
-          KOTLIN_VERSION: ${{ matrix.kotlin }}
-        run: python3 compatibility/maintain.py propose --kotlin "$KOTLIN_VERSION"
-      - name: Report compatibility failure
-        if: failure() && steps.verify.outcome == 'failure'
+          REQUESTED_KOTLIN: ${{ inputs.kotlin }}
+        run: python3 compatibility/maintain.py scan --kotlin "$REQUESTED_KOTLIN" --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+      - name: Authenticate the registry writer
+        if: ${{ !cancelled() && steps.verify.outputs.evidence == 'true' }}
+        id: writer
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.KOTLIN_COMPATIBILITY_APP_ID }}
+          private-key: ${{ secrets.KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - name: Record passing combinations on main and deploy the website
+        if: ${{ !cancelled() && steps.writer.outcome == 'success' }}
         env:
-          GH_TOKEN: ${{ github.token }}
-          KOTLIN_VERSION: ${{ matrix.kotlin }}
-        run: python3 compatibility/maintain.py report-failure --kotlin "$KOTLIN_VERSION"
+          GH_TOKEN: ${{ steps.writer.outputs.token }}
+          GH_WORKFLOW_TOKEN: ${{ github.token }}
+        run: python3 compatibility/maintain.py publish --evidence build/reports/compatibility/published.json
