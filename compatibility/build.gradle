@@ -44,7 +44,7 @@ dependencies {
     ['mosaic-core', 'mosaic-test', 'mosaic-opentelemetry'].each {
         consumer("org.buildmosaic:$it:$runtimeCandidate") { version { strictly runtimeCandidate } }
     }
-    extractor("org.buildmosaic:mosaic-compiler-plugin:$candidate") { version { strictly candidate } }
+    extractor("org.buildmosaic:${providers.gradleProperty('compat.extractor').orElse('mosaic-compiler-plugin').get()}:$candidate") { version { strictly candidate } }
     runner 'org.junit.platform:junit-platform-console-standalone:1.12.2'
     runner "org.jetbrains.kotlin:kotlin-test-junit5:$baseline"
 }

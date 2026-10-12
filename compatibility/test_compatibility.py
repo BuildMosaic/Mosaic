@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from certify import summaries
-from registry import compatible
+from registry import compatible, record, validate
 
 
 class CompatibilityClaimsTest(unittest.TestCase):
@@ -21,6 +21,18 @@ class CompatibilityClaimsTest(unittest.TestCase):
                                            ('9.0.0', '2.2.0', None),
                                            ('1.0.0', '2.2.0', '9.0.0')]:
             self.assertFalse(compatible(data, runtime, kotlin, analysis))
+        patch = {'result': 'pass', 'runtime': '1.0.0', 'analysis': None, 'kotlin': ['2.4.22']}
+        record(data, patch)
+        self.assertTrue(compatible(data, '1.0.0', '2.4.22'))
+        self.assertFalse(compatible(data, '1.0.0', '2.4.22', '1.0.0'))
+        record(data, {**patch, 'analysis': '1.0.0'})
+        self.assertTrue(compatible(data, '1.0.0', '2.4.22', '1.0.0'))
+        self.assertFalse(compatible(data, '2.0.0', '2.4.22', '1.0.0'))
+        before = json.dumps(data)
+        with self.assertRaises(ValueError):
+            record(data, {**patch, 'result': 'fail', 'kotlin': ['2.4.23']})
+        self.assertEqual(before, json.dumps(data))
+        self.assertEqual(data, validate(data))
 
     def test_comparison_ignores_only_compiler_provenance_and_derived_hash(self):
         with tempfile.TemporaryDirectory() as directory:

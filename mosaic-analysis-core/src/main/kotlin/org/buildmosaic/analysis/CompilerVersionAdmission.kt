@@ -2,31 +2,50 @@ package org.buildmosaic.analysis
 
 import java.util.Properties
 
-/** Internal measured compiler mapping, shared by Gradle selection and compiler admission. */
+/** Bounded compiler ABI compatibility, shared by Gradle selection and compiler admission. */
 object CompilerVersionAdmission {
   private val profiles =
     Properties().apply {
       CompilerVersionAdmission::class.java.getResourceAsStream("compiler-profiles.properties")!!.use(::load)
     }
   val defaultCompilerApi: String = profiles.getProperty("default")
-  private val compilersByApi =
+  private val boundsByApi =
     profiles.stringPropertyNames().filter { it != "default" }.sorted().associateWith {
-      profiles.getProperty(it).split(',').toSet()
+      profiles.getProperty(it).split(',').map(::version)
     }
-  val supportedCompilers: Set<String> = compilersByApi.values.flatten().toSet()
+
+  private fun version(value: String): List<Int> {
+    require(Regex("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)").matches(value)) {
+      "Expected a stable Kotlin compiler version: $value"
+    }
+    return value.split('.').map(String::toInt)
+  }
+
+  private fun compare(
+    left: List<Int>,
+    right: List<Int>,
+  ): Int = left.zip(right).firstOrNull { (a, b) -> a != b }?.let { (a, b) -> a.compareTo(b) } ?: 0
+
+  private fun accepts(
+    actual: String,
+    bounds: List<List<Int>>,
+  ): Boolean {
+    val compiler = version(stableVersion(actual))
+    return compare(compiler, bounds[0]) >= 0 && compare(compiler, bounds[1]) < 0
+  }
 
   fun stableVersion(actualCompilerVersion: String): String =
     actualCompilerVersion.replace(Regex("-release-[0-9]+$"), "")
 
   fun compilerApi(actualCompilerVersion: String): String =
-    compilersByApi.entries.singleOrNull { stableVersion(actualCompilerVersion) in it.value }?.key
+    boundsByApi.entries.singleOrNull { accepts(actualCompilerVersion, it.value) }?.key
       ?: error(
-        "Mosaic analysis has not verified Kotlin compiler $actualCompilerVersion. " +
-          "Supported compilers: ${compilersByApi.values.flatten().joinToString()}",
+        "Mosaic analysis does not support Kotlin compiler $actualCompilerVersion. " +
+          "Compatible compiler ABI ranges: ${boundsByApi.keys.joinToString { profiles.getProperty(it) }}",
       )
 
   fun artifactId(compilerApi: String): String {
-    require(compilerApi in compilersByApi) { "Unknown Mosaic introspector compiler API $compilerApi" }
+    require(compilerApi in boundsByApi) { "Unknown Mosaic introspector compiler API $compilerApi" }
     return if (compilerApi == defaultCompilerApi) {
       "mosaic-compiler-plugin"
     } else {
@@ -38,9 +57,9 @@ object CompilerVersionAdmission {
     actualCompilerVersion: String,
     compilerApi: String = defaultCompilerApi,
   ) {
-    require(stableVersion(actualCompilerVersion) in compilersByApi[compilerApi].orEmpty()) {
+    require(boundsByApi[compilerApi]?.let { accepts(actualCompilerVersion, it) } == true) {
       "Mosaic introspector compiler API $compilerApi does not support Kotlin compiler $actualCompilerVersion. " +
-        "Verified compilers: ${compilersByApi[compilerApi].orEmpty().joinToString()}"
+        "Compatible compiler ABI range: ${profiles.getProperty(compilerApi)}"
     }
   }
 }

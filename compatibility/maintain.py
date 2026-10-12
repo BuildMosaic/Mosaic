@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover stable Kotlin releases and propose measured compatibility updates."""
+"""Certify published artifacts and append exact compatibility facts to main."""
 
 import argparse
 import base64
@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
@@ -43,29 +44,11 @@ def available(version):
     return True
 
 
-def gh(*args, payload=None):
+def gh(*args, payload=None, token=None):
     return subprocess.check_output(['gh', *args, *(['--input', '-'] if payload is not None else [])],
                                    input=json.dumps(payload) if payload is not None else None,
+                                   env={**os.environ, **({'GH_TOKEN': token} if token else {})},
                                    cwd=certify.ROOT, text=True).strip()
-
-
-def propose(branch, title, path, content):
-    if (certify.ROOT / path).read_text() == content:
-        print('Compatibility mapping is unchanged')
-        return
-    base = os.environ['GITHUB_REF_NAME']
-    repository = os.environ['GITHUB_REPOSITORY']
-    head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=certify.ROOT, text=True).strip()
-    if json.loads(gh('api', f'repos/{repository}/git/ref/heads/{base}'))['object']['sha'] != head:
-        raise ValueError('Base branch advanced; rerun compatibility against its new revision')
-    gh('api', f'repos/{repository}/git/refs', payload={'ref': f'refs/heads/{branch}', 'sha': head})
-    gh('api', 'graphql', payload={
-        'query': 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }',
-        'variables': {'input': {'branch': {'repositoryNameWithOwner': repository, 'branchName': branch},
-            'expectedHeadOid': head, 'message': {'headline': title}, 'fileChanges': {'additions': [
-                {'path': path, 'contents': base64.b64encode(content.encode()).decode()}]}}}})
-    body = f'Verified by {run_url()}. Review before merging.'
-    print(gh('pr', 'create', '--base', base, '--head', branch, '--title', title, '--body', body))
 
 
 def run_url():
@@ -73,132 +56,166 @@ def run_url():
 
 
 def open_issues():
-    # GitHub's issues endpoint includes pull requests.
     pages = json.loads(gh('api', 'repos/{owner}/{repo}/issues?state=open&per_page=100', '--paginate', '--slurp'))
-    return [item for page in pages for item in page]
+    return {item['title']: item for page in pages for item in page if 'pull_request' not in item}
 
 
-def report_failure(version):
-    registry.version(version)
-    title = f'Kotlin compatibility: {version}'
-    issue = next((item for item in open_issues() if item['title'] == title and 'pull_request' not in item), None)
-    body = (f'Kotlin {version} compatibility verification failed on `{os.environ["GITHUB_REF_NAME"]}` '
-            f'at `{os.environ["GITHUB_SHA"]}`.\n\n'
-            f'[Failure logs]({run_url()})\n\n'
-            'Reproduce with JDK 17 and 21 available:\n\n'
-            f'```bash\npython3 compatibility/maintain.py investigate --kotlin {version}\n```\n\n'
-            'After fixing the failure, dispatch Kotlin compatibility maintenance with this Kotlin version '
-            'to propose the verified mapping. Close this issue when the fix is merged.')
-    if issue:
-        result = gh('api', f'repos/{{owner}}/{{repo}}/issues/{issue["number"]}/comments', payload={'body': body})
+def issue_title(kotlin, runtime, analysis):
+    return f'Kotlin compatibility: {kotlin} / Runtime {runtime}' + (f' / Analysis {analysis}' if analysis else '')
+
+
+def report_failure(kotlin, runtime, analysis, failure, issues):
+    title = issue_title(kotlin, runtime, analysis)
+    command = f'python3 compatibility/certify.py --kotlin {kotlin} --runtime {runtime}'
+    if analysis:
+        command += f' --analysis {analysis}'
+    body = (f'Published-artifact verification failed at `{os.environ["GITHUB_SHA"]}`.\n\n'
+            f'[Diagnostics and artifact hashes]({run_url()})\n\n'
+            f'```text\n{str(failure)[-4000:]}\n```\n\n'
+            f'Reproduce with JDK 17 and 21 available:\n\n```bash\n{command}\n```\n\n'
+            'Implementation fixes require review. Dispatch Kotlin compatibility maintenance with '
+            f'`kotlin={kotlin}` to retry existing artifacts. A passing retry closes this issue; '
+            'a replacement Mosaic release is certified separately.')
+    if title in issues:
+        result = gh('api', f'repos/{{owner}}/{{repo}}/issues/{issues[title]["number"]}/comments', payload={'body': body})
     else:
         result = gh('api', 'repos/{owner}/{repo}/issues', payload={'title': title, 'body': body})
     print(json.loads(result)['html_url'])
 
 
-def discover():
-    _, mapping = certify.compiler_profiles()
-    active = {item['title'] for item in open_issues()}
-    pending = [v for v in central_versions() if v not in mapping and f'Kotlin compatibility: {v}' not in active and available(v)]
-    print(json.dumps(pending))
-    with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-        output.write('versions=' + json.dumps(pending) + '\n')
-
-
-def investigate(version, java_installations):
-    if registry.version(version) < (2, 2, 0):
-        raise ValueError('Compatibility discovery starts at Kotlin 2.2.0')
-    original = certify.MAPPING.read_text()
-    default, mapping = certify.compiler_profiles()
-    # Try the nearest demonstrated profile first; add a shared-source API target only if needed.
-    target = registry.version(version)
-    nearest = sorted(mapping, key=lambda v: tuple(abs(a - b) for a, b in zip(registry.version(v), target)))
-    profiles = list(dict.fromkeys([mapping[v] for v in nearest] + [version]))
-    check = certify.Certification(java_installations)
-    failures = []
-    try:
-        for api in profiles:
-            tentative = {**mapping, version: api}
-            text = original.splitlines()[0] + '\ndefault=' + default + '\n'
-            for profile in sorted(set(tentative.values()), key=registry.version):
-                text += profile + '=' + ','.join(sorted((v for v in tentative if tentative[v] == profile), key=registry.version)) + '\n'
-            certify.MAPPING.write_text(text)
-            check.mapping = tentative
-            try:
-                check.build('all')
-                check.check([version], 'all')
-            except (subprocess.SubprocessError, OSError, ValueError, RuntimeError, KeyError) as failure:
-                failures.append(f'API {api}: {failure}')
-                continue
-            (certify.REPORTS / f'mapping-{version}.properties').write_text(text)
-            return
-        raise RuntimeError('\n'.join(failures))
-    finally:
-        certify.MAPPING.write_text(original)
-
-
-def record(evidence, train, version, revision):
-    registry.version(version)
-    result = json.loads(evidence.read_text())
-    if (result['result'], result['train'], result['version'], result['revision']) != ('pass', train, version, revision):
-        raise ValueError('Certification does not match the published release')
+def scan(kotlin, java_installations):
     data = registry.load()
-    registry.versions(result['kotlin'])
+    issues = open_issues()
+    if kotlin and registry.version(kotlin) < (2, 2, 0):
+        raise ValueError('Compatibility discovery starts at Kotlin 2.2.0')
+    versions = [kotlin] if kotlin else central_versions() if data['runtime'] else []
+    records, failures, passed_issues = [], [], []
+    prepared = False
+    for compiler in versions:
+        cases = [(r, None) for r in data['runtime']] + [(r, a) for r in data['runtime'] for a in data['analysis']]
+        pending = [(r, a) for r, a in cases if (kotlin or not registry.compatible(data, r, compiler, a))
+                   and (kotlin or issue_title(compiler, r, a) not in issues)]
+        if not pending or not available(compiler):
+            continue
+        for runtime, analysis in pending:
+            try:
+                if analysis and not prepared:
+                    certify.Certification(java_installations).prepare_tests()
+                    prepared = True
+                records.append(certify.certify_published(compiler, runtime, analysis, java_installations, prepare=False))
+                title = issue_title(compiler, runtime, analysis)
+                if title in issues:
+                    passed_issues.append(issues[title]['number'])
+            except (subprocess.SubprocessError, OSError, ValueError, RuntimeError, KeyError) as failure:
+                print(f'{issue_title(compiler, runtime, analysis)}: {failure}', file=sys.stderr, flush=True)
+                failures.append((compiler, runtime, analysis, failure))
+    certify.REPORTS.mkdir(parents=True, exist_ok=True)
+    evidence = {'records': records}
+    (certify.REPORTS / 'published.json').write_text(json.dumps(evidence, indent=2) + '\n')
+    print(json.dumps(evidence), flush=True)
+    if os.environ.get('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+            output.write(f'evidence={str(bool(records)).lower()}\n')
+    for compiler, runtime, analysis, failure in failures:
+        report_failure(compiler, runtime, analysis, failure, issues)
+    for number in passed_issues:
+        gh('issue', 'close', str(number), '--comment', f'Published artifacts passed verification: {run_url()}')
+    if failures:
+        raise RuntimeError(f'{len(failures)} published-artifact compatibility checks failed')
+
+
+def apply_evidence(data, evidence):
+    if 'records' in evidence:
+        for result in evidence['records']:
+            if result['runtime'] not in data['runtime'] or (result['analysis'] and result['analysis'] not in data['analysis']):
+                raise ValueError('Daily certification requires recorded published artifacts')
+            registry.record(data, result)
+        return data
+    train, version = evidence['train'], evidence['version']
+    if evidence['result'] != 'pass' or train not in ('runtime', 'analysis'):
+        raise ValueError('Expected a passing release certification')
+    registry.version(version)
+    registry.versions(evidence['kotlin'])
     opposite = 'analysis' if train == 'runtime' else 'runtime'
-    if any(v not in data[opposite] for v in result['counterparts']):
+    if any(v not in data[opposite] for v in evidence['counterparts']):
         raise ValueError('Unknown published counterpart')
-    if version in data[train]:
-        raise ValueError('Release already recorded; do not replace published compatibility facts')
-    for kotlin in result['counterparts'].values():
-        if not set(registry.versions(kotlin)) <= set(result['kotlin']):
+    # Retries append the same verified facts after publication; they never replace facts.
+    for versions in evidence['counterparts'].values():
+        if not set(registry.versions(versions)) <= set(evidence['kotlin']):
             raise ValueError('Relationship contains an unverified compiler')
     if train == 'runtime':
-        data['runtime'][version] = result['kotlin']
-        for analysis, kotlin in result['counterparts'].items():
-            if not set(kotlin) <= set(data['analysis'][analysis]['kotlin']):
-                raise ValueError('Relationship exceeds published Analysis admission')
-            data['analysis'][analysis]['runtime'][version] = kotlin
+        registry.record(data, {'result': 'pass', 'runtime': version, 'analysis': None, 'kotlin': evidence['kotlin']})
+        for analysis, versions in evidence['counterparts'].items():
+            registry.record(data, {'result': 'pass', 'runtime': version, 'analysis': analysis, 'kotlin': versions})
     else:
-        if not result['counterparts']:
+        if not evidence['counterparts']:
             raise ValueError('Analysis requires a tested published Runtime')
-        for runtime, kotlin in result['counterparts'].items():
-            data['runtime'][runtime] = sorted(set(data['runtime'][runtime]) | set(kotlin), key=registry.version)
-        data['analysis'][version] = {'kotlin': result['kotlin'], 'runtime': result['counterparts']}
-    return json.dumps(data, indent=2) + '\n'
+        for runtime, versions in evidence['counterparts'].items():
+            registry.record(data, {'result': 'pass', 'runtime': runtime, 'analysis': version, 'kotlin': versions})
+        data['analysis'][version]['kotlin'] = sorted(set(data['analysis'][version]['kotlin']) | set(evidence['kotlin']), key=registry.version)
+    return data
+
+
+def publish(evidence):
+    repository = os.environ['GITHUB_REPOSITORY']
+    for attempt in range(3):
+        head = json.loads(gh('api', f'repos/{repository}/git/ref/heads/main'))['object']['sha']
+        file = json.loads(gh('api', f'repos/{repository}/contents/compatibility/registry.json?ref={head}'))
+        original = base64.b64decode(file['content']).decode()
+        data = registry.validate(json.loads(original))
+        content = json.dumps(apply_evidence(data, evidence), indent=2) + '\n'
+        registry.validate(json.loads(content))
+        if content == original:
+            print('Verified compatibility facts are already recorded')
+            break
+        commit = {
+            'query': 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }',
+            'variables': {'input': {'branch': {'repositoryNameWithOwner': repository, 'branchName': 'main'},
+                'expectedHeadOid': head, 'message': {'headline': 'Record verified Kotlin compatibility', 'body': run_url()},
+                'fileChanges': {'additions': [{'path': 'compatibility/registry.json',
+                                             'contents': base64.b64encode(content.encode()).decode()}]}}}}
+        try:
+            response = json.loads(gh('api', 'graphql', payload=commit))
+        except subprocess.CalledProcessError as failure:
+            # gh exits nonzero even when GraphQL returns structured head-conflict errors.
+            response = json.loads(failure.output)
+            if not response.get('errors'):
+                raise
+        if response.get('errors'):
+            latest = json.loads(gh('api', f'repos/{repository}/git/ref/heads/main'))['object']['sha']
+            if latest != head and attempt < 2:
+                continue
+            raise RuntimeError(response['errors'])
+        print(response['data']['createCommitOnBranch']['commit']['oid'])
+        # An App-authenticated commit triggers the website's normal main push workflow.
+        return
+    # No new push occurs on an idempotent retry; dispatch the website explicitly.
+    gh('api', f'repos/{repository}/actions/workflows/website.yml/dispatches', payload={'ref': 'main'},
+       token=os.environ.get('GH_WORKFLOW_TOKEN'))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    commands.add_parser('discover')
-    investigation = commands.add_parser('investigate')
-    investigation.add_argument('--kotlin', required=True)
-    investigation.add_argument('--java-installations', default='')
-    proposal = commands.add_parser('propose')
-    proposal.add_argument('--kotlin', required=True)
-    failure = commands.add_parser('report-failure')
-    failure.add_argument('--kotlin', required=True)
+    scan_command = commands.add_parser('scan')
+    scan_command.add_argument('--kotlin', default='')
+    scan_command.add_argument('--java-installations', default='')
+    publication = commands.add_parser('publish')
+    publication.add_argument('--evidence', type=Path, required=True)
     release = commands.add_parser('record')
     release.add_argument('--evidence', type=Path, required=True)
     release.add_argument('--train', choices=('runtime', 'analysis'), required=True)
     release.add_argument('--version', required=True)
     release.add_argument('--revision', required=True)
     args = parser.parse_args()
-    if args.command == 'discover':
-        discover()
-    elif args.command == 'investigate':
-        investigate(args.kotlin, args.java_installations)
-    elif args.command == 'report-failure':
-        report_failure(args.kotlin)
-    elif args.command == 'propose':
-        registry.version(args.kotlin)
-        propose(f'automation/kotlin-{args.kotlin}-{os.environ["GITHUB_RUN_ID"]}-{os.environ.get("GITHUB_RUN_ATTEMPT", "1")}', f'Kotlin compatibility: {args.kotlin}',
-                str(certify.MAPPING.relative_to(certify.ROOT)),
-                (certify.REPORTS / f'mapping-{args.kotlin}.properties').read_text())
+    if args.command == 'scan':
+        scan(args.kotlin, args.java_installations)
     else:
-        published = json.loads(gh('release', 'view', f'{args.train}-{args.version}', '--json', 'isDraft'))
-        if published['isDraft']:
-            raise ValueError('Release is not published')
-        content = record(args.evidence, args.train, args.version, args.revision)
-        propose(f'automation/compatibility-{args.train}-{args.version}-{os.environ["GITHUB_RUN_ID"]}-{os.environ.get("GITHUB_RUN_ATTEMPT", "1")}',
-                f'Record {args.train} {args.version} compatibility', 'compatibility/registry.json', content)
+        evidence = json.loads(args.evidence.read_text())
+        if args.command == 'record':
+            if (evidence['result'], evidence['train'], evidence['version'], evidence['revision']) != ('pass', args.train, args.version, args.revision):
+                raise ValueError('Certification does not match the published release')
+            published = json.loads(gh('release', 'view', f'{args.train}-{args.version}', '--json', 'isDraft'))
+            if published['isDraft']:
+                raise ValueError('Release is not published')
+        publish(evidence)

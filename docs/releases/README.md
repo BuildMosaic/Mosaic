@@ -8,7 +8,7 @@ development default. The workflow overrides the selected train's version.
 2. Validate the release commit, then create its immutable `runtime-VERSION` or
    `analysis-VERSION` tag.
 3. Dispatch **Release** from `main` with the train and version.
-4. After a stable publication, review and merge the generated compatibility registry PR.
+4. Confirm the automatic compatibility registry commit and website deployment.
    Prereleases are verified but do not establish public compatibility records.
 
 ```bash
@@ -18,7 +18,7 @@ gh workflow run release.yml --ref main -f train=runtime -f version=1.0.0
 Configure the protected `release` environment with `MAVEN_CENTRAL_USERNAME`,
 `MAVEN_CENTRAL_PASSWORD`, `SIGNING_PRIVATE_KEY`, and `SIGNING_PASSWORD`.
 Analysis also requires `GRADLE_PUBLISH_KEY` and `GRADLE_PUBLISH_SECRET`.
-Enable GitHub Actions pull-request creation in repository workflow permissions.
+Provision the [compatibility registry writer](../kotlin-certification.md#one-time-configuration).
 
 The workflow checks the repository and examples, certifies every stable Kotlin
 version from 2.2.0, and tests the latest recorded counterpart release. The optional
@@ -31,9 +31,9 @@ See [compatibility maintenance](../kotlin-certification.md) for local commands.
 then submits the plugin to the Plugin Portal. Publication is not atomic; inspect
 partial success before retrying and never republish released coordinates.
 
-After publication and GitHub Release creation, the workflow proposes only the
+After publication and GitHub Release creation, the workflow records only the
 compatibility facts it verified. The certification step prints its compact JSON
-result in the Actions log. If the registry proposal fails, save that result to a
-local file and retry only the proposal with it; publication has already happened.
+result in the Actions log. If recording fails, save that result to a local file
+and retry only `maintain.py record` with it; publication has already happened.
 There is no separate report archive. No workflow creates or moves release tags,
 merges PRs, or invents historical support.

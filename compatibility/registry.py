@@ -21,8 +21,7 @@ def versions(values):
     return values
 
 
-def load(path=PATH):
-    data = json.loads(Path(path).read_text())
+def validate(data):
     if set(data) != {'runtime', 'analysis'}:
         raise ValueError('Expected runtime and analysis release maps')
     for release, kotlin in data['runtime'].items():
@@ -41,6 +40,24 @@ def load(path=PATH):
             if not set(versions(kotlin)) <= set(entry['kotlin']) & set(data['runtime'][runtime]):
                 raise ValueError(f'Unverified Kotlin versions for Analysis {release} and Runtime {runtime}')
     return data
+
+
+def load(path=PATH):
+    return validate(json.loads(Path(path).read_text()))
+
+
+def record(data, result):
+    if result['result'] != 'pass':
+        raise ValueError('Only passing certification can extend the matrix')
+    runtime, analysis, kotlin = result['runtime'], result['analysis'], versions(result['kotlin'])
+    version(runtime)
+    if analysis:
+        version(analysis)
+    data['runtime'][runtime] = sorted(set(data['runtime'].get(runtime, [])) | set(kotlin), key=version)
+    if analysis:
+        entry = data['analysis'].setdefault(analysis, {'kotlin': [], 'runtime': {}})
+        entry['kotlin'] = sorted(set(entry['kotlin']) | set(kotlin), key=version)
+        entry['runtime'][runtime] = sorted(set(entry['runtime'].get(runtime, [])) | set(kotlin), key=version)
 
 
 def compatible(data, runtime, kotlin, analysis=None):

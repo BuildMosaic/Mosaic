@@ -2,7 +2,6 @@
 
 package org.buildmosaic.gradle
 
-import org.buildmosaic.analysis.CompilerVersionAdmission
 import org.buildmosaic.analysis.SourceShardCodec
 import org.buildmosaic.analysis.SummaryCodec
 import org.gradle.testkit.runner.GradleRunner
@@ -17,7 +16,7 @@ import kotlin.test.assertTrue
 @Tag("release-compatibility")
 class IntrospectorSelectionInstallationTest {
   @Test
-  fun `published plugin selects all measured compilers`() {
+  fun `unchanged published plugins select compilers`() {
     val repository = File(System.getProperty("user.dir")).parentFile
     val workspace =
       repository.resolve(
@@ -114,10 +113,11 @@ class IntrospectorSelectionInstallationTest {
       val selected = result.output.lines().single { it.startsWith("MOSAIC_SELECTED=") }
       val selectedJar = File(selected.substringAfter("$analysisVersion:"))
       val profiles = java.util.Properties()
+      val api: String
       java.util.jar.JarFile(selectedJar).use { jar ->
         jar.getInputStream(jar.getJarEntry("org/buildmosaic/analysis/compiler-profiles.properties")).use(profiles::load)
+        api = jar.manifest.mainAttributes.getValue("Mosaic-Compiler-API")
       }
-      val api = profiles.stringPropertyNames().single { it != "default" && compiler in profiles.getProperty(it).split(',') }
       val id = if (api == profiles.getProperty("default")) "mosaic-compiler-plugin" else "mosaic-compiler-plugin-kotlin-$api"
       assertTrue(selected.startsWith("MOSAIC_SELECTED=org.buildmosaic:$id:$analysisVersion:"), selected)
       val summary = SummaryCodec.decode(app.resolve("build/mosaic-analysis/main/summary.json").readBytes())
@@ -153,7 +153,7 @@ class IntrospectorSelectionInstallationTest {
     val boundaries = listOf("2.2.0", "2.3.0", "2.3.20", "2.4.20", "2.4.21")
     val requested =
       System.getProperty("mosaic.test.kotlinVersions")?.split(',')
-        ?: CompilerVersionAdmission.supportedCompilers.toList()
+        ?: boundaries
     return boundaries.filter { it in requested } + (requested - boundaries)
   }
 
@@ -235,7 +235,7 @@ class IntrospectorSelectionInstallationTest {
     assertTrue(repeated.output.contains("Configuration cache entry reused"), repeated.output)
     assertCompilerProvenance(app, "2.4.21")
     val unsupported = failedBuild(app, "-Pfixture.compiler=999.0.0")
-    assertTrue(unsupported.contains("has not verified Kotlin compiler 999.0.0"), unsupported)
+    assertTrue(unsupported.contains("does not support Kotlin compiler 999.0.0"), unsupported)
     build.writeText(selectableBuild.replace("kotlin(\"jvm\") version \"2.4.20\"", "kotlin(\"jvm\") version \"2.3.20\""))
     build.appendText(
       """

@@ -31,7 +31,7 @@ jobs:
     environment: release
     permissions:
       contents: write
-      pull-requests: write
+      actions: write
     steps:
       - name: Require dispatch from main
         env:
@@ -144,16 +144,24 @@ jobs:
             exit 1
           fi
 
-      # Default success() gates this on publication AND GitHub Release creation.
-      - name: Propose the certified published compatibility registry
+      - name: Authenticate the registry writer
+        if: success() && !contains(steps.release.outputs.version, '-')
+        id: writer
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.KOTLIN_COMPATIBILITY_APP_ID }}
+          private-key: ${{ secrets.KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      # Publication and GitHub Release creation must both succeed.
+      - name: Record published compatibility on main and deploy the website
         if: success() && !contains(steps.release.outputs.version, '-')
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.writer.outputs.token }}
+          GH_WORKFLOW_TOKEN: ${{ github.token }}
         run: |
           evidence="$GITHUB_WORKSPACE/build/reports/compatibility/release-$RELEASE_TRAIN.json"
-          git fetch --no-tags origin main
-          git checkout --detach FETCH_HEAD
           python3 compatibility/maintain.py record --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"

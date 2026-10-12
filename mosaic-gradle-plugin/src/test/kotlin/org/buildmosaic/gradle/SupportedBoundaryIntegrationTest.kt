@@ -68,7 +68,7 @@ class SupportedBoundaryIntegrationTest {
         project,
         "extractMosaicMain",
         expectFailure = true,
-      ).output.contains("has not verified Kotlin compiler 999.0.0"),
+      ).output.contains("does not support Kotlin compiler 999.0.0"),
     )
     buildFile.writeText(
       validBuild + "\ntasks.named<org.buildmosaic.gradle.ExtractMosaicTask>(\"extractMosaicMain\") { selectedJavaVersion.set(\"999\") }",
