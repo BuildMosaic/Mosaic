@@ -88,14 +88,14 @@ object SourceShardCodec {
         shard.limitations.distinct().sorted(),
         shard.binaryLocators.toSortedMap().map { (id, locator) -> WireLocator(id, locator) },
       )
-    return (json.encodeToString(ShardEnvelope(1, shard.sourceId, payload)) + "\n").toByteArray(Charsets.UTF_8)
+    return (json.encodeToString(ShardEnvelope(2, shard.sourceId, payload)) + "\n").toByteArray(Charsets.UTF_8)
   }
 
   fun decode(bytes: ByteArray): SourceShard {
     val raw = bytes.toString(Charsets.UTF_8)
     require(raw.toByteArray(Charsets.UTF_8).contentEquals(bytes)) { "Malformed Mosaic shard UTF-8" }
     val envelope = json.decodeFromString<ShardEnvelope>(raw)
-    require(envelope.shardVersion == 1) { "Unsupported Mosaic shard version ${envelope.shardVersion}" }
+    require(envelope.shardVersion == 2) { "Unsupported Mosaic shard version ${envelope.shardVersion}" }
     SourceShardPaths.checkSourceId(envelope.sourceId)
     val locators = linkedMapOf<String, String>()
     envelope.payload.binaryLocators.forEach {

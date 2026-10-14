@@ -7,6 +7,8 @@ import org.buildmosaic.analysis.Effect
 import org.buildmosaic.analysis.KeyContract
 import org.buildmosaic.analysis.LookupKind
 import org.buildmosaic.analysis.ModuleContract
+import org.buildmosaic.analysis.MosaicProvenance
+import org.buildmosaic.analysis.MosaicSuppression
 import org.buildmosaic.analysis.MultiTileExecution
 import org.buildmosaic.analysis.OverrideSlot
 import org.buildmosaic.analysis.ResolvedOverride
@@ -23,7 +25,9 @@ internal fun Effect.toWire(): WireEffect =
         discovery.name,
         execution.name,
         site.toWire(),
+        mosaic.toWire(),
       )
+    is Effect.EstablishMosaic -> WireEffect.EstablishMosaic(id, canvas.toWire(), site.toWire())
     is Effect.ConstructCanvas -> WireEffect.ConstructCanvas(id, canvas.toWire(), site.toWire())
     is Effect.Call -> WireEffect.Call(id, target, arguments.toWire(), site.toWire(), receiver.toWire(), virtualDispatch)
     is Effect.Branch ->
@@ -68,7 +72,9 @@ internal fun WireEffect.toModel(): Effect =
         enumValue<DiscoveryKind>(discovery),
         enumValue<MultiTileExecution>(execution),
         site.toModel(),
+        mosaic.toModel(),
       )
+    is WireEffect.EstablishMosaic -> Effect.EstablishMosaic(id, canvas.toModel(), site.toModel())
     is WireEffect.ConstructCanvas -> Effect.ConstructCanvas(id, canvas.toModel(), site.toModel())
     is WireEffect.Call ->
       Effect.Call(
@@ -128,6 +134,7 @@ internal fun ModuleContract.toWire() =
         it.site.toWire(),
         it.reusable,
         it.multi,
+        it.suppressions.map { suppression -> WireSuppression(suppression.ruleId, suppression.site.toWire()) },
       )
     },
     callables.sortedBy { it.id }.map {
@@ -171,7 +178,16 @@ internal fun WireModule.toModel() =
         it.reusable,
       )
     },
-    tiles.map { TileContract(it.id, it.effects.map { e -> e.toModel() }, it.site.toModel(), it.reusable, it.multi) },
+    tiles.map {
+      TileContract(
+        it.id,
+        it.effects.map { e -> e.toModel() },
+        it.site.toModel(),
+        it.reusable,
+        it.multi,
+        it.suppressions.map { suppression -> MosaicSuppression(suppression.ruleId, suppression.site.toModel()) },
+      )
+    },
     callables.map {
       CallableContract(
         it.id,
@@ -197,3 +213,17 @@ internal fun WireModule.toModel() =
     },
     keys.map { KeyContract(it.id, it.key.toModel(), it.site.toModel()) },
   )
+
+internal fun MosaicProvenance.toWire(): WireMosaic =
+  when (this) {
+    MosaicProvenance.Current -> WireMosaic.Current
+    is MosaicProvenance.Established -> WireMosaic.Established(id)
+    MosaicProvenance.Unknown -> WireMosaic.Unknown
+  }
+
+internal fun WireMosaic.toModel(): MosaicProvenance =
+  when (this) {
+    WireMosaic.Current -> MosaicProvenance.Current
+    is WireMosaic.Established -> MosaicProvenance.Established(id)
+    WireMosaic.Unknown -> MosaicProvenance.Unknown
+  }

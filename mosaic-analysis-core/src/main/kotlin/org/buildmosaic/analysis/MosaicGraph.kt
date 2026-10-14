@@ -1,4 +1,4 @@
-@file:Suppress("LargeClass", "LongMethod", "LongParameterList", "TooManyFunctions")
+@file:Suppress("CyclomaticComplexMethod", "LargeClass", "LongMethod", "LongParameterList", "TooManyFunctions")
 
 package org.buildmosaic.analysis
 
@@ -70,7 +70,10 @@ object MosaicGraph {
                 ),
                 finding.bindingSite?.let(::siteLabel).orEmpty(),
                 finding.bindingFactProvenance?.let(::siteLabel).orEmpty(),
-                finding.reason,
+                finding.rule?.let {
+                  "${it.id}: ${if (finding.suppressedAt.isNotEmpty()) "SUPPRESSED" else finding.severity}; "
+                }.orEmpty() +
+                  finding.reason + finding.suppressedAt.joinToString(prefix = " ") { "Suppressed at ${siteLabel(it)}" },
               ).joinToString(" | ", prefix = "| ", postfix = " |") { cell(it.toString()) },
             )
           }
@@ -123,7 +126,7 @@ object MosaicGraph {
       known: Set<String>,
     ): Boolean =
       when (effect) {
-        is Effect.Lookup, is Effect.Compose, is Effect.ConstructCanvas -> true
+        is Effect.Lookup, is Effect.Compose, is Effect.ConstructCanvas, is Effect.EstablishMosaic -> true
         is Effect.Call ->
           callTargets(effect.target, effect.receiver, effect.virtualDispatch).any { it in canvases || it in known } ||
             effect.arguments.values.values.any { argument ->
@@ -256,6 +259,10 @@ object MosaicGraph {
             val label = "${effect.discovery}$execution"
             detail(parent, n, "Compose: ${effect.id} ($label)", "compose")
             edge(n, tileTarget(effect.tile), "Tile")
+            expression(n, effect.canvas, "Canvas")
+          }
+          is Effect.EstablishMosaic -> {
+            detail(parent, n, "Fresh Mosaic: ${effect.id}", "create Mosaic")
             expression(n, effect.canvas, "Canvas")
           }
           is Effect.ConstructCanvas -> {

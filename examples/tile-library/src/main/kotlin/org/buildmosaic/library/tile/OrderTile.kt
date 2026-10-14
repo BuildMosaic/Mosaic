@@ -6,11 +6,11 @@ import org.buildmosaic.library.OrderKey
 import org.buildmosaic.library.exception.OrderNotFoundException
 import org.buildmosaic.library.service.OrderService
 
-val OrderTile =
+val OrderTile by
   singleTile {
     val orderId = source(OrderKey)
     try {
-      OrderService.getOrder(orderId)
+      source<OrderService>().getOrder(orderId)
     } catch (e: NoSuchElementException) {
       throw OrderNotFoundException(orderId, e)
     }

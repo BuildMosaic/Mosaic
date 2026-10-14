@@ -68,7 +68,17 @@ private fun corpusModule(
           ->
           CanvasContract("canvas$index", listOf(canvasParameter, booleanParameter), canvas, site, false)
         }.sortedBy { it.id },
-      tiles = listOf(TileContract("tile", effects, site, false, true)),
+      tiles =
+        listOf(
+          TileContract(
+            "tile",
+            effects,
+            site,
+            false,
+            true,
+            listOf(MosaicSuppression("MOSAIC_RECURSIVE_MULTITILE", site)),
+          ),
+        ),
       callables = listOf(CallableContract("helper", listOf(canvasParameter, booleanParameter), effects, site, false)),
       overrides =
         listOf(
@@ -145,6 +155,7 @@ private fun corpusEffects(
         ),
         LookupKind.REQUIRED, site,
       ),
+      Effect.EstablishMosaic("fresh", CanvasExpression.Empty, site),
       Effect.ConstructCanvas("construct", canvases[7], site),
       Effect.Call("call", "helper", arguments, site, DispatchReceiver.Forwarded, true),
       Effect.Call("unknownReceiver", "helper", site = site, receiver = DispatchReceiver.Unknown("receiver")),
@@ -162,6 +173,7 @@ private fun corpusEffects(
         Effect.Compose(
           "compose$index", CanvasExpression.Current, tile, DiscoveryKind.COMPOSE_ASYNC,
           MultiTileExecution.entries[index % MultiTileExecution.entries.size], site,
+          listOf(MosaicProvenance.Current, MosaicProvenance.Established("fresh"), MosaicProvenance.Unknown)[index % 3],
         )
       }
   }

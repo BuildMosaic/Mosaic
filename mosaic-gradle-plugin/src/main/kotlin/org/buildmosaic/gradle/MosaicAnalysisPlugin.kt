@@ -2,13 +2,17 @@
 
 package org.buildmosaic.gradle
 
+import org.buildmosaic.analysis.MosaicRule
+import org.buildmosaic.analysis.MosaicRuleSeverity
 import org.buildmosaic.analysis.SourceShardPaths
+import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Jar
@@ -29,12 +33,29 @@ private const val MOSAIC_SUMMARY_ARTIFACT_TYPE = "mosaic-analysis-summary"
 abstract class MosaicAnalysisExtension
   @Inject
   constructor(objects: ObjectFactory) {
+    val rules = MosaicAnalysisRules(objects)
+
+    fun rules(action: Action<MosaicAnalysisRules>) = action.execute(rules)
+
     val roots: ListProperty<String> = objects.listProperty(String::class.java).convention(emptyList())
     val role: Property<MosaicAnalysisRole> =
       objects.property(MosaicAnalysisRole::class.java).convention(MosaicAnalysisRole.APPLICATION)
     val enforcement: Property<MosaicAnalysisEnforcement> =
       objects.property(MosaicAnalysisEnforcement::class.java).convention(MosaicAnalysisEnforcement.STANDARD)
   }
+
+class MosaicAnalysisRules internal constructor(objects: ObjectFactory) {
+  internal val severities: MapProperty<String, MosaicRuleSeverity> =
+    objects.mapProperty(String::class.java, MosaicRuleSeverity::class.java).convention(emptyMap())
+
+  fun severity(
+    ruleId: String,
+    severity: MosaicRuleSeverity,
+  ) {
+    MosaicRule.configurable(ruleId)
+    severities.put(ruleId, severity)
+  }
+}
 
 enum class MosaicAnalysisRole {
   APPLICATION,
@@ -127,6 +148,7 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
         task.roots.set(extension.roots)
         task.role.set(extension.role)
         task.enforcement.set(extension.enforcement)
+        task.ruleSeverities.set(extension.rules.severities)
         task.reportFile.set(project.layout.buildDirectory.file("reports/mosaic-analysis/main.txt"))
         task.dependsOn(extract)
       }
@@ -143,6 +165,7 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
       task.roots.set(extension.roots)
       task.role.set(extension.role)
       task.enforcement.set(extension.enforcement)
+      task.ruleSeverities.set(extension.rules.severities)
       task.graphFile.set(project.layout.buildDirectory.file("reports/mosaic-analysis/graph.md"))
       task.dependsOn(extract)
     }

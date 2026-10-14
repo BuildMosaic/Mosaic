@@ -6,10 +6,13 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.buildmosaic.core.injection.Canvas
 import org.buildmosaic.core.observation.CallerSnapshot
 import org.buildmosaic.core.observation.Contributors
@@ -25,15 +28,28 @@ import kotlin.coroutines.CoroutineContext
  * Request-scoped Tile execution, caching, and batching, with optional execution observation.
  *
  * @param canvas Dependency bindings and immutable runtime configuration.
- * @param dispatcher Dispatcher for all executions, whether observed or unobserved.
+ * Prefer [org.buildmosaic.core.injection.withMosaic] for request-owned execution.
+ * The public dispatcher constructor retains unscoped execution for compatibility.
  */
-@Suppress("LargeClass") // Keep request ownership and protected startup settlement together.
-open class MosaicImpl(
+@Suppress("LargeClass", "TooManyFunctions") // Keep request ownership and protected startup settlement together.
+open class MosaicImpl internal constructor(
   override val canvas: Canvas,
-  dispatcher: CoroutineDispatcher = Dispatchers.Default,
+  context: CoroutineContext,
 ) : Mosaic, CoroutineScope {
-  private val job = SupervisorJob()
-  override val coroutineContext: CoroutineContext = job + dispatcher
+  constructor(
+    canvas: Canvas,
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
+  ) : this(canvas, dispatcher as CoroutineContext)
+
+  private val job = SupervisorJob(context[Job])
+  override val coroutineContext: CoroutineContext = context + job
+
+  /** Stop admission through the Job, then await producer and attached-child cleanup. */
+  internal suspend fun shutdown() {
+    job.cancel()
+    withContext(NonCancellable) { job.join() }
+  }
+
   private val observation = canvas.runtimeConfig.executionObserver?.let { ObservationCalls(it) }
   private val executionMonitor = Any()
   private val singleCache = ConcurrentHashMap<Tile<*>, CacheEntry<*>>()
@@ -177,7 +193,7 @@ open class MosaicImpl(
         batch.producers,
         batch::fail,
       ) {
-        batch.publish(tile.block(this@MosaicImpl, keys))
+        tile.execution.execute(this@MosaicImpl, keys, batch)
       }
     } catch (failure: Throwable) {
       batch.fail(failure)

@@ -4,6 +4,7 @@ import org.buildmosaic.analysis.AnalysisPolicy
 import org.buildmosaic.analysis.AnalysisRequest
 import org.buildmosaic.analysis.ModuleContract
 import org.buildmosaic.analysis.MosaicAnalyzer
+import org.buildmosaic.analysis.MosaicRuleSeverity
 import org.buildmosaic.analysis.RootSelectionResolver
 import org.buildmosaic.analysis.SummaryCodec
 import org.gradle.api.DefaultTask
@@ -11,6 +12,7 @@ import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
@@ -22,6 +24,7 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import java.io.IOException
 
+@Suppress("LargeClass")
 abstract class VerifyMosaicTask : DefaultTask() {
   @get:InputFile
   @get:PathSensitive(PathSensitivity.NONE)
@@ -46,6 +49,9 @@ abstract class VerifyMosaicTask : DefaultTask() {
 
   @get:Input
   abstract val enforcement: Property<MosaicAnalysisEnforcement>
+
+  @get:Input
+  abstract val ruleSeverities: MapProperty<String, MosaicRuleSeverity>
 
   @get:OutputFile
   abstract val reportFile: RegularFileProperty
@@ -128,7 +134,10 @@ abstract class VerifyMosaicTask : DefaultTask() {
           GradleException(failure.message ?: "Mosaic root selection failed", failure),
         )
       }
-    val report = MosaicAnalyzer().analyze(AnalysisRequest(program, dependencies, rootsList, policy = policy))
+    val report =
+      MosaicAnalyzer().analyze(
+        AnalysisRequest(program, dependencies, rootsList, policy = policy, ruleSeverities = ruleSeverities.get()),
+      )
     validateResolvedRoots(output, report)
     writeReport(output, MosaicVerificationReport.application(report, role.get(), enforcement.get()))
     if (!report.policyDecision.passed) throw GradleException("Mosaic verification failed; see ${output.absolutePath}")

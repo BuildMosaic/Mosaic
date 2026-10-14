@@ -5,7 +5,7 @@ plugins {
 // Dokka recognizes this filename as its native header logo (and favicon).
 // Generate the alias from the canonical mark; there is only one editable master.
 val prepareDokkaBrandAssets by tasks.registering(Sync::class) {
-  from(rootProject.layout.projectDirectory.file("brand/mosaic-mark.svg"))
+  from(rootProject.layout.projectDirectory.file("assets/mosaic-mark.svg"))
   into(layout.buildDirectory.dir("dokka-brand"))
   rename("mosaic-mark.svg", "logo-icon.svg")
 }

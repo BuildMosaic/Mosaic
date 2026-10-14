@@ -5,7 +5,7 @@ import org.buildmosaic.core.singleTile
 /**
  * Tile that calculates the total cost of an order by summing the line item prices.
  */
-val OrderTotalTile =
+val OrderTotalTile by
   singleTile {
     val lineItemsTile = compose(LineItemsTile)
 

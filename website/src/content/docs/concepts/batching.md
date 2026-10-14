@@ -15,31 +15,31 @@ All three keyed factories return a MultiTile. Callers use the same [composition 
 
 ```kotlin
 val ProductsByIdTile by multiTile<String, Product> { ids ->
-  ProductService.getProducts(ids.toList())
+  source<ProductService>().getProducts(ids.toList())
 }
 ```
 
-The fetch block returns a map. Every requested key must have a non-null value; missing or null results fail that key with `NoSuchElementException`.
+The fetch block returns a map. Present entries succeed, including `null` when the value type is nullable. Missing keys fail individually with `NoSuchElementException`, preserving successful siblings. A provider exception fails all unfinished keys in that invocation.
 
 ## Fetch individual keys
 
 ```kotlin
 val ProductsByIdTile by perKeyTile<String, Product> { id ->
-  ProductService.getProducts(listOf(id)).getValue(id)
+  source<ProductService>().getProducts(listOf(id)).getValue(id)
 }
 ```
 
-Distinct keys fetch concurrently. The MultiTile still provides equal-key reuse within a Mosaic. Use a dedicated single-key service operation when available; the excerpt adapts the shared example's bulk service for demonstration.
+Distinct keys fetch concurrently and settle independently. One key failure does not discard successful siblings, and later callers reuse each retained outcome. The MultiTile still provides equal-key reuse within a Mosaic. Use a dedicated single-key service operation when available; the excerpt adapts the shared example's bulk service for demonstration.
 
 ## Limit batch size
 
 ```kotlin
 val ProductsByIdTile by chunkedMultiTile<String, Product>(50) { ids ->
-  ProductService.getProducts(ids)
+  source<ProductService>().getProducts(ids)
 }
 ```
 
-Chunks run concurrently. A batch size limits keys **per request**, not request rate or concurrent requests. Apply backend concurrency limits in the service boundary if needed.
+Chunks run concurrently and settle independently. A thrown chunk fails only its unfinished keys; a partial chunk map retains present values and fails omitted keys. Successful chunks remain cached. A batch size limits keys **per request**, not request rate or concurrent requests. Apply backend concurrency limits in the service boundary if needed.
 
 These snippets use `org.buildmosaic.core.*` and the shared order example's product model/service. Each is an alternative declaration, not three declarations to put in one scope.
 

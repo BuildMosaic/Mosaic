@@ -2,10 +2,11 @@ name: Website
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'website/**'
-      - 'brand/**'
+      - 'assets/**'
+      - '.impeccable/BRAND.md'
       - '.github/images/order-architecture.png'
       - 'examples/tile-library/src/main/**'
       - 'mosaic-core/src/main/**'
@@ -20,7 +21,8 @@ on:
     branches: [main]
     paths:
       - 'website/**'
-      - 'brand/**'
+      - 'assets/**'
+      - '.impeccable/BRAND.md'
       - '.github/images/order-architecture.png'
       - 'examples/tile-library/src/main/**'
       - 'mosaic-core/src/main/**'

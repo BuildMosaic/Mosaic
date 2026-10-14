@@ -12,3 +12,10 @@ import '@fontsource/barlow/700.css';
 <link rel="icon" type="image/svg+xml" href="/brand/mosaic-mark.svg" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <meta name="theme-color" content="#0d192a" />
+
+<script>
+  // Starlight makes wide tables scrollable; retain keyboard access to that content.
+  document.querySelectorAll<HTMLTableElement>('.sl-markdown-content table').forEach((table) => {
+    table.tabIndex = 0;
+  });
+</script>

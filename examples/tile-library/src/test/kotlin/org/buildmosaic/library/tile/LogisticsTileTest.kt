@@ -4,6 +4,7 @@ import kotlinx.coroutines.test.runTest
 import org.buildmosaic.library.model.Address
 import org.buildmosaic.library.model.Logistics
 import org.buildmosaic.library.model.Quote
+import org.buildmosaic.library.service.CarrierService
 import org.buildmosaic.test.TestMosaicBuilder
 import kotlin.test.Test
 
@@ -21,6 +22,7 @@ class LogisticsTileTest {
       val expected = Logistics(address, quotes)
       val testMosaic =
         TestMosaicBuilder(this)
+          .withCanvasSource(CarrierService())
           .withMockTile(AddressTile, address)
           .withMockTile(CarrierQuotesTile, quotes)
           .build()
@@ -33,6 +35,7 @@ class LogisticsTileTest {
       val address = Address("123 Main St", "Springfield")
       val testMosaic =
         TestMosaicBuilder(this)
+          .withCanvasSource(CarrierService())
           .withMockTile(AddressTile, address)
           .withFailedTile(CarrierQuotesTile, RuntimeException("boom"))
           .build()

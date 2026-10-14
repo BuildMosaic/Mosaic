@@ -137,13 +137,13 @@ class IdentityAndDiscoveryTest {
         ),
       )
 
-    assertEquals(FindingKind.INCOMPLETE_ANALYSIS, result.findings.single().kind)
-    assertTrue(result.findings.single().reason.contains("Recursive Tile discovery"))
+    assertEquals(MosaicRule.MOSAIC_RECURSIVE_TILE, result.findings.single().rule)
+    assertTrue(result.findings.single().reason.contains("Recursive Tile structure"))
     assertFalse(result.findings.single().reason.contains("deadlock", ignoreCase = true))
   }
 
   @Test
-  fun `same Tile on fresh Canvas context does not share recursion state`() {
+  fun `same Tile on fresh Canvas is structural recursion without same Mosaic proof`() {
     val freshCanvas =
       CanvasExpression.Layer(
         "fresh",
@@ -162,8 +162,8 @@ class IdentityAndDiscoveryTest {
         limits = AnalysisLimits(expansionDepth = 2),
       )
 
-    assertTrue(result.findings.single().reason.contains("depth limit"))
-    assertFalse(result.findings.single().reason.contains("Recursive Tile"))
+    assertEquals(MosaicRule.MOSAIC_RECURSIVE_TILE, result.findings.single().rule)
+    assertTrue(result.findings.single().reason.contains("not proven"))
   }
 
   private fun composeWith(

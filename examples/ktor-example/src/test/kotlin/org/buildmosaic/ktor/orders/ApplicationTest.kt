@@ -30,6 +30,9 @@ class ApplicationTest {
 
       val orderPage = response.body<OrderPage>()
       assertEquals("order-1", orderPage.summary.order.id)
+      assertEquals("Jane Doe", orderPage.summary.customer.name)
+      assertEquals(2, orderPage.summary.lineItems.size)
+      assertEquals(3, orderPage.logistics.carrierQuotes.size)
     }
 
   @Test
@@ -62,5 +65,6 @@ class ApplicationTest {
 
       val response = client.get("/orders/missing")
       assertEquals(HttpStatusCode.NotFound, response.status)
+      assertEquals(HttpStatusCode.OK, client.get("/orders/order-1").status)
     }
 }

@@ -99,6 +99,11 @@ request/cache preparation. These fixtures measure elapsed operation time on this
 JVM, not HTTP latency.
 [Fixture boundaries and the timing profile →](../docs/performance.md#jmh-runtime-benchmarks)
 
+The scoped-drain and trial-prewarmed cached-read fixtures have separate
+[0.7.0 baselines](../docs/performance.md#070-scoped-and-cached-baselines).
+Their changed measurement boundaries prevent comparison with the historical
+fixtures in these tables.
+
 ### Allocation
 
 Separate JMH GC-profiler runs measured normalized allocation:
@@ -112,7 +117,7 @@ Separate JMH GC-profiler runs measured normalized allocation:
 | Sibling coalescing, fan-out 4 / depth 0 | 11459.1 |
 
 Values are rounded bytes/op. The cached SingleTile async case returns its existing
-Deferred directly. MultiTile allocation includes invocation setup and fresh
+Deferred directly. MultiTile allocation in this dataset includes invocation setup and fresh
 request/cache preparation, so it is not the allocation cost of an isolated cached
 `compose` call. Allocation profiling is separate from the timing measurements.
 

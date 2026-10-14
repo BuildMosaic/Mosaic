@@ -15,7 +15,7 @@ libraries your application needs; importing the BOM does not install them.
 
 dependencies {
     // Import the BOM
-    implementation(platform("org.buildmosaic:mosaic-bom:0.6.0"))
+    implementation(platform("org.buildmosaic:mosaic-bom:0.7.0"))
 
     // Add Mosaic dependencies without version numbers
     implementation("org.buildmosaic:mosaic-core")
@@ -32,7 +32,7 @@ dependencies {
 
 dependencies {
     // Import the BOM
-    implementation platform('org.buildmosaic:mosaic-bom:0.6.0')
+    implementation platform('org.buildmosaic:mosaic-bom:0.7.0')
 
     // Add Mosaic dependencies without version numbers
     implementation 'org.buildmosaic:mosaic-core'
@@ -51,7 +51,7 @@ dependencies {
             <dependency>
                 <groupId>org.buildmosaic</groupId>
                 <artifactId>mosaic-bom</artifactId>
-                <version>0.6.0</version>
+                <version>0.7.0</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

@@ -23,7 +23,12 @@ internal object MosaicVerificationReport {
     val result =
       when {
         !report.policyDecision.passed -> "FAILED"
-        report.policyDecision.warnings.isNotEmpty() -> "PASSED WITH WARNINGS; selected roots remain UNVERIFIED"
+        report.policyDecision.warnings.isNotEmpty() ->
+          if (report.roots.any { it.status == org.buildmosaic.analysis.RootStatus.UNVERIFIED }) {
+            "PASSED WITH WARNINGS; selected roots remain UNVERIFIED"
+          } else {
+            "PASSED WITH WARNINGS"
+          }
         else -> "FULLY VERIFIED"
       }
     return buildString {
@@ -62,6 +67,17 @@ internal object MosaicVerificationReport {
     """.trimMargin().trim()
 
   private fun StringBuilder.appendFinding(finding: Finding) {
+    finding.rule?.let { rule ->
+      val status = if (finding.suppressedAt.isNotEmpty()) "SUPPRESSED" else finding.severity.toString()
+      appendLine("${rule.id}: ${rule.title}: $status")
+      appendLine("  ${finding.reason}")
+      appendLine("  ${finding.dependencyPath.joinToString(" -> ") { it.label }}")
+      finding.dependencyPath.forEach { node ->
+        appendLine("  ${node.label}    ${node.site.path}:${node.site.line}")
+      }
+      finding.suppressedAt.forEach { appendLine("  Suppressed at ${it.path}:${it.line}") }
+      return
+    }
     appendLine(
       "${finding.certainty} ${finding.kind} ${finding.key ?: ""} at " +
         "${finding.site.path}:${finding.site.line} (${finding.site.owner})",

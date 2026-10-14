@@ -5,6 +5,43 @@ predate this maintained changelog; their release history is not reconstructed he
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-05
+
+### Added
+
+- `Canvas.withMosaic` for one request lifetime: producer work inherits the calling
+  coroutine; every exit cancels unfinished work and waits for cleanup.
+- Typed, qualified, and CanvasKey `instance(...)` bindings for externally owned
+  values that Canvas never closes, including on construction rollback. Qualifiers
+  precede values, mirroring `single<T>("primary") { ... }`.
+- Analysis recognition of supported `withMosaic` and `instance` usage, proven
+  Tile-cycle detection, and configurable/suppressible recursive Tile/MultiTile
+  policy with ERROR/WARNING/OFF severities. Proven cycles cannot be disabled.
+
+### Changed
+
+- MultiTile retains one terminal outcome per equal key. Per-key and chunk
+  failures preserve successful siblings; strict bulk `compose` still throws on
+  any requested failure. Returned Deferreds remain Mosaic-owned shared work.
+- Analysis metadata moves to format 4 / `analysis-contract-3`; dependency
+  summaries must be rebuilt with matching 0.7 tooling. Optional analysis still
+  supports exactly Kotlin compiler/Gradle plugin 2.4.20.
+- Spring, Ktor, and Micronaut examples use named Tiles, Canvas-supplied services,
+  borrowed instances, child request Canvases, and suspending scoped handlers.
+
+### Deprecated
+
+- `Canvas.create()` at WARNING level. Move the complete handler invocation into
+  `withMosaic` rather than retaining a Mosaic across requests.
+
+### Fixed
+
+- Present nullable MultiTile values succeed; omitted requested keys fail
+  individually without discarding present values.
+- Per-key and chunk provider failures no longer discard successful sibling keys.
+- Tile body and attached-child failures use the same containment boundary with
+  and without execution observation.
+
 ## [0.6.0] - 2026-10-03
 
 ### Added

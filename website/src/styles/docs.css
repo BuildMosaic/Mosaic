@@ -51,6 +51,9 @@ h3 {
 .sl-markdown-content table {
   font-variant-numeric: tabular-nums;
 }
+.sl-markdown-content table code {
+  white-space: nowrap;
+}
 .sl-markdown-content :not(pre) > code {
   overflow-wrap: anywhere;
 }
@@ -83,7 +86,8 @@ h3 {
   }
 }
 
-.expressive-code pre:focus-visible {
+.expressive-code pre:focus-visible,
+.sl-markdown-content table:focus-visible {
   outline: 3px solid var(--page-accent);
   outline-offset: -3px;
 }

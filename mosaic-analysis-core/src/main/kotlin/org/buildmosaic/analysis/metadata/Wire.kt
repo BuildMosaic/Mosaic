@@ -241,7 +241,12 @@ import kotlinx.serialization.Serializable
     val discovery: String,
     val execution: String,
     val site: WireSite,
+    val mosaic: WireMosaic,
   ) : WireEffect
+
+  @Serializable
+  @SerialName("establishMosaic")
+  data class EstablishMosaic(val id: String, val canvas: WireCanvas, val site: WireSite) : WireEffect
 
   @Serializable
   @SerialName("constructCanvas")
@@ -298,6 +303,7 @@ import kotlinx.serialization.Serializable
   val site: WireSite,
   val reusable: Boolean,
   val multi: Boolean,
+  val suppressions: List<WireSuppression>,
 )
 
 @Serializable internal data class WireCallableContract(
@@ -331,3 +337,19 @@ import kotlinx.serialization.Serializable
 )
 
 @Serializable internal data class WireKeyContract(val id: String, val key: WireKey, val site: WireSite)
+
+@Serializable internal data class WireSuppression(val ruleId: String, val site: WireSite)
+
+@Serializable internal sealed interface WireMosaic {
+  @Serializable
+  @SerialName("current")
+  data object Current : WireMosaic
+
+  @Serializable
+  @SerialName("established")
+  data class Established(val id: String) : WireMosaic
+
+  @Serializable
+  @SerialName("unknown")
+  data object Unknown : WireMosaic
+}

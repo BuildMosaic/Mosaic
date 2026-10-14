@@ -151,3 +151,9 @@ Tile provenance. Its `computedWorkEntry` keeps getter and creation argument
 work. The binary-default fixture covers stable Tile exports, custom getter
 unknowns, and missing producer exports. These share existing compiler
 compilations.
+
+`ScopedAnalysisTest` covers direct `withMosaic`, Mosaic identity and aliases,
+registration-time `instance` values, qualifier-first/interface bindings, positional
+String-valued CanvasKeys, argument evaluation order, child layers, policy/correctness
+recursion classification, source suppression scopes, selected binary cycles,
+and unsupported helper/escaping/member boundaries.

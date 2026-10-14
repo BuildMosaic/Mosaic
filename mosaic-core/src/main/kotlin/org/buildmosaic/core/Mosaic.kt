@@ -12,7 +12,9 @@ interface Mosaic {
   val canvas: Canvas
 
   /**
-   * Retrieve the value of a [Tile] wrapped in a deferred for awaiting later
+   * Returns Mosaic-owned shared work for [tile]. Callers may await it freely.
+   * To stop waiting, cancel your own coroutine or wait operation rather than cancelling
+   * the shared [Deferred], which would affect other consumers.
    *
    * @param V the type of the [Tile] return value
    * @param tile the [Tile] to retrieve
@@ -28,7 +30,13 @@ interface Mosaic {
   suspend fun <V> compose(tile: Tile<V>): V = composeAsync(tile).await()
 
   /**
-   * Retrieve the value of a [MultiTile] wrapped in a deferred for awaiting later
+   * Returns Mosaic-owned shared work for each equal key on [tile] within this Mosaic.
+   * Each key retains one terminal success or failure, including successful nullable values.
+   * An omitted provider map entry fails that key; provider failure affects unfinished keys
+   * in that physical invocation. Per-key and chunk factories isolate their invocation failures.
+   * Successful sibling keys remain cached. Exact physical batch boundaries are not guaranteed.
+   * Callers may await results freely. To stop waiting, cancel your own coroutine or wait
+   * operation rather than cancelling a shared [Deferred], which would affect other consumers.
    *
    * @param K the type of the [MultiTile] keys
    * @param V the type of the [MultiTile] return value
@@ -41,7 +49,9 @@ interface Mosaic {
   ): Map<K, Deferred<V>>
 
   /**
-   * Await the value of a [MultiTile]
+   * Awaits all requested values of a [MultiTile]. Throws if any requested key fails;
+   * this strict operation does not return a partial map. Successful sibling outcomes
+   * remain cached. Use [composeAsync] to handle each key's outcome separately.
    *
    * @param K the type of the [MultiTile] keys
    * @param V the type of the [MultiTile] return value
@@ -54,7 +64,9 @@ interface Mosaic {
   ): Map<K, V> = composeAsync(tile, keys).mapValues { it.value.await() }
 
   /**
-   * Retrieve a single value from a [MultiTile] wrapped in a deferred for awaiting later
+   * Returns Mosaic-owned shared work for [key]. Callers may await it freely.
+   * To stop waiting, cancel your own coroutine or wait operation rather than the shared
+   * [Deferred], which would affect other consumers.
    *
    * @param K the type of the [MultiTile] keys
    * @param V the type of the [MultiTile] return value

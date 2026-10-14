@@ -9,7 +9,7 @@ The website is an isolated Astro/Starlight project, using pnpm and Node 22.23.3.
 - Module READMEs: purpose, install, first-use orientation, important constraints.
 - KDoc: canonical API descriptions. Gradle owns Dokka generation and publication.
 - `performance/README.md` and `docs/performance.md`: full benchmark evidence.
-- `../brand/BRAND.md` and SVG masters: authoritative identity. `prepare:assets` copies them unchanged; do not edit the ignored copies in `public/brand`.
+- `../.impeccable/BRAND.md`: canonical identity and logo usage; `../assets/`: logo SVG masters. `prepare:assets` copies the SVGs unchanged; do not edit the ignored copies in `public/brand`.
 
 Use `../.agents/skills/public-docs/SKILL.md` for homepage, overview, adoption, and public proof; use `technical-docs` for tutorials, concepts, and guides. Preserve runtime versus analysis compatibility and benchmark dataset distinctions.
 

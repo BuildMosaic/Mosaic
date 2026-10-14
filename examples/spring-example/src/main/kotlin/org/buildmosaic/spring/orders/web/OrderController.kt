@@ -1,8 +1,7 @@
 package org.buildmosaic.spring.orders.web
 
-import kotlinx.coroutines.runBlocking
 import org.buildmosaic.core.injection.Canvas
-import org.buildmosaic.core.injection.create
+import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.library.OrderKey
 import org.buildmosaic.library.model.OrderPage
 import org.buildmosaic.library.tile.OrderPageTile
@@ -16,22 +15,18 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/orders")
 class OrderController(private val canvas: Canvas) {
   @GetMapping("/{id}")
-  fun getOrder(
+  suspend fun getOrder(
     @PathVariable("id") id: String,
   ): OrderPage =
-    runBlocking {
-      canvas.withLayer {
-        single(OrderKey) { id }
-      }.create().compose(OrderPageTile)
-    }
+    canvas.withLayer {
+      instance(OrderKey, id)
+    }.withMosaic { compose(OrderPageTile) }
 
   @GetMapping("/{id}/total")
-  fun getOrderTotal(
+  suspend fun getOrderTotal(
     @PathVariable("id") id: String,
   ): Double =
-    runBlocking {
-      canvas.withLayer {
-        single(OrderKey) { id }
-      }.create().compose(OrderTotalTile)
-    }
+    canvas.withLayer {
+      instance(OrderKey, id)
+    }.withMosaic { compose(OrderTotalTile) }
 }

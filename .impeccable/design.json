@@ -230,7 +230,7 @@
     ],
     "dos": [
       "Do read PRODUCT.md and the relevant .impeccable/surfaces/ contract before changing a surface; this file records the implemented system.",
-      "Do edit canonical identity in brand/BRAND.md and SVG masters, shared tokens in website/src/styles/theme.css, homepage layout in home.css, and documentation overrides in docs.css.",
+      "Do edit canonical identity in .impeccable/BRAND.md and logo SVGs in assets/, shared tokens in website/src/styles/theme.css, homepage layout in home.css, and documentation overrides in docs.css.",
       "Do extend the homepage with real source examples, factual diagrams, and the existing heading/body/link hierarchy; retain the response-composition narrative.",
       "Do put teaching content in website/src/content/docs/ and API descriptions in KDoc; retain Starlight search, sidebar, contents, theme controls, and code-copy behavior, and native Dokka generation.",
       "Do check both themes, keyboard focus, code overflow, and mobile stacking; use the website/AGENTS.md viewport matrix and website commands for the changed surface.",

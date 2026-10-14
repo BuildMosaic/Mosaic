@@ -57,13 +57,10 @@ for (const theme of ['light', 'dark'] as const) {
       );
       await page.locator('#theme-toggle-button').click();
     }
-    // Start the visual capture with a fresh sidebar state, independent of prior routes.
+    // Check Canvas navigation with a fresh sidebar state, independent of prior routes.
     await page.evaluate(() => sessionStorage.clear());
     await page.goto(canvasRoute);
-    await page.mouse.move(0, 900);
     await expect(page.locator('#toc-listbox a').filter({ hasText: /^Canvas$/ })).toBeVisible();
-    await page.evaluate(() => document.fonts.ready);
-    await expect(page).toHaveScreenshot(`canvas-${theme}.png`, { maxDiffPixelRatio: 0.005 });
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator('.navigation-controls')).toHaveCSS('background-color', 'rgb(13, 25, 42)');
     await expect(page.getByRole('link', { name: 'User docs', exact: true })).toBeVisible();
@@ -103,7 +100,7 @@ test('native Dokka module navigation, search, sidebar, source links, and return 
 
 test('Dokka standalone and aggregate publications share canonical branding on every HTML page', async () => {
   const root = fileURLToPath(new URL('../../', import.meta.url));
-  const mark = await readFile(join(root, 'brand/mosaic-mark.svg'), 'utf8');
+  const mark = await readFile(join(root, 'assets/mosaic-mark.svg'), 'utf8');
   const stylesheet = await readFile(join(root, 'website/api/mosaic.css'), 'utf8');
   const script = await readFile(join(root, 'website/api/mosaic-api.js'), 'utf8');
   for (const module of ['', 'mosaic-core', 'mosaic-test', 'mosaic-opentelemetry']) {

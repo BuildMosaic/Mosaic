@@ -5,6 +5,7 @@ import org.buildmosaic.library.OrderKey
 import org.buildmosaic.library.exception.OrderNotFoundException
 import org.buildmosaic.library.model.Order
 import org.buildmosaic.library.model.OrderLineItem
+import org.buildmosaic.library.service.OrderService
 import org.buildmosaic.test.TestMosaicBuilder
 import kotlin.test.Test
 
@@ -24,6 +25,7 @@ class OrderTileTest {
         )
       val testMosaic =
         TestMosaicBuilder(this)
+          .withCanvasSource(OrderService())
           .withCanvasSource(OrderKey, "order-1")
           .build()
       testMosaic.assertEquals(OrderTile, expected)
@@ -34,6 +36,7 @@ class OrderTileTest {
     runTest {
       val testMosaic =
         TestMosaicBuilder(this)
+          .withCanvasSource(OrderService())
           .withCanvasSource(OrderKey, "missing")
           .build()
       testMosaic.assertThrows(OrderTile, OrderNotFoundException::class)

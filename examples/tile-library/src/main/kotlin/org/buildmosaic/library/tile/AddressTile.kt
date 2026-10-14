@@ -5,8 +5,8 @@ import org.buildmosaic.core.source
 import org.buildmosaic.library.OrderKey
 import org.buildmosaic.library.service.AddressService
 
-val AddressTile =
+val AddressTile by
   singleTile {
     val orderId = source(OrderKey)
-    AddressService.getAddress(orderId)
+    source<AddressService>().getAddress(orderId)
   }

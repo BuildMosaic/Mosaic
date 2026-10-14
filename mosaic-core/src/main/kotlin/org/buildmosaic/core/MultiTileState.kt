@@ -97,20 +97,13 @@ internal class PendingBatch<K : Any, V> {
     return Contributors(retained.first(), retained.drop(1), contributorCount)
   }
 
+  fun entries(): List<Pair<K, CacheEntry<V>>> = groups.flatMap { it.winners }
+
   /** Preserve already published values, and fail only missing keys or still-unsettled results. */
   fun publish(values: Map<K, V>): Throwable? {
     var missing: Throwable? = null
     groups.forEach { group ->
-      group.winners.forEach { (key, entry) ->
-        val value = values[key]
-        if (value != null) {
-          entry.publish(value)
-        } else {
-          val failure = NoSuchElementException("Batch result missing key $key")
-          missing = missing ?: failure
-          entry.fail(failure)
-        }
-      }
+      missing = publishEntries(group.winners, values) ?: missing
     }
     return missing
   }
@@ -120,4 +113,24 @@ internal class PendingBatch<K : Any, V> {
     groups.forEach { group -> group.winners.forEach { (_, entry) -> entry.fail(failure) } }
     groups.forEach { it.producer?.abandon() }
   }
+}
+
+/** A map entry containing null is present; lookup failures preserve values already published. */
+internal fun <K : Any, V> publishEntries(
+  entries: List<Pair<K, CacheEntry<V>>>,
+  values: Map<K, V>,
+): Throwable? {
+  var missing: Throwable? = null
+  entries.forEach { (key, entry) ->
+    val value = values[key]
+    if (value != null || values.containsKey(key)) {
+      @Suppress("UNCHECKED_CAST")
+      entry.publish(value as V)
+    } else {
+      val failure = NoSuchElementException("Batch result missing key $key")
+      missing = missing ?: failure
+      entry.fail(failure)
+    }
+  }
+  return missing
 }

@@ -7,7 +7,7 @@
 **2.4.20 only**.
 It is build tooling: it does not apply Kotlin or add Mosaic application runtime
 dependencies. Add Maven Central to plugin and dependency repositories. Install
-version 0.6.0 with:
+version 0.7.0 with:
 
 ```kotlin
 import org.buildmosaic.gradle.MosaicAnalysisEnforcement
@@ -15,7 +15,7 @@ import org.buildmosaic.gradle.MosaicAnalysisRole
 
 plugins {
   kotlin("jvm") version "2.4.20"
-  id("org.buildmosaic.analysis") version "0.6.0"
+  id("org.buildmosaic.analysis") version "0.7.0"
 }
 
 mosaicAnalysis {
@@ -23,6 +23,26 @@ mosaicAnalysis {
   enforcement = MosaicAnalysisEnforcement.STANDARD
 }
 ```
+
+See the [analysis guide](https://BuildMosaic.org/guides/analysis/) for a walkthrough
+and the canonical [analysis configuration reference](https://BuildMosaic.org/reference/analysis-configuration/)
+for every DSL option, rule, suppression scope, task/report, and supported boundary.
+
+Configurable recursion rules use a dedicated section:
+
+```kotlin
+mosaicAnalysis {
+  rules {
+    severity("MOSAIC_RECURSIVE_MULTITILE", org.buildmosaic.analysis.MosaicRuleSeverity.WARNING)
+  }
+}
+```
+
+The central rule registry defaults both recursive Tile/MultiTile policies to
+ERROR. Named WARNING/OFF settings remain independent of STANDARD/STRICT.
+Proven cyclic Tile dependencies are hard correctness errors and cannot be
+configured or suppressed. Source suppressions are preserved in binary contracts
+and remain visible in full reports.
 
 ## Roles and enforcement
 
@@ -135,13 +155,14 @@ were selected and any concrete receiver. LIBRARY with no roots passes ordinary
 
 | Role | Enforcement | Result |
 | --- | --- | --- |
-| APPLICATION | STANDARD | Proven missing obligations fail; unverifiable boundaries pass with visible warnings and `UNVERIFIED` root status. |
-| APPLICATION | STRICT | Proven missing obligations and unverifiable boundaries fail. |
+| APPLICATION | STANDARD | Proven correctness errors and ERROR rules fail; unverifiable boundaries pass with visible warnings and `UNVERIFIED` root status. |
+| APPLICATION | STRICT | Proven correctness errors, ERROR rules, and unverifiable boundaries fail. |
 | LIBRARY | STANDARD or STRICT | Validate/export the complete local summary; application verification is not requested. |
 
-STANDARD maps to the analysis kernel's `DEFAULT` policy. A warning pass is not
-a proof: its report says `PASSED WITH WARNINGS` and preserves `UNVERIFIED` root
-status. Changing role, enforcement, or roots invalidates the verification task.
+STANDARD maps to the analysis kernel's `DEFAULT` policy. An uncertainty warning
+pass preserves `UNVERIFIED` root status. Named policy warnings retain their
+configured severity under either enforcement mode. Changing role, enforcement,
+roots, or named rule severities invalidates verification.
 
 An unrelated JAR without Mosaic metadata is harmless. If an application reaches
 a declaration whose dependency artifact has no summary, that boundary remains
@@ -161,16 +182,10 @@ regenerate incompatible summaries with the supported Mosaic analysis toolchain.
 
 ## Supported project boundary
 
-Only the tested default Kotlin/JVM main layout is supported. The assembly
-task validates the configured Java toolchain against Kotlin’s toolchain. It rejects nonstandard or generated Kotlin source paths, Kotlin scripts,
-mixed Java/Kotlin sources, friend paths, additional compiler plugins, plugin
-options, opt-ins, free compiler arguments, progressive mode, nondefault JVM
-interface mode, no-JDK compilation, and KSP. Applying
-the plugin without Kotlin/JVM fails during project configuration. Android,
-multiplatform, test sources, framework lifecycle callbacks, and arbitrary virtual
-dispatch remain unsupported. A virtual call with an unresolved receiver is
-UNVERIFIED. The plugin ID, extension, tasks, format-3 schema, and report format are
-provisional. The analysis tooling is not included in the BOM.
+The canonical [supported project boundary](https://BuildMosaic.org/reference/analysis-configuration/#supported-project-boundary)
+lists all Kotlin/JVM, source-layout, compiler-option, plugin, and platform
+restrictions. The DSL, format-4 metadata, and report format are provisional.
+Analysis tooling is not included in the runtime BOM.
 
 ## Publication
 

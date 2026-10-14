@@ -252,7 +252,7 @@ code {
 .composition-figure {
   padding-top: 0.9rem;
 }
-.composition-figure svg {
+.composition-figure > svg {
   width: 100%;
   height: auto;
   display: block;
@@ -786,33 +786,82 @@ thead th:last-child {
   display: none;
 }
 @media (max-width: 600px) {
-  .composition-figure svg {
+  .composition-figure > svg {
     display: none;
   }
   .mobile-composition {
     display: grid;
-    gap: 0.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: auto 2.5rem auto 3rem auto 2.5rem auto;
+    width: min(100%, 24rem);
+    margin: 0.8rem auto;
     text-align: center;
-    padding: 0.8rem;
   }
-  .mobile-composition > code,
-  .mobile-composition > div {
-    padding: 0.6rem;
+  .mobile-graph-node {
+    justify-self: center;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0.375rem;
     border: 1px solid var(--page-line);
+    background: var(--page-bg);
+    color: var(--page-text);
   }
-  .mobile-composition span {
-    display: block;
-    font-size: 0.72rem;
-    color: var(--page-muted);
+  .mobile-graph-node code {
+    font-size: 0.875rem;
+    line-height: 1.5;
   }
-  .mobile-composition .mobile-shared {
+  .mobile-page {
+    grid-area: 1 / 1 / 2 / 5;
+  }
+  .mobile-summary {
+    grid-area: 3 / 1 / 4 / 3;
+  }
+  .mobile-logistics {
+    grid-area: 3 / 3 / 4 / 5;
+  }
+  .mobile-customer {
+    grid-area: 5 / 1 / 6 / 3;
+  }
+  .mobile-line-items {
+    grid-area: 5 / 3 / 6 / 5;
+  }
+  .mobile-shared {
+    grid-area: 7 / 1 / 8 / 5;
+    padding: 0.5rem 0.75rem;
     background: var(--m-orange);
     color: var(--m-navy);
-    border: 0;
+    border-color: var(--m-orange);
   }
-  .mobile-composition small {
-    display: block;
-    font-family: var(--m-body);
-    font-size: 0.7rem;
+  .mobile-shared span {
+    font-size: 0.875rem;
+  }
+  .mobile-graph-edges {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .mobile-graph-edges > path {
+    fill: none;
+    stroke: var(--m-blue);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+    marker-end: url(#mobile-dependency-arrow);
+  }
+  .mobile-page-edges {
+    grid-area: 2 / 1 / 3 / 5;
+  }
+  .mobile-summary-edges {
+    grid-area: 4 / 1 / 5 / 5;
+  }
+  .mobile-direct-edge {
+    grid-area: 4 / 1 / 7 / 5;
+  }
+  .mobile-shared-edges {
+    grid-area: 6 / 1 / 7 / 5;
   }
 }

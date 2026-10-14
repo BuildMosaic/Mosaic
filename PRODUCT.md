@@ -42,7 +42,7 @@ before deployment from protected main; no release is published by this task.
 ## Voice and brand commitments
 
 Concise, factual, technically specific. Use Mosaic, Tile, MultiTile, and Canvas.
-Canonical identity and colors come from brand/BRAND.md and its supplied SVGs.
+Canonical identity and usage come from .impeccable/BRAND.md; logo SVGs live in assets/.
 Positioning: Think from the response up, not the database down.
 Descriptor: Composable backend orchestration for Kotlin.
 Branded destination: BuildMosaic.org.

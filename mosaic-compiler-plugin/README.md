@@ -13,9 +13,9 @@ mode supports compiler fixtures.
 ## Supported semantic boundary
 
 The supported extraction path covers public `Tile` and `MultiTile` creation,
-reified, KClass, and CanvasKey lookup, `canvas`, `single`, `withLayer`, `paint`,
-`create`, `compose`, and `composeAsync` in the tested shapes; immutable local
-Canvas, Mosaic, Tile, and CanvasKey aliases; caller-side
+reified, KClass, and CanvasKey lookup, `canvas`, `single`, `instance`, `withLayer`,
+`paint`, `withMosaic`, `create`, `compose`, and `composeAsync` in the tested shapes;
+immutable local Canvas, Mosaic, Tile, and CanvasKey aliases; caller-side
 argument evaluation in source order; parameterized Canvas helpers; ordinary
 resolved calls and getters; and the direct final template method to protected
 abstract suspend override transfer by parameter position. `multiTile` and
@@ -42,6 +42,14 @@ generic array keys use erased JVM array class identity: `Array<String>` and
 receiver provenance, unsupported control flow, and capability callbacks also
 produce explicit unknown effects. This is a narrow extractor, not a general
 Kotlin interpreter.
+
+Direct `withMosaic` evaluates its receiver, establishes one fresh standard
+Mosaic, and analyzes the direct lambda once in source order. Receiver aliases
+retain identity. `create` establishes a separate standard Mosaic identity.
+`instance` evaluates existing values during registration, with no deferred
+constructor effects. Applicable Kotlin Mosaic `@Suppress` annotations travel
+with Tile contracts. The canonical [analysis configuration reference](https://BuildMosaic.org/reference/analysis-configuration/)
+explains scope ownership and remaining unknown boundaries.
 
 ## Known conservative boundaries
 

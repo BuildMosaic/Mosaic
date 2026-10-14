@@ -12,6 +12,15 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check PR diff whitespace
+      id: whitespace
+      env:
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: git diff --check "$PR_BASE_SHA...$PR_HEAD_SHA"
 
     - name: Set up JDK 21
       uses: actions/setup-java@v4
@@ -30,7 +39,7 @@ jobs:
       run: ./gradlew check --no-daemon -p examples
 
     - name: Generate XML coverage report (for debugging)
-      if: failure()
+      if: failure() && steps.whitespace.outcome == 'success'
       run: ./gradlew koverXmlReport --no-daemon
 
     - name: Verify build artifacts

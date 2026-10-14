@@ -76,5 +76,8 @@ Run before submitting:
 git diff --check
 ```
 
+After staging all changes, run `git diff --cached --check` as a separate command
+to include newly added files. Resolve any failures before committing or finalizing.
+
 Use a sibling worktree for substantial changes. Do not modify another active
 worktree or remove it; remove only the clean worktree created for your task.

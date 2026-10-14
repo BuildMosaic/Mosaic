@@ -13,7 +13,7 @@ In an existing Kotlin/JVM project with a configured test runner:
 
 ```kotlin
 dependencies {
-  testImplementation("org.buildmosaic:mosaic-test:0.6.0")
+  testImplementation("org.buildmosaic:mosaic-test:0.7.0")
   testImplementation(kotlin("test"))
 }
 ```
@@ -94,7 +94,7 @@ fun `total sums mocked prices for requested SKUs`() = runTest {
 }
 ```
 
-This verifies composition with mocked prices, not batching efficiency. To verify a Tile's batching behavior, leave that MultiTile real, provide a recording service fake through Canvas, and assert which keys reach the service. See the checked-in [ProductsByIdTile tests](https://github.com/BuildMosaic/Mosaic/blob/main/examples/tile-library/src/test/kotlin/org/buildmosaic/library/tile/ProductsByIdTileTest.kt) for examples of exercising the real MultiTile.
+This verifies composition with mocked prices, not batching efficiency. To verify a Tile's batching behavior, leave that MultiTile real, provide a recording service fake through Canvas, and assert which keys reach the service. See the checked-in [ProductsByIdTile tests](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/examples/tile-library/src/test/kotlin/org/buildmosaic/library/tile/ProductsByIdTileTest.kt) for examples of exercising the real MultiTile.
 
 ## Verify exception propagation
 
@@ -158,4 +158,4 @@ A custom provider can use `source` and compose dependencies. For a MultiTile, re
 | `assertThrows(tile, ExceptionType::class)`                   | Tile throws the expected exception type          |
 | `assertThrows(multiTile, listOf(key), ExceptionType::class)` | MultiTile throws for the requested keys          |
 
-Use `testMosaic.compose(...)` with ordinary Kotlin test assertions for custom checks. See the runnable [order example tests](https://github.com/BuildMosaic/Mosaic/tree/main/examples/tile-library/src/test/kotlin/org/buildmosaic/library/tile) for response composition, request inputs, and real Tile behavior.
+Use `testMosaic.compose(...)` with ordinary Kotlin test assertions for custom checks. See the runnable [order example tests](https://github.com/BuildMosaic/Mosaic/tree/0.7.0/examples/tile-library/src/test/kotlin/org/buildmosaic/library/tile) for response composition, request inputs, and real Tile behavior.

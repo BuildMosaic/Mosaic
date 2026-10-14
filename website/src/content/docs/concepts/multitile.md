@@ -7,21 +7,25 @@ A `MultiTile<K, V>` produces values for requested keys. Choose a fetch strategy;
 
 ```kotlin
 val PricingBySkuTile by multiTile<String, Price> { skus ->
-  PricingService.getPrices(skus.toList())
+  source<PricingService>().getPrices(skus.toList())
 }
 
 val PerKeyProductsTile by perKeyTile<String, Product> { productId ->
-  ProductService.getProducts(listOf(productId)).getValue(productId)
+  source<ProductService>().getProducts(listOf(productId)).getValue(productId)
 }
 
 val ChunkedProductsTile by chunkedMultiTile<String, Product>(batchSize = 50) { ids ->
-  ProductService.getProducts(ids)
+  source<ProductService>().getProducts(ids)
 }
 ```
 
 `multiTile` receives a set of uncached keys. Within one Mosaic, equal keys on the same MultiTile share in-flight work and cached results. When several calls have new keys pending before scheduled execution begins, Mosaic opportunistically combines those keys into one invocation. It does not deliberately delay ready work to collect more keys. A started batch is fixed; later new keys can form another batch, and batches may execute concurrently. Exact batch partitioning depends on scheduling and is not an API guarantee.
 
-`chunkedMultiTile` splits the resulting coalesced invocation into lists and starts chunks concurrently; chunk size limits request size, not request rate or concurrency. `perKeyTile` fetches each key individually and concurrently. Return a non-null value for every requested key; a missing or null batch result fails that key with `NoSuchElementException`.
+`chunkedMultiTile` splits the resulting coalesced invocation into lists and starts chunks concurrently; chunk size limits request size, not request rate or concurrency. `perKeyTile` fetches each key individually and concurrently. A map entry containing `null` is successful when the value type is nullable. Only an absent requested key fails with `NoSuchElementException`.
+
+Each key retains its own terminal success or failure. A partial bulk map publishes present values and fails omitted keys individually. If a bulk provider throws, its unfinished keys fail. A `perKeyTile` failure affects only that key; a `chunkedMultiTile` failure affects only the keys in that physical chunk invocation. Successful siblings remain available to later callers without re-execution. Request cancellation cancels all unfinished work.
+
+`compose(tile, keys)` throws if any requested key fails. Use `composeAsync` to await individual outcomes. These Deferreds represent Mosaic-owned shared work: cancel your own waiting coroutine to stop waiting, rather than cancelling the shared Deferred.
 
 | Call                       | Return shape                                      |
 | -------------------------- | ------------------------------------------------- |
@@ -30,7 +34,7 @@ val ChunkedProductsTile by chunkedMultiTile<String, Product>(batchSize = 50) { i
 | `compose(tile, key)`       | `V` (suspends until available)                    |
 | `composeAsync(tile, key)`  | `Deferred<V>`                                     |
 
-Await a map entry with `pending.getValue(key).await()`, or all entries with `pending.mapValues { (_, value) -> value.await() }` in suspending code. The LineItems example above preserves order by iterating `order.items`; do not rely on the result map's iteration order.
+Await a map entry with `pending.getValue(key).await()`, or all entries with `pending.mapValues { (_, value) -> value.await() }` in suspending code. The [LineItems example](/concepts/tiles/) preserves order by iterating `order.items`; do not rely on the result map's iteration order.
 
 ## Preserve domain order
 

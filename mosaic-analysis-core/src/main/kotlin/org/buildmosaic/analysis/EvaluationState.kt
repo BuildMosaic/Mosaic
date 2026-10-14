@@ -46,15 +46,27 @@ internal data class EvaluationContext(
   val assignments: Map<BooleanIdentity, Boolean> = emptyMap(),
   val conditions: List<PathCondition> = emptyList(),
   val feasibility: PathFeasibility = PathFeasibility.SUPPORTED,
+  val cycleProofSupported: Boolean = true,
   val currentCanvas: CanvasState? = null,
   val knownReceiverType: String? = null,
   val dependencyPath: List<DependencyPathNode> = emptyList(),
-  val activeTiles: Set<String> = emptySet(),
+  val activeTiles: List<ActiveTile> = emptyList(),
+  val currentMosaic: Int? = null,
+  val mosaics: Map<String, Int> = emptyMap(),
   val scope: String,
   val depth: Int = 0,
   val blocked: Boolean = false,
   val capturedOrigins: Set<CaptureOrigin> = emptySet(),
   val contextualEvidence: Set<EvidenceKind> = emptySet(),
+)
+
+internal data class ActiveTile(
+  val identity: String,
+  val contract: TileContract,
+  val mosaic: Int?,
+  val site: SourceLocation,
+  val stable: Boolean,
+  val mandatory: Boolean,
 )
 
 internal data class KnownBinding(
@@ -103,6 +115,7 @@ internal data class CanvasAlternative(
   val conditions: List<PathCondition>,
   val feasibility: PathFeasibility,
   val blocked: Boolean,
+  val cycleProofSupported: Boolean,
 )
 
 internal sealed interface BranchDecision {
@@ -127,6 +140,7 @@ internal sealed interface TileResolution {
   data class Found(
     val contract: TileContract,
     val identity: String,
+    val stable: Boolean = true,
   ) : TileResolution
 
   data class Missing(val target: String) : TileResolution

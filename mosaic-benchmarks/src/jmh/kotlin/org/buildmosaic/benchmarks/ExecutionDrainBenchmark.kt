@@ -1,7 +1,6 @@
 package org.buildmosaic.benchmarks
 
 import org.buildmosaic.core.Tile
-import org.buildmosaic.core.injection.create
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.OperationsPerInvocation
 import org.openjdk.jmh.annotations.Scope
@@ -21,9 +20,9 @@ open class ExecutionDrainBenchmark {
 
   @Benchmark
   @OperationsPerInvocation(BATCH_SIZE)
-  open fun sharedDiamond(): Int = suspendBatch { composeAndDrain(emptyCanvas.create(), diamond) }
+  open fun sharedDiamond(): Int = suspendBatch { composeAndDrain(emptyCanvas, diamond) }
 
   @Benchmark
   @OperationsPerInvocation(BATCH_SIZE)
-  open fun siblingConsumers(): Int = suspendBatch { composeAndDrain(emptyCanvas.create(), coalescing) }
+  open fun siblingConsumers(): Int = suspendBatch { composeAndDrain(emptyCanvas, coalescing) }
 }

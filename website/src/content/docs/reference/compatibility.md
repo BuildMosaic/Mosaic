@@ -27,8 +27,14 @@ The plugin rejects nonstandard/generated Kotlin source paths, scripts, mixed Jav
 
 The plugin validates the Java toolchain against Kotlin's toolchain. Regenerate dependency summaries produced with incompatible toolchains. Metadata compatibility is determined by its header, not by the resource directory name.
 
-[Configure analysis](/guides/analysis/) and read the full [supported project boundary](https://github.com/BuildMosaic/Mosaic/blob/main/mosaic-gradle-plugin/README.md#supported-project-boundary). Unknown paths stay visible; a STANDARD warning pass is not proof that every lookup is safe.
+[Configure analysis](/guides/analysis/) and read the full [supported project boundary](/reference/analysis-configuration/#supported-project-boundary). Unknown paths stay visible; a STANDARD warning pass is not proof that every lookup is safe.
 
 ## Release migration
 
-Mosaic 0.6.0 makes Canvas a final Mosaic-owned class. Replace external Canvas implementations and removed `MosaicCanvas` construction with `canvas` or `withLayer`, then recompile. Read the [0.6.0 migration notes](https://github.com/BuildMosaic/Mosaic/blob/main/docs/releases/0.6.0.md#compatibility-and-migration) for source/binary changes and delegate-operator behavior.
+When upgrading from 0.6.0 to **0.7.0**, move the complete request handler invocation inside `Canvas.withMosaic`. `Canvas.create()` remains available with a WARNING deprecation. Register externally owned services and request values with `instance(...)`; reserve `single { ... }` for values Canvas constructs and owns. Never retain a Mosaic between requests.
+
+MultiTile failures now settle per key or physical provider invocation, retaining successful siblings. Returned Deferreds are shared and Mosaic-owned: cancel your own wait rather than the Deferred. These runtime behavior changes require application testing even when source still compiles.
+
+The runtime additions and deprecation retain the inspected Kotlin-public core method signatures. The internal MultiTile provider representation and its mangled JVM getter changed, so Java/reflection access to internals can break. This is not a general source or binary compatibility guarantee for 0.x. Recompile and test consumers. Optional analysis has incompatible format/semantic metadata: rebuild dependency summaries with matching 0.7 tooling and Kotlin/compiler plugin 2.4.20. Runtime use remains independent of analysis.
+
+Read the [0.7.0 migration and compatibility notes](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/docs/releases/0.7.0.md#compatibility). For earlier upgrades, retain the [0.6.0 Canvas construction migration](https://github.com/BuildMosaic/Mosaic/blob/0.6.0/docs/releases/0.6.0.md#compatibility-and-migration) and the [release history](/reference/releases/).

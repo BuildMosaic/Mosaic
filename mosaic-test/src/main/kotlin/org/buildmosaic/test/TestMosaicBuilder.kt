@@ -192,8 +192,7 @@ class TestMosaicBuilder(testContext: TestScope) {
   /**
    * Adds a mock [MultiTile] that fails with the specified exception.
    *
-   * @param K The type of keys in the response
-   * @param tile The [Tile] to mock
+   * @param tile The [MultiTile] to mock
    * @param throwable The exception to throw when the tile's methods are called
    * @return This builder for method chaining
    *

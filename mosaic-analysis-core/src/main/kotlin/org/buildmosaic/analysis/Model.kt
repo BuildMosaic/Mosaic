@@ -252,6 +252,14 @@ sealed interface Effect {
     val discovery: DiscoveryKind = DiscoveryKind.COMPOSE,
     val execution: MultiTileExecution = MultiTileExecution.NOT_APPLICABLE,
     override val site: SourceLocation,
+    val mosaic: MosaicProvenance = MosaicProvenance.Unknown,
+  ) : Effect
+
+  /** Evaluate the Canvas before establishing one fresh standard Mosaic in this invocation. */
+  data class EstablishMosaic(
+    override val id: String,
+    val canvas: CanvasExpression,
+    override val site: SourceLocation,
   ) : Effect
 
   data class ConstructCanvas(
@@ -307,6 +315,7 @@ data class TileContract(
   val site: SourceLocation,
   val reusable: Boolean = true,
   val multi: Boolean = false,
+  val suppressions: List<MosaicSuppression> = emptyList(),
 )
 
 data class CallableContract(
@@ -379,6 +388,7 @@ data class AnalysisRequest(
   val approvedAssumptions: Set<String> = emptySet(),
   val policy: AnalysisPolicy = AnalysisPolicy.DEFAULT,
   val limits: AnalysisLimits = AnalysisLimits(),
+  val ruleSeverities: Map<String, MosaicRuleSeverity> = emptyMap(),
 )
 
 enum class Certainty {
@@ -388,6 +398,7 @@ enum class Certainty {
 }
 
 enum class FindingKind {
+  TILE_RECURSION,
   REQUIRED_LOOKUP,
   OPTIONAL_LOOKUP,
   CONSTRUCTION_LOOKUP,
@@ -427,6 +438,9 @@ data class Finding(
   /** Provider-key evidence, separate from the lookup key in [factProvenance]. */
   val bindingFactProvenance: SourceLocation? = null,
   val bindingCapturedOrigins: Set<CaptureOrigin> = emptySet(),
+  val rule: MosaicRule? = null,
+  val severity: MosaicRuleSeverity? = null,
+  val suppressedAt: List<SourceLocation> = emptyList(),
 )
 
 enum class RootStatus {

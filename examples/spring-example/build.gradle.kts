@@ -10,10 +10,11 @@ dependencies {
   implementation(project(":tile-library"))
   implementation("org.buildmosaic:mosaic-core:$mosaicVersion")
   implementation("org.springframework.boot:spring-boot-starter-web:3.2.5")
+  implementation(kotlin("reflect"))
   implementation(libs.kotlinx.coroutines.core)
+  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:${libs.versions.coroutines.get()}")
   testImplementation(kotlin("test"))
-  testImplementation("org.buildmosaic:mosaic-test:$mosaicVersion")
-  testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation("org.springframework.boot:spring-boot-starter-test:3.2.5")
 }
 
 kotlin {

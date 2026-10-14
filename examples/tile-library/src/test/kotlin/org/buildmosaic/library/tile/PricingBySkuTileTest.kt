@@ -2,6 +2,7 @@ package org.buildmosaic.library.tile
 
 import kotlinx.coroutines.test.runTest
 import org.buildmosaic.library.model.Price
+import org.buildmosaic.library.service.PricingService
 import org.buildmosaic.test.TestMosaicBuilder
 import kotlin.test.Test
 
@@ -15,7 +16,7 @@ class PricingBySkuTileTest {
           "sku-1" to Price("sku-1", 12.99),
           "sku-2" to Price("sku-2", 29.99),
         )
-      val testMosaic = TestMosaicBuilder(this).build()
+      val testMosaic = TestMosaicBuilder(this).withCanvasSource(PricingService()).build()
       testMosaic.assertEquals(PricingBySkuTile, keys, expected)
     }
 

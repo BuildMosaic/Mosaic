@@ -44,12 +44,67 @@
   <div
     class="mobile-composition"
     role="img"
-    aria-label="OrderPageTile composes summary and logistics. Summary composes customer, line items, and order. Customer and line items also share OrderTile."
+    aria-label="OrderPageTile composes OrderSummaryTile and LogisticsTile. OrderSummaryTile composes CustomerTile, LineItemsTile, and OrderTile. CustomerTile and LineItemsTile also compose the same OrderTile: three callers, executed once per Mosaic. Arrows point to dependencies."
   >
-    <code>OrderPageTile</code><span>composes summary + logistics</span>
-    <div><code>OrderSummaryTile</code><span>directly needs OrderTile</span></div>
-    <div><code>CustomerTile + LineItemsTile</code><span>each also needs OrderTile</span></div>
-    <code class="mobile-shared">OrderTile <small>shared by three branches</small></code>
+    <div class="mobile-graph-node mobile-page" data-tile="OrderPageTile"><code>OrderPageTile</code></div>
+    <svg
+      class="mobile-graph-edges mobile-page-edges"
+      viewBox="0 0 400 40"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <defs>
+        <marker
+          id="mobile-dependency-arrow"
+          viewBox="0 0 8 8"
+          refX="8"
+          refY="4"
+          markerWidth="6"
+          markerHeight="6"
+          markerUnits="userSpaceOnUse"
+          orient="auto"
+        >
+          <path d="M0 0 L8 4 L0 8" fill="var(--m-blue)"></path>
+        </marker>
+      </defs>
+      <path data-source="OrderPageTile" data-target="OrderSummaryTile" d="M160 0 V20 H100 V40"></path>
+      <path data-source="OrderPageTile" data-target="LogisticsTile" d="M240 0 V20 H300 V40"></path>
+    </svg>
+    <div class="mobile-graph-node mobile-summary" data-tile="OrderSummaryTile"><code>OrderSummaryTile</code></div>
+    <div class="mobile-graph-node mobile-logistics" data-tile="LogisticsTile"><code>LogisticsTile</code></div>
+    <svg
+      class="mobile-graph-edges mobile-summary-edges"
+      viewBox="0 0 400 48"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path data-source="OrderSummaryTile" data-target="CustomerTile" d="M60 0 V48"></path>
+      <path data-source="OrderSummaryTile" data-target="LineItemsTile" d="M140 0 V12 H300 V48"></path>
+    </svg>
+    <!-- This direct dependency passes between the two callers without touching them. -->
+    <svg
+      class="mobile-graph-edges mobile-direct-edge"
+      viewBox="0 0 400 128"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path data-source="OrderSummaryTile" data-target="OrderTile" d="M100 0 V32 H200 V128"></path>
+    </svg>
+    <div class="mobile-graph-node mobile-customer" data-tile="CustomerTile"><code>CustomerTile</code></div>
+    <div class="mobile-graph-node mobile-line-items" data-tile="LineItemsTile"><code>LineItemsTile</code></div>
+    <svg
+      class="mobile-graph-edges mobile-shared-edges"
+      viewBox="0 0 400 40"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path data-source="CustomerTile" data-target="OrderTile" d="M100 0 V20 H140 V40"></path>
+      <path data-source="LineItemsTile" data-target="OrderTile" d="M300 0 V20 H260 V40"></path>
+    </svg>
+    <div class="mobile-graph-node mobile-shared" data-tile="OrderTile">
+      <code>OrderTile</code>
+      <span>3 callers · 1 execution</span>
+    </div>
   </div>
   <figcaption>Three branches. One OrderTile execution per Mosaic.</figcaption>
 </figure>

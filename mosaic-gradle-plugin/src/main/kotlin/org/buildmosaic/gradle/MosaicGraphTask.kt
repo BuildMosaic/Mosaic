@@ -4,6 +4,7 @@ import org.buildmosaic.analysis.AnalysisPolicy
 import org.buildmosaic.analysis.AnalysisRequest
 import org.buildmosaic.analysis.ModuleContract
 import org.buildmosaic.analysis.MosaicGraph
+import org.buildmosaic.analysis.MosaicRuleSeverity
 import org.buildmosaic.analysis.RootSelectionResolver
 import org.buildmosaic.analysis.SummaryCodec
 import org.gradle.api.DefaultTask
@@ -11,6 +12,7 @@ import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
@@ -45,6 +47,9 @@ abstract class MosaicGraphTask : DefaultTask() {
 
   @get:Input abstract val enforcement: Property<MosaicAnalysisEnforcement>
 
+  @get:Input
+  abstract val ruleSeverities: MapProperty<String, MosaicRuleSeverity>
+
   @get:OutputFile abstract val graphFile: RegularFileProperty
 
   @TaskAction fun generate() {
@@ -73,7 +78,10 @@ abstract class MosaicGraphTask : DefaultTask() {
       } else {
         AnalysisPolicy.DEFAULT
       }
-    val document = MosaicGraph.render(AnalysisRequest(program, dependencies, selected, policy = policy))
+    val document =
+      MosaicGraph.render(
+        AnalysisRequest(program, dependencies, selected, policy = policy, ruleSeverities = ruleSeverities.get()),
+      )
     output.parentFile.mkdirs()
     output.writeText(document)
   }

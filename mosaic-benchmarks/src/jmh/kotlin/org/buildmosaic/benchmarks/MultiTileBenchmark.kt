@@ -55,7 +55,8 @@ open class FullyCachedMultiTileState : MultiTileState() {
   @Setup(Level.Trial)
   fun keys() = prepareKeys(keyCount)
 
-  @Setup(Level.Invocation)
+  // Repeated reads cannot change a fully populated cache; prewarm once per trial.
+  @Setup(Level.Trial)
   fun requests() = prepareRequests(keyCount, 100)
 }
 

@@ -35,7 +35,9 @@ pnpm qa
 
 CI installs Chromium and OS dependencies automatically. Playwright tests all six requested widths and both themes across the homepage, Quick Start, a long concept, large Kotlin blocks, tables, and native API. They exercise menu, sidebar, search, copy, theme persistence, anchors, and keyboard access; axe checks WCAG A/AA rules. `MOSAIC_CHROMIUM_PATH` can select a locally managed Chromium on platforms whose system packages provide the browser. Normal development does not require it.
 
-Inspect actual rendered pages and keyboard behavior as well; automated checks do not prove every accessibility requirement. Store local captures under ignored `.impeccable/review/`. Representative launch evidence is in `review/`.
+Browser QA uses DOM, CSS, asset, layout, and geometry assertions. API branding checks compare the effective logo bytes with the canonical mark and verify exact theme colors. Graph checks verify dependency relationships, node labels, anchors, orthogonal edges, and the absence of crossings or shared segments. There are no pixel baselines to regenerate; the same suite runs on Nix and Ubuntu without a special rendering environment.
+
+Inspect actual rendered pages and keyboard behavior as well; automated checks do not prove every accessibility requirement. Store local captures under ignored `.impeccable/review/`. Representative launch evidence in `review/` is for manual review, not executable test baselines.
 
 ## Content ownership
 
@@ -53,7 +55,7 @@ Add a feature by editing its canonical Markdown guide and, if adoption-relevant,
 
 Dokka 2.2.0 uses the supported v2 Gradle plugin. Root `dokka` dependencies aggregate core, test, and OpenTelemetry; module convention settings own source links and publication Javadoc. `api/mosaic.css` and `api/mosaic-api.js` provide small brand and accessibility corrections through Dokka's supported custom asset mechanism. The asset preparation step adds missing inherited-overload fragment aliases emitted by Dokka 2.2.0. It preserves the native declarations and layout, and the complete link check verifies the result. There is no template fork or KDoc renderer.
 
-The Website workflow installs from the lockfile, validates content/types/format, generates API and Javadoc, builds, checks links, and runs Playwright/axe. It uploads and deploys a Pages artifact only from canonical main. Repository Kotlin PR validation remains independent. Pages uses Actions as its publication source; its environment allows protected branches. `public/CNAME` contains `buildmosaic.org`.
+The Website workflow validates PRs targeting `main` or `develop`: it installs from the lockfile, validates content/types/format, generates API and Javadoc, builds, checks links, and runs Playwright/axe. It uploads and deploys a Pages artifact only from canonical main. Repository Kotlin PR validation remains independent. Pages uses Actions as its publication source; its environment allows protected branches. `public/CNAME` contains `buildmosaic.org`.
 
 ## DNS action required
 

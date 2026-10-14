@@ -19,7 +19,7 @@ class SummaryWireValidationTest {
   }
 
   @Test
-  fun `prototype seven metadata is rejected explicitly`() {
+  fun `legacy metadata is rejected with regeneration guidance`() {
     val prototype =
       """
       {"schemaMajor":1,"schemaMinor":1,"toolVersion":"prototype-7","kotlinCompilerVersion":"2.4.20",
@@ -27,7 +27,10 @@ class SummaryWireValidationTest {
       "module":{"id":"sample","canvases":[],"tiles":[],"callables":[],"overrides":[]}}
       """.trimIndent()
     val error = assertFailsWith<IllegalArgumentException> { SummaryCodec.decode(prototype.toByteArray()) }
-    assertTrue(error.message.orEmpty().contains("prototype", ignoreCase = true))
+    assertTrue(error.message.orEmpty().contains("Unsupported Mosaic metadata format"))
+    assertTrue(
+      error.message.orEmpty().contains("Regenerate dependency summaries with the matching Mosaic analysis version"),
+    )
   }
 
   @Test

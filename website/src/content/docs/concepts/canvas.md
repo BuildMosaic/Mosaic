@@ -29,16 +29,16 @@ val WelcomeTile by singleTile {
 
 suspend fun handleRequest(applicationCanvas: Canvas, userId: String): String =
   applicationCanvas.withLayer {
-    single(UserIdKey) { userId }
-  }.create().compose(WelcomeTile)
+    instance(UserIdKey, userId)
+  }.withMosaic { compose(WelcomeTile) }
 ```
 
-`Canvas` is a final Mosaic-owned class, constructed with `canvas` or `withLayer`. It stores resolved dependencies and owns its local resources.
+`Canvas` is a final Mosaic-owned class, constructed with `canvas` or `withLayer`. It stores resolved dependencies. `single { ... }` constructs Canvas-owned values; `instance(existing)` borrows externally owned values that Canvas never closes, including on construction failure. Use `instance<Service>(existing)` to bind an interface type, `instance<Service>("primary", existing)` for a qualified binding, or `instance(key, existing)` for a CanvasKey. The external owner remains responsible for borrowed resources.
 
 `canvas` eagerly constructs bindings. A child layer resolves local bindings first, then falls back to its parent. Overrides do not rewire services already constructed by the parent. Concurrent `paint` calls share one construction; recursive construction fails with a circular-dependency error.
 
 ## Application and request scopes
 
-Construct an application Canvas for stable services. Add request-specific values in a child layer, then create a new Mosaic for that request. Bind only the request values that differ from application defaults.
+Construct an application Canvas for stable services. Add request-specific values in a child layer, then use `withMosaic` to run a new Mosaic owned by that request. Bind only the request values that differ from application defaults.
 
 For services that own closeable resources, read [resource ownership](/guides/resources/). The optional [analysis plugin](/guides/analysis/) checks bindings within supported static boundaries; it cannot guarantee every dynamic lookup.

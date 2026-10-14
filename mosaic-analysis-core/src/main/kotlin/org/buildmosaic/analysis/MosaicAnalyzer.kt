@@ -2,6 +2,7 @@ package org.buildmosaic.analysis
 
 class MosaicAnalyzer {
   fun analyze(request: AnalysisRequest): AnalysisReport {
+    request.ruleSeverities.keys.forEach(MosaicRule::configurable)
     val registry = SelectedContractRegistry(listOf(request.program) + request.selectedDependencies)
     val deferred = registry.reusableContractIds().filterNot { id -> request.roots.any { it.target == id } }
     if (request.roots.isEmpty()) return unconfiguredReport(request, deferred)
@@ -10,7 +11,7 @@ class MosaicAnalyzer {
     val rootReports =
       request.roots
         .sortedBy { it.id }
-        .map { root -> RootEvaluator(registry, assumptions, request.limits, root).evaluate() }
+        .map { root -> RootEvaluator(registry, assumptions, request.limits, root, request.ruleSeverities).evaluate() }
     val findings = rootReports.flatMap { it.findings }
     val decision =
       PolicyEvaluator.evaluate(
@@ -24,7 +25,7 @@ class MosaicAnalyzer {
       roots = rootReports,
       findings = findings,
       deferredContracts = deferred,
-      unknownBoundaries = findings.filter { it.certainty == Certainty.UNVERIFIED },
+      unknownBoundaries = findings.filter { it.rule == null && it.certainty == Certainty.UNVERIFIED },
       limits = request.limits,
       policy = request.policy,
       policyDecision = decision,

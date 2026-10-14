@@ -30,6 +30,8 @@ export default defineConfig({
             { label: 'What is Mosaic?', slug: 'start/overview' },
             { label: 'Installation', slug: 'start/installation' },
             { label: 'Quick Start', slug: 'start/quick-start' },
+            { label: 'Questions and support', link: 'https://github.com/BuildMosaic/Mosaic/issues' },
+            { label: 'Security policy', link: 'https://github.com/BuildMosaic/Mosaic/security/policy' },
           ],
         },
         {
@@ -60,6 +62,7 @@ export default defineConfig({
           collapsed: true,
           items: [
             { label: 'Performance', slug: 'reference/performance' },
+            { label: 'Analysis configuration', slug: 'reference/analysis-configuration' },
             { label: 'Compatibility', slug: 'reference/compatibility' },
             { label: 'Releases', slug: 'reference/releases' },
             { label: 'Kotlin API reference', link: '/api/' },

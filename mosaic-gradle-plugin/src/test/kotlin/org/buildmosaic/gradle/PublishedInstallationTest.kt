@@ -128,8 +128,20 @@ class PublishedInstallationTest {
       writeText(
         """
         package app
+        import org.buildmosaic.core.*
         import org.buildmosaic.core.injection.*
-        suspend fun entry(): String = canvas { single<String> { "ready" } }.source<String>()
+        interface Service
+        class ExistingService : Service
+        val OrderKey = CanvasKey(String::class, "order")
+        suspend fun entry(): String = canvas {
+          instance("ready")
+          instance<Service>("primary", ExistingService())
+          instance("secondary", ExistingService())
+          instance(OrderKey, "order-1")
+        }.withMosaic {
+          source<Service>("primary"); source<ExistingService>("secondary")
+          source(OrderKey); source<String>()
+        }
         """.trimIndent(),
       )
     }
@@ -143,9 +155,9 @@ class PublishedInstallationTest {
     assertTrue(report.contains("VERIFIED REQUIRED_LOOKUP"), report)
     assertTrue(consumer.resolve("build/reports/mosaic-analysis/graph.md").readText().contains("## Root: app.entry()"))
     val summary = SummaryCodec.decode(consumer.resolve("build/mosaic-analysis/main/summary.json").readBytes())
-    assertEquals(3, summary.formatVersion)
-    assertEquals("analysis-contract-2", summary.semanticsVersion)
-    assertEquals("prototype-10", summary.toolVersion)
+    assertEquals(4, summary.formatVersion)
+    assertEquals("analysis-contract-3", summary.semanticsVersion)
+    assertEquals("prototype-11", summary.toolVersion)
     assertTrue(summary.module.callables.any { it.id == "app.entry()" && it.effects.isNotEmpty() })
     JarFile(consumer.resolve("build/libs/app-99.0.0.jar")).use { assertTrue(it.getEntry(SUMMARY_PATH) != null) }
 

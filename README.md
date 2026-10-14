@@ -18,6 +18,10 @@ Mosaic is a Kotlin library for building backends one response at a time. A **Til
 reusable piece of work that can read request or application data and compose other
 Tiles. A request-scoped Mosaic shares repeated Tile work automatically.
 
+The public stable release is **[0.7.0](https://github.com/BuildMosaic/Mosaic/releases/tag/0.7.0)**.
+For released examples, use the [0.7.0 README](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/README.md);
+`develop` is the integration branch for subsequent unreleased work.
+
 ## 🚀 **Why Mosaic?**
 
 - **🎯 Response first** — Start with what your endpoint returns.
@@ -84,7 +88,7 @@ Have a bulk API? Put it behind a MultiTile:
 
 ```kotlin
 val ProductsByIdTile by multiTile<String, Product> { ids ->
-  ProductService.getProducts(ids.toList())
+  source<ProductService>().getProducts(ids.toList())
 }
 
 // In the same request Mosaic:
@@ -107,7 +111,7 @@ Add Mosaic to a Kotlin/JVM project:
 
 ```kotlin
 dependencies {
-  implementation("org.buildmosaic:mosaic-core:0.6.0")
+  implementation("org.buildmosaic:mosaic-core:0.7.0")
 }
 ```
 
@@ -120,18 +124,36 @@ and keeps their results. A Tile can read an input and call an ordinary service:
 ```kotlin
 val OrderKey = CanvasKey(String::class, "orderKey")
 val OrderTile by singleTile {
-  OrderService.getOrder(source(OrderKey))
+  source<OrderService>().getOrder(source(OrderKey))
 }
 ```
 
-Bind that input at the request boundary, then ask for the page:
+The application creates the services and registers its existing instances with
+Canvas. `instance` borrows them; the application retains ownership:
+
+```kotlin
+val applicationCanvas = canvas {
+  instance(orderService)
+  instance(customerService)
+  instance(productService)
+  instance(pricingService)
+  instance(addressService)
+  instance(carrierService)
+}
+```
+
+The [framework examples](examples) show how each application creates these services.
+Bind the request input in a child Canvas, then ask for the page:
 
 ```kotlin
 suspend fun orderPage(applicationCanvas: Canvas, orderId: String): OrderPage =
   applicationCanvas.withLayer {
-    single(OrderKey) { orderId }
-  }.create().compose(OrderPageTile)
+    instance(OrderKey, orderId)
+  }.withMosaic { compose(OrderPageTile) }
 ```
+
+Import `org.buildmosaic.core.injection.withMosaic`. The calling coroutine owns Tile work;
+leaving the block cancels unfinished work and waits for cleanup.
 
 The [complete quick start](https://BuildMosaic.org/start/quick-start/)
 covers application setup, resource ownership, and runtime requirements.
@@ -226,13 +248,29 @@ source revision documented in the report.
 
 ## 🌐 **Bring Your HTTP Framework**
 
-The same order Tiles run behind three example applications:
+Mosaic works alongside any HTTP framework; your framework owns routing,
+serialization, and server lifecycle. The same order Tiles run behind three
+example applications:
 
 - **[Spring Boot](examples/spring-example)** — Controllers and application Canvas configuration
 - **[Ktor](examples/ktor-example)** — Coroutine route handlers
 - **[Micronaut](examples/micronaut-example)** — Controllers and dependency injection
 
 [Run an example →](https://BuildMosaic.org/guides/frameworks/)
+
+## 🤝 **Maintainer and Support**
+
+Mosaic is maintained by Nicholas Abbott ([nick@buildmosaic.org](mailto:nick@buildmosaic.org)).
+Use [GitHub Issues](https://github.com/BuildMosaic/Mosaic/issues) for usage questions,
+bug reports, and feature requests; see the [contribution guide](.github/CONTRIBUTING.md)
+for contribution and discussion routes.
+
+For vulnerabilities, follow the [security policy](.github/SECURITY.md) and email
+[security@buildmosaic.org](mailto:security@buildmosaic.org) privately. Do not open a public issue.
+The policy limits security updates to the latest minor release.
+
+Before adopting or upgrading, review [runtime and optional analysis compatibility](https://BuildMosaic.org/reference/compatibility/)
+and [release notes and upgrade guidance](https://BuildMosaic.org/reference/releases/).
 
 ## 📄 **License**
 

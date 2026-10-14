@@ -69,6 +69,7 @@ object RootSelectionResolver {
           }
           is Effect.Lookup -> expression(effect.canvas)
           is Effect.ConstructCanvas -> expression(effect.canvas)
+          is Effect.EstablishMosaic -> expression(effect.canvas)
           is Effect.Call -> {
             calls += Call(effect.target, effect.receiver, effect.virtualDispatch)
             arguments(effect.arguments)

@@ -6,8 +6,9 @@ compiler and Gradle plugins; it is not published separately, an application
 runtime dependency, or a BOM entry.
 It accepts immutable, hand-authored contracts describing Canvas construction,
 lookups, Tile composition, calls, conditions, and selected verification roots.
-It verifies exact Canvas-key availability and eager local singleton construction
-while preserving unknown boundaries and source provenance.
+It verifies exact Canvas-key availability, eager local singleton construction,
+and proven cyclic Tile result dependencies while preserving unknown boundaries
+and source provenance.
 Canvas arguments are evaluated eagerly at calls, while aliases and parameter
 transfers preserve the identity and guarded alternatives of already-created values.
 
@@ -76,6 +77,21 @@ Reusable contracts are only reported as deferred until a selected root reaches
 and specializes them. Public visibility does not select a root, and selecting no
 roots produces an `UNCONFIGURED` report.
 
+## Rules and receiver provenance
+
+The semantic kernel owns Tile expansion and cycle classification. `MosaicRule`
+centralizes public IDs, titles, default severities, configurability,
+suppressibility, and correctness/policy classification. A small Mosaic identity
+reference distinguishes current, established fresh, and unknown receivers;
+Canvas equality is never Mosaic cache equality. Stable SingleTile synchronous
+closed paths with established same-Mosaic identity are correctness errors.
+Other stable recursion is configurable policy. Exported Tile contracts preserve
+source-local suppression sites for later application verification.
+
+See the canonical [analysis configuration reference](https://BuildMosaic.org/reference/analysis-configuration/)
+for the rule table, policy precedence, suppression ownership, and supported
+proof boundaries.
+
 ## Binary metadata
 
 `SummaryCodec` writes deterministic UTF-8 JSON using generated
@@ -87,9 +103,9 @@ locators. Unordered declarations, limitations, and locator entries are sorted;
 effect and argument order is retained. Arguments are ordered parameter/value
 entries, and duplicate parameters are rejected.
 
-Format 3 has separate `formatVersion`, `semanticsVersion`, `toolVersion`,
+Format 4 has separate `formatVersion`, `semanticsVersion`, `toolVersion`,
 `kotlinCompilerVersion`, `moduleId`, `sourceSet`, and `complete` header fields.
-The reader accepts format 3, `analysis-contract-2`, Kotlin 2.4.20, and complete
+The reader accepts format 4, `analysis-contract-3`, Kotlin 2.4.20, and complete
 `main` source-set summaries. The module identity must be nonblank and match the
 payload. A nonblank producer version is required but does not determine semantic
 compatibility. Regenerate incompatible summaries with the supported Mosaic
@@ -109,8 +125,8 @@ is independent of Kotlin compiler and Gradle APIs.
 The model intentionally supports only the expressions needed by the semantic
 fixtures. It does not parse Kotlin source, inspect JARs, discover roots, infer
 framework lifecycles or arbitrary dispatch, check generic types/subtypes, model
-cache occupancy, or diagnose deadlocks. Unsupported represented behavior stays
-explicitly `UNVERIFIED`. Direct override transfer uses resolved receiver
+cache occupancy, Deferred awaits, or general deadlocks. Unsupported represented
+behavior stays explicitly `UNVERIFIED`. Direct override transfer uses resolved receiver
 relationships and positional Canvas slots; arbitrary virtual dispatch remains
 outside the model. The wire format and API are provisional.
 

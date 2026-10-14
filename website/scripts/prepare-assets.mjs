@@ -8,7 +8,7 @@ await mkdir(publicDir, { recursive: true });
 await rm(`${publicDir}brand`, { recursive: true, force: true });
 await mkdir(`${publicDir}brand`, { recursive: true });
 for (const asset of ['mosaic-mark.svg', 'mosaic-lockup-light.svg', 'mosaic-lockup-dark.svg']) {
-  await cp(`${root}brand/${asset}`, `${publicDir}brand/${asset}`);
+  await cp(`${root}assets/${asset}`, `${publicDir}brand/${asset}`);
 }
 await cp(`${root}.github/images/order-architecture.png`, `${publicDir}order-architecture.png`);
 const apiSource = `${root}build/dokka/html`;

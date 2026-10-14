@@ -9,7 +9,7 @@ import org.buildmosaic.library.model.Product
 import org.buildmosaic.library.model.Quote
 
 /** Simple in-memory services simulating external calls */
-object OrderService {
+class OrderService {
   private val orders =
     mapOf(
       "order-1" to
@@ -27,7 +27,7 @@ object OrderService {
   fun getOrder(id: String): Order = orders.getValue(id)
 }
 
-object CustomerService {
+class CustomerService {
   private val customers =
     mapOf(
       "customer-1" to Customer("customer-1", "Jane Doe"),
@@ -36,7 +36,7 @@ object CustomerService {
   fun getCustomer(id: String): Customer = customers.getValue(id)
 }
 
-object ProductService {
+class ProductService {
   private val products =
     mapOf(
       "product-1" to Product("product-1", "Coffee Mug"),
@@ -46,7 +46,7 @@ object ProductService {
   fun getProducts(ids: List<String>): Map<String, Product> = ids.associateWith { products.getValue(it) }
 }
 
-object PricingService {
+class PricingService {
   private val prices =
     mapOf(
       "sku-1" to Price("sku-1", 12.99),
@@ -56,12 +56,12 @@ object PricingService {
   fun getPrices(skus: List<String>): Map<String, Price> = skus.associateWith { prices.getValue(it) }
 }
 
-object AddressService {
+class AddressService {
   @Suppress("UnusedParameter")
   fun getAddress(orderId: String): Address = Address("123 Main St", "Springfield")
 }
 
-object CarrierService {
+class CarrierService {
   private val baseQuotes =
     mapOf(
       "UPS" to 5.99,

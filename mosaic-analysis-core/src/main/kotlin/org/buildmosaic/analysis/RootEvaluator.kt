@@ -14,6 +14,7 @@ internal class RootEvaluator(
   private val assumptions: Map<String, List<ExternalAssumption>>,
   private val limits: AnalysisLimits,
   private val root: SelectedRoot,
+  private val ruleSeverities: Map<String, MosaicRuleSeverity>,
 ) {
   private data class RecordedFinding(
     val finding: Finding,
@@ -32,6 +33,7 @@ internal class RootEvaluator(
   private val budget = ExpansionBudget(limits.alternativeBudget)
   private var nextActivation = 1
   private var nextCanvasInstance = 0
+  private var nextMosaicInstance = 0
 
   fun evaluate(): RootReport {
     val initial = EvaluationContext(scope = root.target, knownReceiverType = root.receiverType)
@@ -43,8 +45,11 @@ internal class RootEvaluator(
     val findings = coalesceOpaqueLookupFindings()
     val status =
       when {
-        findings.any { it.certainty == Certainty.MISSING } -> RootStatus.FAILED
-        findings.any { it.certainty == Certainty.UNVERIFIED } -> RootStatus.UNVERIFIED
+        findings.any {
+          it.rule == null && it.certainty == Certainty.MISSING ||
+            it.rule != null && it.suppressedAt.isEmpty() && it.severity == MosaicRuleSeverity.ERROR
+        } -> RootStatus.FAILED
+        findings.any { it.rule == null && it.certainty == Certainty.UNVERIFIED } -> RootStatus.UNVERIFIED
         else -> RootStatus.VERIFIED
       }
     return RootReport(root, status, findings.toList(), specializedContracts.toList())
@@ -109,6 +114,13 @@ internal class RootEvaluator(
     when (effect) {
       is Effect.Lookup -> evaluateLookup(effect, context)
       is Effect.Compose -> evaluateCompose(effect, context)
+      is Effect.EstablishMosaic ->
+        evaluateCanvas(effect.canvas, context).map { outcome ->
+          outcome.context.copy(
+            mosaics = outcome.context.mosaics + (effect.id to nextMosaicInstance++),
+            blocked = outcome.context.blocked || outcome.state == null,
+          )
+        }
       is Effect.ConstructCanvas ->
         evaluateCanvas(effect.canvas, context).map { outcome ->
           outcome.context.copy(blocked = outcome.context.blocked || outcome.state == null)
@@ -118,7 +130,7 @@ internal class RootEvaluator(
       is Effect.Captured -> evaluateCaptured(effect, context)
       is Effect.Unknown -> {
         addUnknown(context, effect.id, effect.site, effect.reason)
-        listOf(context)
+        listOf(context.copy(cycleProofSupported = false))
       }
     }
 
@@ -137,7 +149,7 @@ internal class RootEvaluator(
           LookupResolution(Certainty.UNVERIFIED, reason = "Canvas key is unknown: ${resolvedKey.reason}"),
           resolvedKey.site,
         )
-        return@map outcome.context
+        return@map outcome.context.copy(cycleProofSupported = false)
       }
       if (effect.kind == LookupKind.OPTIONAL) {
         addOptionalFinding(effect, outcome.context, "Optional lookup has no provider obligation")
@@ -150,7 +162,10 @@ internal class RootEvaluator(
       val blocked =
         outcome.context.blocked ||
           effect.kind == LookupKind.PAINT && rawResolution.certainty == Certainty.MISSING
-      outcome.context.copy(blocked = blocked)
+      outcome.context.copy(
+        blocked = blocked,
+        cycleProofSupported = outcome.context.cycleProofSupported && resolution.certainty == Certainty.VERIFIED,
+      )
     }
   }
 
@@ -205,25 +220,42 @@ internal class RootEvaluator(
         is TileResolution.Found -> resolved
         is TileResolution.Conflict -> {
           addConflict(context, effect.id, resolved.owners, effect.site)
-          return listOf(context)
+          return listOf(context.copy(cycleProofSupported = false))
         }
         is TileResolution.Missing -> {
           addUnknown(context, effect.id, effect.site, "Tile contract ${resolved.target} is missing")
-          return listOf(context)
+          return listOf(context.copy(cycleProofSupported = false))
         }
         is TileResolution.Unknown -> {
           addUnknown(context, effect.id, resolved.site, resolved.reason)
-          return listOf(context)
+          return listOf(context.copy(cycleProofSupported = false))
         }
       }
     val (contract, identity) = found
     if (context.depth >= limits.expansionDepth) {
       addIncomplete(context, effect.id, effect.site, "Tile expansion depth limit reached")
-      return listOf(context)
+      return listOf(context.copy(cycleProofSupported = false))
     }
-    val activeIdentity = "$identity@${canvas.cacheIdentity()}"
-    if (activeIdentity in context.activeTiles) {
-      addIncomplete(context, effect.id, effect.site, "Recursive Tile discovery expansion stopped")
+    val mosaic =
+      when (val provenance = effect.mosaic) {
+        MosaicProvenance.Current -> context.currentMosaic
+        is MosaicProvenance.Established -> context.mosaics[provenance.id]
+        MosaicProvenance.Unknown -> null
+      }
+    val active =
+      ActiveTile(
+        identity,
+        contract,
+        mosaic,
+        effect.site,
+        found.stable,
+        mandatory =
+          context.cycleProofSupported && context.feasibility == PathFeasibility.SUPPORTED &&
+            effect.discovery == DiscoveryKind.COMPOSE,
+      )
+    val returning = context.activeTiles.indexOfLast { it.identity == identity }
+    if (returning >= 0) {
+      addRecursion(context, effect, context.activeTiles.drop(returning), active)
       return listOf(context)
     }
     specializedContracts += contract.id
@@ -232,7 +264,10 @@ internal class RootEvaluator(
       context.copy(
         currentCanvas = canvas,
         dependencyPath = tilePath,
-        activeTiles = context.activeTiles + activeIdentity,
+        activeTiles = context.activeTiles + active,
+        currentMosaic = mosaic,
+        mosaics = emptyMap(),
+        cycleProofSupported = true,
         scope = identity,
         activation = nextActivation++,
         aliases = emptyMap(),
@@ -245,6 +280,58 @@ internal class RootEvaluator(
         propagateBlocked = effect.discovery == DiscoveryKind.COMPOSE,
       )
     }
+  }
+
+  private fun addRecursion(
+    context: EvaluationContext,
+    effect: Effect.Compose,
+    participants: List<ActiveTile>,
+    returning: ActiveTile,
+  ) {
+    // The first incoming edge only starts the work (possibly asynchronously). It is
+    // not part of the closed result dependency. Every remaining edge must require a result.
+    val closed = participants + returning
+    val proven =
+      closed.all { it.stable && !it.contract.multi && it.mosaic != null && it.mosaic == returning.mosaic } &&
+        closed.drop(1).all { it.mandatory }
+    val rule =
+      when {
+        proven -> MosaicRule.MOSAIC_CYCLIC_TILE_DEPENDENCY
+        participants.any { !it.contract.multi } -> MosaicRule.MOSAIC_RECURSIVE_TILE
+        else -> MosaicRule.MOSAIC_RECURSIVE_MULTITILE
+      }
+    val severity = ruleSeverities[rule.id] ?: rule.defaultSeverity
+    if (severity == MosaicRuleSeverity.OFF) return
+    val suppressions =
+      if (rule.suppressible) {
+        participants.flatMap { it.contract.suppressions }.filter { it.ruleId == rule.id }.map { it.site }.distinct()
+      } else {
+        emptyList()
+      }
+    record(
+      context,
+      Finding(
+        rootId = root.id,
+        obligationId = "${context.scope}:${effect.id}:recursion",
+        kind = FindingKind.TILE_RECURSION,
+        certainty = if (proven) Certainty.MISSING else Certainty.UNVERIFIED,
+        site = effect.site,
+        dependencyPath = closed.map { DependencyPathNode(it.contract.id, it.site) },
+        pathCondition = context.conditions.map { it.display },
+        rule = rule,
+        severity = severity,
+        suppressedAt = suppressions,
+        reason =
+          when (rule) {
+            MosaicRule.MOSAIC_CYCLIC_TILE_DEPENDENCY ->
+              "These Tile results depend circularly on unfinished work in the same Mosaic."
+            MosaicRule.MOSAIC_RECURSIVE_TILE ->
+              "Recursive Tile structure detected; a cyclic result dependency in the same Mosaic was not proven."
+            MosaicRule.MOSAIC_RECURSIVE_MULTITILE ->
+              "Mosaic cannot establish that recursive MultiTile requests use different keys or terminate."
+          },
+      ),
+    )
   }
 
   private fun resolveTileReference(
@@ -276,6 +363,7 @@ internal class RootEvaluator(
             TileResolution.Found(
               contract.value,
               "${reference.templateId}@${reference.allocationId}#${reference.invocationId}:${context.activation}",
+              stable = false,
             )
           is Resolution.Conflict -> TileResolution.Conflict(reference.templateId, contract.owners)
           Resolution.Missing -> TileResolution.Missing(reference.templateId)
@@ -301,7 +389,12 @@ internal class RootEvaluator(
       if (caller.blocked) return@flatMap listOf(CanvasOutcome(caller, null))
       if (caller.depth >= limits.expansionDepth) {
         addIncomplete(caller, effect.id, effect.site, "Callable expansion depth limit reached")
-        return@flatMap listOf(CanvasOutcome(caller, CanvasState.Unknown("Unresolved call result", effect.site)))
+        return@flatMap listOf(
+          CanvasOutcome(
+            caller.copy(cycleProofSupported = false),
+            CanvasState.Unknown("Unresolved call result", effect.site),
+          ),
+        )
       }
       val receiverType =
         when (val receiver = effect.receiver) {
@@ -312,7 +405,12 @@ internal class RootEvaluator(
         }
       if (effect.virtualDispatch && receiverType == null) {
         addUnknown(caller, effect.id, effect.site, "Virtual receiver is unresolved: ${effect.receiver}")
-        return@flatMap listOf(CanvasOutcome(caller, CanvasState.Unknown("Unresolved call result", effect.site)))
+        return@flatMap listOf(
+          CanvasOutcome(
+            caller.copy(cycleProofSupported = false),
+            CanvasState.Unknown("Unresolved call result", effect.site),
+          ),
+        )
       }
       val override =
         if (effect.virtualDispatch && receiverType != null) {
@@ -320,11 +418,21 @@ internal class RootEvaluator(
             is Resolution.Found -> resolved.value
             is Resolution.Conflict -> {
               addConflict(caller, effect.id, resolved.owners, effect.site)
-              return@flatMap listOf(CanvasOutcome(caller, CanvasState.Unknown("Unresolved call result", effect.site)))
+              return@flatMap listOf(
+                CanvasOutcome(
+                  caller.copy(cycleProofSupported = false),
+                  CanvasState.Unknown("Unresolved call result", effect.site),
+                ),
+              )
             }
             Resolution.Missing -> {
               addUnknown(caller, effect.id, effect.site, "No direct override for $receiverType at ${effect.target}")
-              return@flatMap listOf(CanvasOutcome(caller, CanvasState.Unknown("Unresolved call result", effect.site)))
+              return@flatMap listOf(
+                CanvasOutcome(
+                  caller.copy(cycleProofSupported = false),
+                  CanvasState.Unknown("Unresolved call result", effect.site),
+                ),
+              )
             }
           }
         } else {
@@ -347,7 +455,12 @@ internal class RootEvaluator(
               val mapping = override.slots.associate { it.base to it.implementation }
               if (evaluated.values.keys.any { it !in mapping }) {
                 addUnknown(caller, effect.id, effect.site, "Override argument slots are incomplete")
-                return@flatMap listOf(CanvasOutcome(caller, CanvasState.Unknown("Unresolved call result", effect.site)))
+                return@flatMap listOf(
+                  CanvasOutcome(
+                    caller.copy(cycleProofSupported = false),
+                    CanvasState.Unknown("Unresolved call result", effect.site),
+                  ),
+                )
               }
               evaluated.copy(
                 values = evaluated.values.mapKeys { (parameter, _) -> mapping.getValue(parameter) },
@@ -361,6 +474,8 @@ internal class RootEvaluator(
               depth = caller.depth + 1,
               knownReceiverType = receiverType,
               currentCanvas = null,
+              currentMosaic = null,
+              mosaics = emptyMap(),
             )
           evaluateEffects(listOf(nested), target.value.effects).flatMap { continuing ->
             val result = target.value.result
@@ -373,7 +488,12 @@ internal class RootEvaluator(
         }
         is Resolution.Conflict -> {
           addConflict(caller, effect.id, target.owners, effect.site)
-          listOf(CanvasOutcome(caller, CanvasState.Unknown("Unresolved call result", effect.site)))
+          listOf(
+            CanvasOutcome(
+              caller.copy(cycleProofSupported = false),
+              CanvasState.Unknown("Unresolved call result", effect.site),
+            ),
+          )
         }
         Resolution.Missing -> {
           addUnknown(
@@ -386,7 +506,12 @@ internal class RootEvaluator(
               "Runtime callable target ${effect.target} is missing"
             },
           )
-          listOf(CanvasOutcome(caller, CanvasState.Unknown("Unresolved call result", effect.site)))
+          listOf(
+            CanvasOutcome(
+              caller.copy(cycleProofSupported = false),
+              CanvasState.Unknown("Unresolved call result", effect.site),
+            ),
+          )
         }
       }
     }
@@ -428,7 +553,7 @@ internal class RootEvaluator(
         effect.site,
         "External capture ${effect.origin.declaration} was not faithfully captured",
       )
-      return listOf(context)
+      return listOf(context.copy(cycleProofSupported = false))
     }
     val capturedContext =
       context.copy(
@@ -461,14 +586,24 @@ internal class RootEvaluator(
         is CanvasExpression.ValueReference -> {
           if (expression.id !in context.aliases) {
             addUnknown(context, expression.id, expression.site, "Evaluated Canvas value is unavailable")
-            listOf(CanvasOutcome(context, CanvasState.Unknown("Uninitialized value", expression.site)))
+            listOf(
+              CanvasOutcome(
+                context.copy(cycleProofSupported = false),
+                CanvasState.Unknown("Uninitialized value", expression.site),
+              ),
+            )
           } else {
             readCanvasValue(expression.id, context)
           }
         }
         is CanvasExpression.Unknown -> {
           addUnknown(context, "canvas:${expression.site.owner}", expression.site, expression.reason)
-          listOf(CanvasOutcome(context, CanvasState.Unknown(expression.reason, expression.site)))
+          listOf(
+            CanvasOutcome(
+              context.copy(cycleProofSupported = false),
+              CanvasState.Unknown(expression.reason, expression.site),
+            ),
+          )
         }
       }
     }
@@ -487,6 +622,7 @@ internal class RootEvaluator(
           outcome.context.conditions,
           outcome.context.feasibility,
           outcome.context.blocked,
+          outcome.context.cycleProofSupported,
         )
       }
     return outcomes.map { outcome ->
@@ -510,6 +646,7 @@ internal class RootEvaluator(
             conditions = (context.conditions + alternative.conditions).distinct(),
             feasibility = combineFeasibility(context.feasibility, alternative.feasibility),
             blocked = context.blocked || alternative.blocked,
+            cycleProofSupported = context.cycleProofSupported && alternative.cycleProofSupported,
           ),
           alternative.state,
         )
@@ -525,7 +662,12 @@ internal class RootEvaluator(
     if (value == null) {
       val site = rootSite()
       addUnknown(context, "canvas-parameter:${expression.parameter.name}", site, "Canvas parameter is unresolved")
-      return listOf(CanvasOutcome(context, CanvasState.Unknown("Canvas parameter is unresolved", site)))
+      return listOf(
+        CanvasOutcome(
+          context.copy(cycleProofSupported = false),
+          CanvasState.Unknown("Canvas parameter is unresolved", site),
+        ),
+      )
     }
     return listOf(CanvasOutcome(context, value.state))
   }
@@ -576,7 +718,13 @@ internal class RootEvaluator(
         "Canvas layer contains a registration with an unknown key or effect",
       )
     }
-    var constructorContexts = listOf(context.copy(currentCanvas = layer))
+    var constructorContexts =
+      listOf(
+        context.copy(
+          currentCanvas = layer,
+          cycleProofSupported = context.cycleProofSupported && unknownRegistrations.isEmpty(),
+        ),
+      )
     expression.bindings.forEach { binding ->
       constructorContexts =
         constructorContexts.flatMap { previous ->
@@ -630,7 +778,9 @@ internal class RootEvaluator(
     if (!expression.faithfullyCaptured) {
       val reason = "External capture ${expression.origin.declaration} was not faithfully captured"
       addUnknown(context, expression.owner, expression.site, reason)
-      return listOf(CanvasOutcome(context, CanvasState.Unknown(reason, expression.site)))
+      return listOf(
+        CanvasOutcome(context.copy(cycleProofSupported = false), CanvasState.Unknown(reason, expression.site)),
+      )
     }
     val nested =
       context.copy(
@@ -653,13 +803,23 @@ internal class RootEvaluator(
     val candidates = assumptions[expression.id].orEmpty()
     if (candidates.isEmpty()) {
       addUnknown(context, expression.id, expression.site, "External assumption is missing")
-      return listOf(CanvasOutcome(context, CanvasState.Unknown("Missing assumption", expression.site)))
+      return listOf(
+        CanvasOutcome(
+          context.copy(cycleProofSupported = false),
+          CanvasState.Unknown("Missing assumption", expression.site),
+        ),
+      )
     }
     return if (candidates.size == 1) {
       listOf(CanvasOutcome(context, CanvasState.Assumed(candidates.single())))
     } else {
       addConflict(context, expression.id, candidates.map { it.provenance.owner }.sorted(), expression.site)
-      listOf(CanvasOutcome(context, CanvasState.Unknown("Conflicting assumptions", expression.site)))
+      listOf(
+        CanvasOutcome(
+          context.copy(cycleProofSupported = false),
+          CanvasState.Unknown("Conflicting assumptions", expression.site),
+        ),
+      )
     }
   }
 
@@ -1171,6 +1331,7 @@ internal class RootEvaluator(
       conditions = nested.conditions,
       feasibility = nested.feasibility,
       blocked = caller.blocked || propagateBlocked && nested.blocked,
+      cycleProofSupported = caller.cycleProofSupported && (!propagateBlocked || nested.cycleProofSupported),
     )
 
   private fun joinEffectContinuations(outcomes: List<EvaluationContext>): List<EvaluationContext> {
@@ -1180,19 +1341,23 @@ internal class RootEvaluator(
       joined =
         previous.map { context ->
           if (context.blocked) return@map context
-          val removable =
-            context.conditions.firstOrNull { condition ->
-              condition.kind == PathConditionKind.OPAQUE_ALTERNATIVE &&
-                previous.any { other ->
+          val removal =
+            context.conditions.asSequence().filter { it.kind == PathConditionKind.OPAQUE_ALTERNATIVE }.map {
+                condition ->
+              condition to
+                previous.filter { other ->
                   !other.blocked && other.values == context.values && other.currentCanvas == context.currentCanvas &&
                     other.conditions.any { it.identity == condition.identity && it.value != condition.value } &&
                     other.conditions.filterNot { it.identity == condition.identity }.toSet() ==
                     context.conditions.filterNot { it.identity == condition.identity }.toSet()
                 }
-            }
-          val conditions = context.conditions - listOfNotNull(removable).toSet()
+            }.firstOrNull { it.second.isNotEmpty() }
+          val conditions = context.conditions - listOfNotNull(removal?.first).toSet()
           context.copy(
             conditions = conditions,
+            // Joining availability alternatives cannot erase an unsupported execution step.
+            cycleProofSupported =
+              context.cycleProofSupported && removal?.second.orEmpty().all { it.cycleProofSupported },
             feasibility =
               if (conditions.any { it.kind == PathConditionKind.OPAQUE_ALTERNATIVE }) {
                 PathFeasibility.OPAQUE
@@ -1220,15 +1385,6 @@ internal class RootEvaluator(
       append('#').append(allocation)
     }
   }
-
-  private fun CanvasState.cacheIdentity(): String =
-    when (this) {
-      CanvasState.Empty -> "empty"
-      is CanvasState.Assumed -> "assumption:${contract.id}"
-      is CanvasState.Captured -> "captured:${origin.declaration}:${state.cacheIdentity()}"
-      is CanvasState.Layer -> instanceId
-      is CanvasState.Unknown -> "unknown:${site.owner}:${site.line}:${site.column}"
-    }
 
   private fun combineFeasibility(
     first: PathFeasibility,

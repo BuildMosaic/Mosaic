@@ -55,9 +55,11 @@ These are elapsed operation timings, not application CPU/request or HTTP latency
 
 Read the [release comparison](https://github.com/BuildMosaic/Mosaic/blob/main/docs/performance.md#release-runtime-comparison) for width/depth sweeps, fixture boundaries, fork variation, and full execution-drain measurements. Result publication can precede attached-child completion, so those boundaries matter.
 
+The scoped-drain and trial-prewarmed cached-read fixtures have separate [0.7.0 baselines](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/docs/performance.md#070-scoped-and-cached-baselines). Only those six existing cells were remeasured. Their changed measurement boundaries prevent regression comparisons with the old fixtures; application results and historical 0.5/0.6 tables remain unchanged.
+
 ## Allocation and process memory
 
-Allocation was profiled separately from timing. The 0.6.0 diamond and sibling coalescing fixtures allocated about 1.2 KB/op and 1.6–1.9 KB/op more than 0.5.0, respectively. MultiTile normalized allocation includes invocation setup and fresh request/cache preparation; it is not an isolated cached-call allocation cost.
+Allocation was profiled separately from timing. The 0.6.0 diamond and sibling coalescing fixtures allocated about 1.2 KB/op and 1.6–1.9 KB/op more than 0.5.0, respectively. MultiTile normalized allocation in that comparison includes invocation setup and fresh request/cache preparation; it is not an isolated cached-call allocation cost.
 
 Application RSS is another measurement: across published application points, paired median residency differences ranged from −7.0 to +27.9 MiB. RSS includes the JVM, heap, server, and application, under a fixed 512 MiB initial heap. It is not live-object size or allocation/request, and the counters are approximate.
 

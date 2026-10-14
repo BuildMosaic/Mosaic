@@ -4,6 +4,7 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.buildmosaic.analysis.metadata.WireEnvelope
 import org.buildmosaic.analysis.metadata.WireLocator
 import org.buildmosaic.analysis.metadata.WirePayload
@@ -32,9 +33,9 @@ data class SummaryMetadata(
 )
 
 object SummaryCodec {
-  private const val FORMAT_VERSION = 3
-  private const val SEMANTICS_VERSION = "analysis-contract-2"
-  private const val TOOL_VERSION = "prototype-10"
+  private const val FORMAT_VERSION = 4
+  private const val SEMANTICS_VERSION = "analysis-contract-3"
+  private const val TOOL_VERSION = "prototype-11"
   private val json =
     Json {
       classDiscriminator = "kind"
@@ -74,18 +75,16 @@ object SummaryCodec {
       require(raw.toByteArray(Charsets.UTF_8).contentEquals(bytes)) { "Malformed Mosaic summary UTF-8" }
       val element = json.parseToJsonElement(raw)
       require(element is JsonObject) { "Missing Mosaic summary object" }
-      require("schemaMajor" !in element && "schemaMinor" !in element) {
-        "Unpublished prototype-7 Mosaic summary is unsupported; rebuild its producer"
+      val regeneration = "Regenerate dependency summaries with the matching Mosaic analysis version."
+      require(element["formatVersion"]?.jsonPrimitive?.content == FORMAT_VERSION.toString()) {
+        "Unsupported Mosaic metadata format; expected $FORMAT_VERSION. $regeneration"
+      }
+      require(element["semanticsVersion"]?.jsonPrimitive?.content == SEMANTICS_VERSION) {
+        "Unsupported Mosaic analyzer semantics; expected $SEMANTICS_VERSION. $regeneration"
       }
       val envelope = json.decodeFromJsonElement(WireEnvelope.serializer(), element)
-      require(
-        envelope.formatVersion == FORMAT_VERSION,
-      ) { "Unsupported Mosaic metadata format ${envelope.formatVersion}" }
-      require(envelope.semanticsVersion == SEMANTICS_VERSION) {
-        "Unsupported Mosaic analyzer semantics ${envelope.semanticsVersion}"
-      }
       require(envelope.kotlinCompilerVersion == ANALYSIS_KOTLIN_VERSION) {
-        "Unsupported Kotlin compiler ${envelope.kotlinCompilerVersion}"
+        "Unsupported Kotlin compiler ${envelope.kotlinCompilerVersion}. $regeneration"
       }
       require(envelope.toolVersion.isNotBlank()) { "Missing Mosaic producer version" }
       require(envelope.complete) { "Partial Mosaic summary cannot be used as complete" }

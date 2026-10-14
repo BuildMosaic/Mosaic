@@ -13,7 +13,7 @@ repositories {
 }
 
 dependencies {
-  implementation("org.buildmosaic:mosaic-core:0.6.0")
+  implementation("org.buildmosaic:mosaic-core:0.7.0")
 }
 ```
 
@@ -25,12 +25,12 @@ Use the BOM when adding testing or tracing:
 
 ```kotlin title="build.gradle.kts"
 dependencies {
-  implementation(platform("org.buildmosaic:mosaic-bom:0.6.0"))
+  implementation(platform("org.buildmosaic:mosaic-bom:0.7.0"))
   implementation("org.buildmosaic:mosaic-core")
   // Optional execution tracing:
   implementation("org.buildmosaic:mosaic-opentelemetry")
 
-  testImplementation(platform("org.buildmosaic:mosaic-bom:0.6.0"))
+  testImplementation(platform("org.buildmosaic:mosaic-bom:0.7.0"))
   testImplementation("org.buildmosaic:mosaic-test")
   testImplementation(kotlin("test"))
 }

@@ -10,8 +10,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 /**
  * Runs admitted Tile work in its Mosaic-owned launch, adding a scope to install or clear observation.
  * Observed completion includes attached children even when the body publishes its result earlier.
- * Without observation to install or clear, work runs directly in the launch. Tile bodies can use
- * coroutineScope for structured child work.
+ * Both paths use the same child-containment boundary; observation only installs context and callbacks.
  */
 @Suppress("TooGenericExceptionCaught")
 internal suspend inline fun executeTile(
@@ -24,18 +23,13 @@ internal suspend inline fun executeTile(
     observation?.context
       ?: if (ObservedExecution.current() != null) ObservedExecution.unobservedContext else EmptyCoroutineContext
   try {
-    if (observation == null && context === EmptyCoroutineContext) {
-      currentCoroutineContext().ensureActive()
-      applicationFailure = block()
-    } else {
-      withContext(context) {
-        try {
-          currentCoroutineContext().ensureActive()
-          applicationFailure = block()
-        } catch (failure: Throwable) {
-          applicationFailure = failure
-          fail(failure)
-        }
+    withContext(context) {
+      try {
+        currentCoroutineContext().ensureActive()
+        applicationFailure = block()
+      } catch (failure: Throwable) {
+        applicationFailure = failure
+        fail(failure)
       }
     }
     observation?.recordCompletion(applicationFailure)

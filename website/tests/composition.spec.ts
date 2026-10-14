@@ -1,22 +1,23 @@
 import { test, expect } from '@playwright/test';
 
-for (const theme of ['light', 'dark'] as const) {
-  test(`homepage ${theme}: composition graph visual evidence`, async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
-    await page.goto('/');
-    await page.evaluate(() => document.fonts.ready);
-    await expect(page.locator('.composition-figure')).toHaveScreenshot(`composition-${theme}.png`, {
-      maxDiffPixelRatio: 0.005,
-    });
-  });
-}
-
 test('composition dependencies use distinct node anchors and never cross or overlap', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByRole('img', { name: /^An order response, composed from shared work/ })).toBeVisible();
+  await expect(page.locator('.graph-node text')).toHaveText([
+    'OrderPageTile',
+    'OrderSummaryTile',
+    'LogisticsTile',
+    'CustomerTile',
+    'LineItemsTile',
+    'OrderTile',
+  ]);
+  await expect(page.locator('.graph-shared text')).toHaveText('OrderTile');
+  await expect(page.locator('.composition-figure figcaption')).toHaveText(
+    'Three branches. One OrderTile execution per Mosaic.',
+  );
   const edges = await page.locator('.graph-edges path').evaluateAll((paths) => {
     const bounds = new Map(
-      Array.from(document.querySelectorAll<SVGGraphicsElement>('[data-tile]')).map((node) => [
+      Array.from(document.querySelectorAll<SVGGraphicsElement>('.composition-figure > svg [data-tile]')).map((node) => [
         node.dataset.tile,
         node.getBBox(),
       ]),

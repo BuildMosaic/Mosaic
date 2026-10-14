@@ -32,7 +32,7 @@ class TileTest {
     runTest {
       val map = mapOf("a" to "foo", "b" to "bar")
       val testTile = multiTile { map }
-      val result = testTile.block(mosaic, map.values.toSet())
+      val result = mosaic.compose(testTile, map.keys)
       assertEquals(map, result)
     }
 
@@ -51,7 +51,7 @@ class TileTest {
       val multiTestTile = multiTile<String, String> { throw RuntimeException(errorMessage) }
       val multiException =
         assertFailsWith<RuntimeException> {
-          multiTestTile.block(mosaic, setOf("a"))
+          mosaic.compose(multiTestTile, setOf("a"))
         }
       assertEquals(errorMessage, multiException.message)
     }

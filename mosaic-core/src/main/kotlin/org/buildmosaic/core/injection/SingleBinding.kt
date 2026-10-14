@@ -5,10 +5,20 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Memoizes one binding while the eager dependency graph is being constructed. */
-internal class SingleBinding<T : Any>(private val ctor: suspend CanvasFactory.() -> T) {
+internal class SingleBinding<T : Any> private constructor(
+  private val ctor: (suspend CanvasFactory.() -> T)?,
+  initialInstance: T?,
+) {
+  constructor(ctor: suspend CanvasFactory.() -> T) : this(ctor, null)
+  constructor(instance: T) : this(null, instance)
+
   private val initLock = Mutex()
 
   @Volatile private lateinit var instance: T
+
+  init {
+    if (initialInstance != null) instance = initialInstance
+  }
 
   fun instanceOrNull(): T? = if (::instance.isInitialized) instance else null
 
@@ -21,7 +31,7 @@ internal class SingleBinding<T : Any>(private val ctor: suspend CanvasFactory.()
         withContext(canvas.constructionContext(this@SingleBinding)) {
           try {
             // Record ownership before a cancelled context can discard the returned value.
-            ctor(canvas).also {
+            checkNotNull(ctor)(canvas).also {
               canvas.created(it)
               instance = it
             }

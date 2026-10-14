@@ -6,10 +6,14 @@ analysis artifacts stay outside it. The changelog entry must have a date before
 tagging. Release tags are immutable and must already point to the validated source
 commit.
 
+Integrate the release-prep feature PR into `develop`, then merge a validated
+`develop` → `main` release PR. Create the immutable `0.7.0` tag at that validated
+main commit. Release preparation itself does not tag, publish, or deploy.
+
 Run the manual **Release** workflow from `main` with the existing version tag:
 
 ```bash
-gh workflow run release.yml --ref main -f tag=0.6.0
+gh workflow run release.yml --ref main -f tag=0.7.0
 ```
 
 Configure a protected GitHub Environment named `release` before running it.

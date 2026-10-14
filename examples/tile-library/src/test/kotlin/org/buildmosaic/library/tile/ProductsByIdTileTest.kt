@@ -2,6 +2,7 @@ package org.buildmosaic.library.tile
 
 import kotlinx.coroutines.test.runTest
 import org.buildmosaic.library.model.Product
+import org.buildmosaic.library.service.ProductService
 import org.buildmosaic.test.TestMosaicBuilder
 import kotlin.test.Test
 
@@ -15,7 +16,7 @@ class ProductsByIdTileTest {
           "product-1" to Product("product-1", "Coffee Mug"),
           "product-2" to Product("product-2", "Tea Kettle"),
         )
-      val testMosaic = TestMosaicBuilder(this).build()
+      val testMosaic = TestMosaicBuilder(this).withCanvasSource(ProductService()).build()
       testMosaic.assertEquals(ProductsByIdTile, keys, expected)
     }
 

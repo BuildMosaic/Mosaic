@@ -1,5 +1,6 @@
 package org.buildmosaic.core.injection
 
+import kotlinx.coroutines.currentCoroutineContext
 import org.buildmosaic.core.Mosaic
 import org.buildmosaic.core.MosaicImpl
 import org.buildmosaic.core.MosaicRuntimeConfig
@@ -93,7 +94,11 @@ class Canvas internal constructor(
    */
   suspend fun withLayer(build: CanvasBuilder.() -> Unit): Canvas = canvas(this, build)
 
-  /** Closes local resources in reverse creation order, continuing after failures. Parent resources are unaffected. */
+  /**
+   * Closes locally constructed [AutoCloseable] resources in reverse creation order,
+   * continuing after failures. Parent resources and externally owned [CanvasBuilder.instance]
+   * bindings are unaffected. Finish scoped Mosaic work before closing its Canvas.
+   */
   override fun close() {
     closeables.asReversed().forEach { closeable ->
       runCatching { closeable.close() }
@@ -121,8 +126,36 @@ inline fun <reified T : Any> Canvas.source(): T = source(T::class)
 inline fun <reified T : Any> Canvas.sourceOr(): T? = sourceOr(T::class)
 
 /**
- * Creates a new [Mosaic] instance
+ * Executes [block] with a request-owned [Mosaic], inheriting the calling coroutine's context.
+ * Tile producers are supervised siblings: cancelling a waiter does not cancel shared work.
+ * Request cancellation cancels unfinished producers. Every exit cancels speculative work and
+ * waits for producer and attached-child cleanup before returning or propagating the block's failure.
+ * Each invocation has a fresh cache. Keep the complete handler inside [block]; do not retain
+ * its Mosaic for later requests. This function does not close this Canvas. Scope a child
+ * Canvas separately when it constructs owned resources.
  *
- * @return An instance of [Mosaic] scoped to the [Canvas]
+ * ```kotlin
+ * return canvas.withMosaic {
+ *   handler(this)
+ * }
+ * ```
  */
+suspend fun <R> Canvas.withMosaic(block: suspend Mosaic.() -> R): R {
+  val mosaic = MosaicImpl(this, currentCoroutineContext())
+  try {
+    return block(mosaic)
+  } finally {
+    mosaic.shutdown()
+  }
+}
+
+/**
+ * Creates an unscoped [Mosaic], without attaching producer work to the calling coroutine.
+ * Prefer [withMosaic] and move the complete handler invocation into its block to give
+ * work a request lifetime and await cleanup. This function does not close this Canvas.
+ */
+@Deprecated(
+  "Use scoped Canvas.withMosaic { ... } to own Mosaic work within the calling coroutine",
+  level = DeprecationLevel.WARNING,
+)
 fun Canvas.create(): Mosaic = MosaicImpl(this)

@@ -13,7 +13,7 @@ import kotlin.test.assertEquals
 class ServicesTest {
   @Test
   fun `services return expected data`() {
-    val order = OrderService.getOrder("order-1")
+    val order = OrderService().getOrder("order-1")
     val expectedOrder =
       Order(
         id = "order-1",
@@ -26,10 +26,10 @@ class ServicesTest {
       )
     assertEquals(expectedOrder, order)
 
-    val customer = CustomerService.getCustomer("customer-1")
+    val customer = CustomerService().getCustomer("customer-1")
     assertEquals(Customer("customer-1", "Jane Doe"), customer)
 
-    val products = ProductService.getProducts(listOf("product-1", "product-2"))
+    val products = ProductService().getProducts(listOf("product-1", "product-2"))
     val expectedProducts =
       mapOf(
         "product-1" to Product("product-1", "Coffee Mug"),
@@ -37,7 +37,7 @@ class ServicesTest {
       )
     assertEquals(expectedProducts, products)
 
-    val prices = PricingService.getPrices(listOf("sku-1", "sku-2"))
+    val prices = PricingService().getPrices(listOf("sku-1", "sku-2"))
     val expectedPrices =
       mapOf(
         "sku-1" to Price("sku-1", 12.99),
@@ -45,14 +45,14 @@ class ServicesTest {
       )
     assertEquals(expectedPrices, prices)
 
-    val address = AddressService.getAddress("order-1")
+    val address = AddressService().getAddress("order-1")
     assertEquals(Address("123 Main St", "Springfield"), address)
 
-    val carriers = CarrierService.getAvailableCarriers()
+    val carriers = CarrierService().getAvailableCarriers()
     val expectedCarriers = listOf("UPS", "FEDEX", "DHL")
     assertEquals(expectedCarriers, carriers)
 
-    val quotes = CarrierService.getQuotes(address, carriers)
+    val quotes = CarrierService().getQuotes(address, carriers)
     val expectedQuotes =
       mapOf(
         "UPS" to Quote("UPS", 5.99),

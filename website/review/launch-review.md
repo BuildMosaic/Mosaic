@@ -6,7 +6,7 @@ This records the first production website review, not a benchmark or runtime rel
 
 Inspected current [Micronaut](https://micronaut.io/), [Ktor](https://ktor.io/), [Quarkus](https://quarkus.io/), and [htmx](https://htmx.org/) in desktop browsers, with mobile inspection where useful. The useful common patterns were restrained navigation, immediate documentation access, real technical material, legible code, and explicit separation of adoption copy from teaching. Mosaic uses its own response-first narrative and canonical geometry rather than copying those sites.
 
-Canonical brand PR #79 was green and mergeable, then squash-merged unchanged before this sibling worktree was created from current main. Branding remains sourced from `brand/BRAND.md` and the vector masters.
+Canonical brand PR #79 was green and mergeable, then squash-merged unchanged before this sibling worktree was created from current main. Branding remains sourced from `.impeccable/BRAND.md` and the vector masters in `assets/`.
 
 The homepage moves through response composition, independent work, shared execution, keyed reuse, static architecture, tracing and tests, measured cost, HTTP-framework examples, and starting a project. Public Sans, Barlow, and JetBrains Mono are self-hosted. Light uses white/ink/navy; dark uses canonical navy. Code imports the runnable examples, and release display reads `gradle.properties`.
 

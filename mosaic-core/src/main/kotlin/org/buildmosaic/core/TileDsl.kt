@@ -1,8 +1,5 @@
 package org.buildmosaic.core
 
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlin.reflect.KProperty
 
 /**
@@ -44,7 +41,7 @@ class Tile<T>(internal val block: suspend Mosaic.() -> T) {
  * @return A new [Tile] instance
  *
  * ```kotlin
- * val userTile = singleTile {
+ * val UserTile by singleTile {
  *   userService.getCurrentUser()
  * }
  * ```
@@ -60,8 +57,14 @@ fun <T> singleTile(block: suspend Mosaic.() -> T): Tile<T> = Tile(block)
  *
  * Within one Mosaic, pending uncached keys for the same MultiTile may combine
  * before execution. There is no intentional wait; batch boundaries depend on scheduling.
+ * The same MultiTile retains one terminal outcome per equal key per Mosaic. Present
+ * nullable values succeed; omitted requested keys fail with [NoSuchElementException].
+ * Bulk provider failure fails unfinished keys in that physical invocation, preserving
+ * outcomes already published. Per-key and chunk factories isolate their provider failures.
  */
-class MultiTile<K : Any, V>(internal val block: suspend Mosaic.(Set<K>) -> Map<K, V>) {
+class MultiTile<K : Any, V> internal constructor(internal val execution: MultiTileExecution<K, V>) {
+  constructor(block: suspend Mosaic.(Set<K>) -> Map<K, V>) : this(BulkExecution(block))
+
   /** The first delegated property name bound to this tile, or `null` if none has been bound. */
   @Volatile
   var name: String? = null
@@ -86,7 +89,10 @@ class MultiTile<K : Any, V>(internal val block: suspend Mosaic.(Set<K>) -> Map<K
 }
 
 /**
- * Creates a multi-value tile using the DSL.
+ * Creates a multi-value tile using a bulk provider.
+ * Present map entries succeed, including `null` for a nullable value type. Omitted requested
+ * keys fail individually with [NoSuchElementException]. A thrown provider failure fails
+ * unfinished keys in that physical invocation; successful outcomes remain cached.
  *
  * @param K The type of keys used to request values
  * @param V The type of values this tile produces
@@ -94,7 +100,7 @@ class MultiTile<K : Any, V>(internal val block: suspend Mosaic.(Set<K>) -> Map<K
  * @return A new [MultiTile] instance
  *
  * ```kotlin
- * val usersTile = multiTile<String, User> { userIds ->
+ * val UsersTile by multiTile<String, User> { userIds ->
  *   userService.getUsers(userIds)
  * }
  * ```
@@ -104,30 +110,28 @@ fun <K : Any, V> multiTile(block: suspend Mosaic.(Set<K>) -> Map<K, V>): MultiTi
 /**
  * Creates a [MultiTile] from a per-key fetch function.
  *
- * Each key is fetched independently in parallel and the results are aggregated
- * into a map. Example:
+ * Each key is fetched independently in parallel and retains its own success or failure.
+ * A failed key does not discard successful siblings. Nullable return values are successful.
+ * Equal keys share one terminal outcome within a Mosaic. Example:
  *
  * ```kotlin
- * val userTile = perKeyTile<String, User> { id ->
+ * val UserTile by perKeyTile<String, User> { id ->
  *   service.fetchUser(id)
  * }
  * ```
  */
-fun <K : Any, V> perKeyTile(fetch: suspend Mosaic.(K) -> V): MultiTile<K, V> =
-  multiTile { keys ->
-    coroutineScope {
-      keys
-        .associateWith { key -> async { fetch(key) } }
-        .mapValues { (_, deferred) -> deferred.await() }
-    }
-  }
+fun <K : Any, V> perKeyTile(fetch: suspend Mosaic.(K) -> V): MultiTile<K, V> = MultiTile(PerKeyExecution(fetch))
 
 /**
  * Creates a [MultiTile] that splits incoming keys into batches of [batchSize]
- * and merges the results from [fetch].
+ * and retains results from each independent [fetch] invocation. A failed chunk only fails
+ * its unfinished keys; a partial map fails omitted keys with [NoSuchElementException] while
+ * preserving present values, including `null` for a nullable value type. Successful sibling
+ * chunks remain cached. Chunks run concurrently; [batchSize] limits keys per invocation,
+ * not concurrency. Exact chunk membership depends on pending keys and scheduling.
  *
  * ```kotlin
- * val productTile = chunkedMultiTile<String, Product>(50) { ids ->
+ * val ProductTile by chunkedMultiTile<String, Product>(50) { ids ->
  *   service.fetchProducts(ids)
  * }
  * ```
@@ -135,15 +139,4 @@ fun <K : Any, V> perKeyTile(fetch: suspend Mosaic.(K) -> V): MultiTile<K, V> =
 fun <K : Any, V> chunkedMultiTile(
   batchSize: Int,
   fetch: suspend Mosaic.(List<K>) -> Map<K, V>,
-): MultiTile<K, V> =
-  multiTile { keys ->
-    coroutineScope {
-      val result = mutableMapOf<K, V>()
-      keys
-        .chunked(batchSize)
-        .map { chunk -> async { fetch(chunk) } }
-        .awaitAll()
-        .forEach { map -> result += map }
-      result
-    }
-  }
+): MultiTile<K, V> = MultiTile(ChunkedExecution(batchSize, fetch))
