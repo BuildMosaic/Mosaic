@@ -6,6 +6,7 @@ import orderTotal from '../../../examples/tile-library/src/main/kotlin/org/build
 import products from '../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/ProductsByIdTile.kt?raw';
 import properties from '../../../gradle.properties?raw';
 import HomeHeader from '../components/HomeHeader.astro';
+import Analytics from '../components/Analytics.astro';
 import Arrow from '../components/Arrow.astro';
 import CompositionGraph from '../components/CompositionGraph.astro';
 import '@fontsource-variable/public-sans';
@@ -34,6 +35,7 @@ const description =
 <!doctype html>
 <html lang="en" data-theme="dark">
   <head>
+    <Analytics />
     <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title><meta name="description" content={description} /><link
       rel="canonical"
