@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       kotlin:
-        description: Exact stable version to retry (blank discovers uncertified combinations)
+        description: Exact stable version to retry (blank verifies the supported window)
         type: string
 
 concurrency:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Certify published artifacts and append exact compatibility facts to main."""
+"""Certify published artifacts and extend compatibility ranges on main."""
 
 import argparse
 import base64
@@ -70,8 +70,7 @@ def available(version):
     return True
 
 
-def supported_versions():
-    versions = certify.central_versions()
+def supported_versions(versions):
     today = datetime.now(timezone.utc).date()
     supported = set()
     for family in {'.'.join(v.split('.')[:2]) + '.0' for v in versions}:
@@ -88,14 +87,27 @@ def scan(kotlin, java_installations):
     issues = open_issues()
     if kotlin and registry.version(kotlin) < (2, 2, 0):
         raise ValueError('Compatibility discovery starts at Kotlin 2.2.0')
-    versions = [kotlin] if kotlin else supported_versions() if data['runtime'] else []
-    records, failures, passed_issues = [], [], []
+    discovered = certify.central_versions() if data['runtime'] else []
+    versions = [kotlin] if kotlin else supported_versions(discovered)
+    failures, passed_issues = [], []
     check = certify.Certification(java_installations)
     cases = [(r, None) for r in data['runtime']] + [
-        (r, a) for a, entry in data['analysis'].items() for r in entry['runtime']]
+        (r, a) for a, pairings in data['analysis'].items() for r in pairings]
+    required, passed = {}, {case: [] for case in cases}
+    for runtime, analysis in cases:
+        interval = data['runtime'][runtime] if analysis is None else data['analysis'][analysis][runtime]
+        endpoints = versions + list(interval.values())
+        # Check intervening releases too when an exact retry extends a boundary,
+        # or maintenance resumes after a family's support window has expired.
+        lower, upper = registry.version(min(endpoints, key=registry.version)), registry.version(max(endpoints, key=registry.version))
+        required[runtime, analysis] = set(versions) | {v for v in discovered
+            if lower <= registry.version(v) <= upper
+            and not registry.compatible(data, runtime, v, analysis)}
+    versions = sorted(set().union(*required.values()), key=registry.version)
     for compiler in versions:
-        pending = [(r, a) for r, a in cases if not registry.compatible(data, r, compiler, a)
-                   and (kotlin or issue_title(compiler, r, a) not in issues)]
+        pending = [(r, a) for r, a in cases if compiler in required[r, a]
+                   and (kotlin or (issue_title(compiler, r, a) not in issues
+                                   and issue_title(compiler, r, None) not in issues))]
         if not pending or not available(compiler):
             continue
         for runtime in data['runtime']:
@@ -103,8 +115,7 @@ def scan(kotlin, java_installations):
             if not analyses:
                 continue
             try:
-                if not registry.compatible(data, runtime, compiler):
-                    check.runtime([compiler], runtime)
+                check.runtime([compiler], runtime)
             except Exception as failure:
                 failures.extend((compiler, runtime, a, failure) for a in analyses)
                 continue
@@ -112,13 +123,17 @@ def scan(kotlin, java_installations):
                 try:
                     if analysis:
                         check.analysis([compiler], runtime, analysis)
-                    records.append({'result': 'pass', 'runtime': runtime, 'analysis': analysis,
-                                    'kotlin': [compiler], 'revision': check.revision})
+                    passed[runtime, analysis].append(compiler)
                     title = issue_title(compiler, runtime, analysis)
                     if title in issues:
                         passed_issues.append(issues[title]['number'])
                 except Exception as failure:
                     failures.append((compiler, runtime, analysis, failure))
+    # A failed, unavailable, or issue-blocked compiler holds this relationship's
+    # boundaries. Other relationships can still advance; historical ranges stay.
+    records = [{'result': 'pass', 'runtime': r, 'analysis': a, 'kotlin': compilers, 'revision': check.revision}
+               for (r, a), compilers in passed.items() if compilers and set(compilers) == required[r, a]
+               and any(not registry.compatible(data, r, v, a) for v in compilers)]
     certify.REPORTS.mkdir(parents=True, exist_ok=True)
     evidence = {'records': records}
     (certify.REPORTS / 'published.json').write_text(json.dumps(evidence, indent=2) + '\n')

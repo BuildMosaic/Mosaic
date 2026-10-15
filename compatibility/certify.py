@@ -228,8 +228,10 @@ def certify(versions, scope, java_installations='', release=None, counterparts=N
             common = [v for v in versions if any(lower <= registry.version(v) < upper for lower, upper in bounds.values())]
         if not common:
             raise ValueError(f'No common Kotlin versions with {opposite} {counterpart}')
+        if common != [v for v in versions if registry.version(common[0]) <= registry.version(v) <= registry.version(common[-1])]:
+            raise ValueError('Compiler ABI coverage must be continuous')
         if scope == 'analysis':
-            certification.runtime([v for v in common if not registry.compatible(data, runtime, v)], runtime)
+            certification.runtime(common, runtime)
         certification.analysis(common, runtime, analysis)
         relationships[counterpart] = common
     result = {'train': scope, 'version': release, 'kotlin': versions, 'counterparts': relationships,
