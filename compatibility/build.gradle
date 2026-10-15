@@ -4,24 +4,24 @@ import java.security.MessageDigest
 // Dependency resolution only. No Kotlin Gradle plugin, Mosaic Gradle plugin, or TestKit.
 plugins { id 'java' }
 
-def candidate = providers.gradleProperty('compat.candidate').get()
-def runtimeCandidate = providers.gradleProperty('compat.runtimeCandidate').orElse(candidate).get()
+def runtime = providers.gradleProperty('compat.runtime').get()
+def analysis = providers.gradleProperty('compat.analysis').getOrElse('')
 def requested = providers.gradleProperty('compat.kotlin').get()
 def baseline = providers.gradleProperty('compat.baseline').get()
-def evidence = file(providers.gradleProperty('compat.evidence').get())
-def scope = providers.gradleProperty('compat.scope').get()
-def required = scope == 'runtime' ? ['compiler', 'consumer'] : ['compiler', 'controlCompiler', 'consumer', 'extractor', 'runner']
+def workspace = file(providers.gradleProperty('compat.workspace').get())
+def evidence = new File(workspace, "$runtime/${analysis ?: 'runtime'}/$requested")
+def required = analysis ? ['compiler', 'controlCompiler', 'consumer', 'extractor', 'runner'] : ['compiler', 'consumer']
 
 repositories {
     maven {
-        url = uri(providers.gradleProperty('compat.repository').get())
+        url = uri(new File(workspace, 'repository'))
         // Exercise published POM transitivity; candidates have unique versions.
         metadataSources { mavenPom(); artifact() }
     }
     mavenCentral()
 }
 
-['compiler', 'controlCompiler', 'consumer', 'extractor', 'runner'].each { name ->
+required.each { name ->
     configurations.create(name) {
         canBeConsumed = false
         canBeResolved = true
@@ -36,17 +36,19 @@ configurations.consumer {
         attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
     }
 }
-configurations.extractor.transitive = false
+if (analysis) configurations.extractor.transitive = false
 
 dependencies {
     compiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly requested } }
-    controlCompiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly baseline } }
     ['mosaic-core', 'mosaic-test', 'mosaic-opentelemetry'].each {
-        consumer("org.buildmosaic:$it:$runtimeCandidate") { version { strictly runtimeCandidate } }
+        consumer("org.buildmosaic:$it:$runtime") { version { strictly runtime } }
     }
-    extractor("org.buildmosaic:${providers.gradleProperty('compat.extractor').orElse('mosaic-compiler-plugin').get()}:$candidate") { version { strictly candidate } }
-    runner 'org.junit.platform:junit-platform-console-standalone:1.12.2'
-    runner "org.jetbrains.kotlin:kotlin-test-junit5:$baseline"
+    if (analysis) {
+        controlCompiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly baseline } }
+        extractor("org.buildmosaic:${providers.gradleProperty('compat.extractor').orElse('mosaic-compiler-plugin').get()}:$analysis") { version { strictly analysis } }
+        runner 'org.junit.platform:junit-platform-console-standalone:1.12.2'
+        runner "org.jetbrains.kotlin:kotlin-test-junit5:$baseline"
+    }
 }
 
 tasks.register('resolveEvidence') {

@@ -42,8 +42,8 @@ def validate(data):
     return data
 
 
-def load(path=PATH):
-    return validate(json.loads(Path(path).read_text()))
+def load():
+    return validate(json.loads(PATH.read_text()))
 
 
 def record(data, result):
@@ -66,15 +66,42 @@ def compatible(data, runtime, kotlin, analysis=None):
         analysis is None or (kotlin in entry.get('kotlin', []) and kotlin in entry.get('runtime', {}).get(runtime, [])))
 
 
+def apply_evidence(data, evidence):
+    if 'records' in evidence:
+        for result in evidence['records']:
+            if result['runtime'] not in data['runtime'] or (result['analysis'] and
+                    result['runtime'] not in data['analysis'].get(result['analysis'], {}).get('runtime', {})):
+                raise ValueError('Daily certification only extends established published relationships')
+            record(data, result)
+        return data
+    train, release = evidence['train'], evidence['version']
+    if evidence['result'] != 'pass' or train not in ('runtime', 'analysis'):
+        raise ValueError('Expected a passing release certification')
+    version(release)
+    versions(evidence['kotlin'])
+    opposite = 'analysis' if train == 'runtime' else 'runtime'
+    if any(v not in data[opposite] for v in evidence['counterparts']):
+        raise ValueError('Unknown published counterpart')
+    # Retries append the same verified facts after publication; they never replace facts.
+    for compilers in evidence['counterparts'].values():
+        if not set(versions(compilers)) <= set(evidence['kotlin']):
+            raise ValueError('Relationship contains an unverified compiler')
+    if train == 'runtime':
+        record(data, {'result': 'pass', 'runtime': release, 'analysis': None, 'kotlin': evidence['kotlin']})
+        for analysis, compilers in evidence['counterparts'].items():
+            record(data, {'result': 'pass', 'runtime': release, 'analysis': analysis, 'kotlin': compilers})
+    else:
+        if not evidence['counterparts']:
+            raise ValueError('Analysis requires a tested published Runtime')
+        for runtime, compilers in evidence['counterparts'].items():
+            record(data, {'result': 'pass', 'runtime': runtime, 'analysis': release, 'kotlin': compilers})
+        data['analysis'][release]['kotlin'] = sorted(set(data['analysis'][release]['kotlin']) | set(evidence['kotlin']), key=version)
+    return data
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('validate', 'check'))
-    parser.add_argument('--runtime')
-    parser.add_argument('--analysis')
-    parser.add_argument('--kotlin')
-    args = parser.parse_args()
-    if args.command == 'check' and not (args.runtime and args.kotlin):
-        parser.error('check requires --runtime and --kotlin')
-    data = load()
-    print('valid' if args.command == 'validate' else
-          'verified' if compatible(data, args.runtime, args.kotlin, args.analysis) else 'unknown')
+    parser.add_argument('command', choices=('validate',))
+    parser.parse_args()
+    load()
+    print('valid')
