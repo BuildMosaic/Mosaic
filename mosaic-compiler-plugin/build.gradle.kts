@@ -1,9 +1,12 @@
+import com.vanniktech.maven.publish.tasks.WorkaroundSignatureType
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
+import org.gradle.plugins.signing.Sign
+import org.gradle.plugins.signing.type.pgp.ArmoredSignatureType
 import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
@@ -117,6 +120,15 @@ compilerProfiles.stringPropertyNames().filter { it != "default" && it != default
   introspectorJars.configure { dependsOn(jar) }
 }
 tasks.assemble { dependsOn(introspectorJars) }
+
+// Publications share sources and Javadoc, but each signing task must own its outputs.
+tasks.withType<Sign>().configureEach {
+  signatureType =
+    WorkaroundSignatureType(
+      signatureType ?: ArmoredSignatureType(),
+      layout.buildDirectory.dir("signatures/$name"),
+    )
+}
 
 tasks.test {
   useJUnitPlatform()
