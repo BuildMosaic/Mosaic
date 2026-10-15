@@ -18,6 +18,8 @@
   --sl-color-gray-6: var(--m-fragment);
   --sl-content-width: 48rem;
   --sl-nav-height: 6rem;
+  --sl-color-banner-bg: var(--m-fragment);
+  --sl-color-banner-text: var(--m-white);
 }
 :root[data-theme='light'] {
   --sl-color-bg: var(--m-white);

@@ -17,6 +17,10 @@ analysis tooling.
 
 ## Documentation skills
 
+BuildMosaic.org teaches framework users; keep maintainer operations outside its
+content and navigation. For release execution, credential recovery, or failed
+registry publication, read [.github/MAINTAINING.md](.github/MAINTAINING.md).
+
 - For adoption-focused README/project docs and public summaries, read
   [public-docs](.agents/skills/public-docs/SKILL.md).
 - For guides, reference, and explanations in `docs/` or module documentation, read

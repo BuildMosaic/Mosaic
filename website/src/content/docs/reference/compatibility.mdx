@@ -8,6 +8,13 @@ import CompatibilityTables from '../../../components/CompatibilityTables.astro';
 Mosaic Runtime and optional Analysis release independently. Choose a Runtime release for your application; add a
 compatible Analysis release when you want architecture reports and dependency verification.
 
+## Released 0.7.0
+
+[0.7.0](https://github.com/BuildMosaic/Mosaic/releases/tag/0.7.0) is the published stable release. Its Runtime requires
+Java 17+ and Kotlin 2.3.0+; its optional Analysis requires Kotlin compiler and KGP **2.4.20**. Use the
+[released guides and examples](https://github.com/BuildMosaic/Mosaic/tree/0.7.0) for that API. The independent release
+trains and 1.x guarantees below apply starting with the upcoming 1.0 releases.
+
 ## Supported versions
 
 Mosaic officially supports each Kotlin minor family for **18 months after its first stable release**, including stable
@@ -94,14 +101,9 @@ explicit compatibility failure. Unsupported Runtime semantics never silently pro
 diagnostics identify the offending dependency, relevant installed/producer versions, the incompatibility, and actionable
 remediation. Regenerate incompatible summaries with compatible Analysis tooling.
 
-Analysis excludes nonstandard/generated Kotlin source paths, scripts, mixed Java/Kotlin, friend paths, other compiler
-plugins, plugin options, opt-ins, free compiler arguments, progressive mode, nondefault JVM interface mode, no-JDK
-compilation, and KSP. Android, multiplatform, test sources, framework lifecycle callbacks, and arbitrary virtual
-dispatch are unsupported. Java and Kotlin toolchains must agree.
-
-[Configure analysis](/guides/analysis/) and consult the
-[supported source and control-flow boundary](/reference/analysis-configuration/#supported-project-boundary). Unknown
-paths remain visible; a STANDARD warning pass does not prove every lookup safe.
+[Configure analysis](/guides/analysis/) and consult the authoritative
+[supported project boundary](/reference/analysis-configuration/#supported-project-boundary) for source layouts, compiler
+options, plugins, and platforms. Unknown paths remain visible; a STANDARD warning pass does not prove every lookup safe.
 
 <p id="scoped-execution-migration">
   For upgrade instructions, see the{' '}

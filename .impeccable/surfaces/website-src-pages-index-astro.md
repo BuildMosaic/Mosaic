@@ -8,8 +8,8 @@ related_targets: ["website/src/styles/home.css"]
 # Homepage
 
 Mode: Persuade. Audience: Kotlin backend engineers. Action: Get started.
-The user's fixed brand and technical narrative determine this surface; there is
-no replacement brand or concept tournament. Build in native Astro/CSS, with real
+The canonical brand and response-first narrative determine this surface. Use
+native Astro/CSS, with real
 code and geometric dependency diagrams rather than image-generated comps.
 
 ## Direction contract
@@ -32,9 +32,4 @@ right. A dependency figure joins the code below, showing three consumers of one
 OrderTile. At 390px, headline/actions lead, then the code and figure stack at a
 readable scale. No interactive animation is required to understand it.
 
-FORM: Brief-pinned code-and-composition narrative inside the existing canonical
-brand. Seed not applicable: the user supplied the whole-page narrative, required
-hero example, and fixed identity rather than an open concept-selection task.
-
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish
-review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+FORM: Code-and-composition narrative inside the canonical brand.

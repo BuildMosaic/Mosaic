@@ -4,7 +4,7 @@ Thanks for your interest in contributing! 🎉
 
 ## How to Contribute
 - **Issues**: Use GitHub Issues for bug reports or feature requests. Please include steps to reproduce bugs.
-- **Pull Requests**: Fork the repo and branch from the intended target: `develop` for new features; `main` for hotfixes and maintenance, including compatibility updates. Target documentation changes at the branch whose behavior they describe. Link PRs to an issue when possible.
+- **Pull Requests**: Fork the repo and branch from the intended target: `develop` for new features; `main` for hotfixes and maintenance, including compatibility implementation fixes. Target documentation changes at the branch whose behavior they describe. Link PRs to an issue when possible.
 - **Code Style**: Styling is enforced by ktlint. Use `./gradlew ktlintFormat` to auto-fix most issues. Keep commits small and descriptive.
 - **Tests**: PRs must meet coverage requirements enforced by Kover. Add or update tests for any new functionality.
 - **Commit Messages**: Use clear, imperative titles (e.g., "Add X" not "Added X").
@@ -13,10 +13,12 @@ Thanks for your interest in contributing! 🎉
 
 ## Development Setup
 1. Clone the repo and open in IntelliJ IDEA.
-2. Build with Gradle: `./gradlew build`
-3. Run tests: `./gradlew test`
-4. Use `./gradlew -p examples` to run commands on projects within the `examples/` folder.
+2. Run `./gradlew clean build` and `./gradlew clean build -p examples`.
+3. Validate compatibility policies with `python3 -m unittest discover -s compatibility`.
+4. Run `git diff --check` and, after staging, `git diff --cached --check`.
+
+For website work, use [its development workflow](../website/README.md).
 
 ## Communication
 - For general Q&A, use GitHub Issues.
-- For bigger ideas or architectural discussions, join us in [GitHub Discussions](../discussions).
+- For bigger ideas or architectural discussions, join us in [GitHub Discussions](https://github.com/BuildMosaic/Mosaic/discussions).

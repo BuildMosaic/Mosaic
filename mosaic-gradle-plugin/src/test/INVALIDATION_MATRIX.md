@@ -1,6 +1,6 @@
 # Compiler-integrated invalidation matrix
 
-`BinaryIntegrationTest` uses normal Kotlin 2.4.20 compilation and checks the
+The Gradle integration fixtures use normal Kotlin compilation and check the
 complete summary after persistent source and dependency edits. The production
 path launches zero standalone Mosaic K2 compiler processes. Compiler-module
 fixtures still invoke K2 as test infrastructure.

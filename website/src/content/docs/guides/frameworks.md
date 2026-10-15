@@ -7,7 +7,7 @@ Mosaic composes application logic; your HTTP framework owns routing, serializati
 
 ## Run an example
 
-Clone [BuildMosaic/Mosaic](https://github.com/BuildMosaic/Mosaic), use JDK 21, and run one application from the repository root:
+Clone [BuildMosaic/Mosaic](https://github.com/BuildMosaic/Mosaic), check out tag `0.7.0` for the published release, use JDK 21, and run one application from the repository root:
 
 ```bash
 ./gradlew -p examples :spring-example:run

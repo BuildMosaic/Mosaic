@@ -39,6 +39,7 @@ val site = SourceLocation("example.Application", "Application.kt", 1, 1)
 val metrics = CanvasKeyIdentity("example.Metrics")
 val tile = TileContract(
   id = "example.MetricsTile",
+  site = site,
   effects = listOf(
     Effect.Lookup(
       id = "metrics-source",
@@ -51,6 +52,7 @@ val tile = TileContract(
 )
 val entry = CallableContract(
   id = "example.entry",
+  site = site,
   effects = listOf(
     Effect.Compose(
       id = "entry-compose",
