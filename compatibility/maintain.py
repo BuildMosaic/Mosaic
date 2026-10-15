@@ -3,65 +3,16 @@
 
 import argparse
 import base64
-import calendar
 from datetime import date, datetime, timezone
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
-import urllib.request
-import urllib.error
-import xml.etree.ElementTree as ET
 
 import certify
+import discovery
 import registry
-
-
-def central_versions():
-    url = 'https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-compiler-embeddable/maven-metadata.xml'
-    with urllib.request.urlopen(url, timeout=60) as response:
-        nodes = ET.fromstring(response.read()).findall('./versioning/versions/version')
-    result = set()
-    for node in nodes:
-        try:
-            if registry.version(node.text) >= (2, 2, 0):
-                result.add(node.text)
-        except ValueError:
-            pass
-    return sorted(result, key=registry.version)
-
-
-def available(version):
-    for artifact in ('kotlin-compiler-embeddable', 'kotlin-gradle-plugin'):
-        for extension in ('pom', 'jar'):
-            url = f'https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/{artifact}/{version}/{artifact}-{version}.{extension}'
-            try:
-                with urllib.request.urlopen(urllib.request.Request(url, method='HEAD'), timeout=30):
-                    pass
-            except urllib.error.HTTPError as error:
-                if error.code == 404:
-                    return False
-                raise
-    return True
-
-
-def supported_versions(versions, today=None):
-    today = today or datetime.now(timezone.utc).date()
-    families = {}
-    result = []
-    for version in versions:
-        major, minor, _ = registry.version(version)
-        family = f'{major}.{minor}.0'
-        if family not in families:
-            release = json.loads(gh('api', f'repos/JetBrains/kotlin/releases/tags/v{family}'))
-            first = date.fromisoformat(release['published_at'][:10])
-            year, month = divmod(first.year * 12 + first.month - 1 + 18, 12)
-            expiry = date(year, month + 1, min(first.day, calendar.monthrange(year, month + 1)[1]))
-            families[family] = first <= today < expiry
-        if families[family]:
-            result.append(version)
-    return result
 
 
 def gh(*args, payload=None, token=None):
@@ -103,21 +54,36 @@ def report_failure(kotlin, runtime, analysis, failure, issues):
     print(json.loads(result)['html_url'])
 
 
+def pending_checks(data, compiler, issues, retry=False):
+    """Extend recorded relationships only; retries bypass failed-issue suppression."""
+    cases = [(r, None) for r in data['runtime']] + [
+        (r, a) for a, entry in data['analysis'].items() for r in entry['runtime']]
+    return [(r, a) for r, a in cases if not registry.compatible(data, r, compiler, a)
+            and (retry or issue_title(compiler, r, a) not in issues)]
+
+
 def scan(kotlin, java_installations):
     data = registry.load()
     issues = open_issues()
     if kotlin and registry.version(kotlin) < (2, 2, 0):
         raise ValueError('Compatibility discovery starts at Kotlin 2.2.0')
-    versions = [kotlin] if kotlin else supported_versions(central_versions()) if data['runtime'] else []
+    if kotlin:
+        versions = [kotlin]
+    elif data['runtime']:
+        versions = discovery.central_versions()
+        families = {'.'.join(v.split('.')[:2]) + '.0' for v in versions}
+        releases = {family: date.fromisoformat(json.loads(
+            gh('api', f'repos/JetBrains/kotlin/releases/tags/v{family}'))['published_at'][:10])
+            for family in sorted(families, key=registry.version)}
+        versions = discovery.supported_versions(versions, releases, datetime.now(timezone.utc).date())
+    else:
+        versions = []
     records, failures, passed_issues = [], [], []
     prepared = False
     checked_runtime = set()
-    cases = [(r, None) for r in data['runtime']] + [
-        (r, a) for a, entry in data['analysis'].items() for r in entry['runtime']]
     for compiler in versions:
-        pending = [(r, a) for r, a in cases if not registry.compatible(data, r, compiler, a)
-                   and (kotlin or issue_title(compiler, r, a) not in issues)]
-        if not pending or not available(compiler):
+        pending = pending_checks(data, compiler, issues, retry=bool(kotlin))
+        if not pending or not discovery.available(compiler):
             continue
         for runtime, analysis in pending:
             try:
@@ -147,38 +113,6 @@ def scan(kotlin, java_installations):
         raise RuntimeError(f'{len(failures)} published-artifact compatibility checks failed')
 
 
-def apply_evidence(data, evidence):
-    if 'records' in evidence:
-        for result in evidence['records']:
-            if result['runtime'] not in data['runtime'] or (result['analysis'] and result['analysis'] not in data['analysis']):
-                raise ValueError('Daily certification requires recorded published artifacts')
-            registry.record(data, result)
-        return data
-    train, version = evidence['train'], evidence['version']
-    if evidence['result'] != 'pass' or train not in ('runtime', 'analysis'):
-        raise ValueError('Expected a passing release certification')
-    registry.version(version)
-    registry.versions(evidence['kotlin'])
-    opposite = 'analysis' if train == 'runtime' else 'runtime'
-    if any(v not in data[opposite] for v in evidence['counterparts']):
-        raise ValueError('Unknown published counterpart')
-    # Retries append the same verified facts after publication; they never replace facts.
-    for versions in evidence['counterparts'].values():
-        if not set(registry.versions(versions)) <= set(evidence['kotlin']):
-            raise ValueError('Relationship contains an unverified compiler')
-    if train == 'runtime':
-        registry.record(data, {'result': 'pass', 'runtime': version, 'analysis': None, 'kotlin': evidence['kotlin']})
-        for analysis, versions in evidence['counterparts'].items():
-            registry.record(data, {'result': 'pass', 'runtime': version, 'analysis': analysis, 'kotlin': versions})
-    else:
-        if not evidence['counterparts']:
-            raise ValueError('Analysis requires a tested published Runtime')
-        for runtime, versions in evidence['counterparts'].items():
-            registry.record(data, {'result': 'pass', 'runtime': runtime, 'analysis': version, 'kotlin': versions})
-        data['analysis'][version]['kotlin'] = sorted(set(data['analysis'][version]['kotlin']) | set(evidence['kotlin']), key=registry.version)
-    return data
-
-
 def publish(evidence):
     repository = os.environ['GITHUB_REPOSITORY']
     for attempt in range(3):
@@ -186,7 +120,7 @@ def publish(evidence):
         file = json.loads(gh('api', f'repos/{repository}/contents/compatibility/registry.json?ref={head}'))
         original = base64.b64decode(file['content']).decode()
         data = registry.validate(json.loads(original))
-        content = json.dumps(apply_evidence(data, evidence), indent=2) + '\n'
+        content = json.dumps(registry.apply_evidence(data, evidence), indent=2) + '\n'
         registry.validate(json.loads(content))
         if content == original:
             print('Verified compatibility facts are already recorded')

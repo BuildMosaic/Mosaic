@@ -13,6 +13,7 @@ import time
 import xml.etree.ElementTree as ET
 import zipfile
 
+import discovery
 import registry
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -58,15 +59,15 @@ def summaries(directory):
 
 
 class Certification:
-    def __init__(self, java_installations='', train='all', release=None, runtime=None, analysis=None, repository=None):
+    def __init__(self, java_installations='', runtime=None, analysis=None, repository=None):
         self.directory = REPORTS / str(time.time_ns())
         self.directory.mkdir(parents=True)
         self.repository = Path(repository) if repository else self.directory / 'repository'
         self.java_installations = java_installations
         self.revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
         candidate = f'0.0.0-compat-{self.directory.name}'
-        self.runtime_version = runtime or (release if train == 'runtime' and release else candidate)
-        self.analysis_version = analysis or (release if train == 'analysis' and release else candidate)
+        self.runtime_version = runtime or candidate
+        self.analysis_version = analysis or candidate
         self.baseline = re.search(r'^kotlin = "([^"]+)"', (ROOT / 'gradle/libs.versions.toml').read_text(), re.M)[1]
         self.control = None
         self.checked_runtime = set()
@@ -88,12 +89,13 @@ class Certification:
                         f'-Porg.gradle.java.installations.paths={self.java_installations}'])
 
     def build(self, scope):
-        modules = list(RUNTIME)
+        modules = list(RUNTIME) if scope != 'analysis' else []
         tasks = []
         if scope != 'runtime':
             modules += ['mosaic-compiler-plugin', 'mosaic-gradle-plugin']
             tasks = [':mosaic-compiler-plugin:testClasses', ':mosaic-analysis-core:testClasses']
         self.gradle('build', *[f':{m}:publishAllPublicationsToInstallTestRepository' for m in modules], *tasks,
+                    '--no-configure-on-demand',
                     f'-Pmosaic.runtime.version={self.runtime_version}', f'-Pmosaic.analysis.version={self.analysis_version}',
                     f'-Pmosaic.installTestRepository={self.repository}')
 
@@ -101,12 +103,12 @@ class Certification:
         self.gradle('fixtures', ':mosaic-compiler-plugin:testClasses', ':mosaic-analysis-core:testClasses',
                     ':mosaic-gradle-plugin:testClasses', '--no-configure-on-demand')
 
-    def resolve(self, compiler, scope, runtime=None, baseline=None, extractor='mosaic-compiler-plugin'):
+    def resolve(self, compiler, scope, baseline=None, extractor='mosaic-compiler-plugin'):
         directory = self.directory / compiler
         self.gradle(f'resolve-{compiler}', '-p', ROOT / 'compatibility', 'resolveEvidence',
                     f'-Pcompat.kotlin={compiler}', f'-Pcompat.baseline={baseline or self.baseline}',
                     f'-Pcompat.extractor={extractor}',
-                    f'-Pcompat.candidate={self.analysis_version}', f'-Pcompat.runtimeCandidate={runtime or self.runtime_version}',
+                    f'-Pcompat.candidate={self.analysis_version}', f'-Pcompat.runtimeCandidate={self.runtime_version}',
                     f'-Pcompat.repository={self.repository}', f'-Pcompat.evidence={directory}', f'-Pcompat.scope={scope}')
         resolution = json.loads((directory / 'resolution.json').read_text())
         self.java = resolution['java17']
@@ -240,28 +242,29 @@ def certify(versions, scope, java_installations='', release=None, counterparts=N
             raise ValueError('Release a Runtime first; Analysis certification requires a published Runtime')
         if any(v not in data[opposite] for v in counterparts):
             raise ValueError('Counterparts must be recorded published releases')
-    certification = Certification(java_installations, scope, release)
-    certification.build('all' if release and counterparts else scope)
-    certification.check(versions, scope)
+    certification = Certification(java_installations, runtime=release if scope == 'runtime' else None,
+                                  analysis=release if scope == 'analysis' else None)
+    certification.build('all' if not release and scope == 'analysis' else scope)
+    if scope != 'analysis' or not release:
+        certification.check(versions, scope)
+    if release and scope == 'runtime' and counterparts:
+        certification.prepare_tests()
     relationships = {}
     for counterpart in counterparts or []:
+        published = Certification(java_installations,
+                                  runtime=counterpart if scope == 'analysis' else release,
+                                  analysis=release if scope == 'analysis' else counterpart,
+                                  repository=certification.repository)
+        published.checked_runtime = certification.checked_runtime
         if scope == 'analysis':
-            # An unchanged published Runtime can gain Kotlin support without a new Runtime release.
             common = versions
-            for compiler in common:
-                certification.runtime(compiler, certification.resolve(compiler, 'runtime', counterpart))
         else:
-            published = Certification(java_installations, runtime=release, analysis=counterpart,
-                                      repository=certification.repository)
             resolved = published.resolve(versions[0], 'all')
             _, bounds = compiler_profiles(resolved['extractor'][0]['file'])
             common = [v for v in versions if any(lower <= registry.version(v) < upper for lower, upper in bounds.values())]
-            if common:
-                published.check(common, 'all')
         if not common:
             raise ValueError(f'No common Kotlin versions with {opposite} {counterpart}')
-        if scope == 'analysis':
-            certification.install(common, counterpart, release)
+        published.check(common, 'analysis')
         relationships[counterpart] = common
     result = {'train': scope, 'version': release, 'kotlin': versions, 'counterparts': relationships,
               'revision': certification.revision, 'result': 'pass'}
@@ -284,8 +287,7 @@ if __name__ == '__main__':
     parser.add_argument('--analysis', help='Also verify this unchanged published Analysis with --runtime')
     parser.add_argument('--repository', type=Path, help='Additional Maven repository for local artifact verification')
     args = parser.parse_args()
-    from maintain import central_versions
-    versions = sorted(set(args.kotlin.split(',') if args.kotlin else central_versions()), key=registry.version)
+    versions = sorted(set(args.kotlin.split(',') if args.kotlin else discovery.central_versions()), key=registry.version)
     if args.counterparts and not args.release:
         parser.error('--counterparts requires --release')
     if args.release:
