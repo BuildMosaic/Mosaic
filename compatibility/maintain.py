@@ -120,15 +120,27 @@ def scan(kotlin, java_installations):
                 failures.extend((compiler, runtime, a, failure) for a in analyses)
                 continue
             for analysis in analyses:
-                try:
-                    if analysis:
+                passed[runtime, analysis].append(compiler)
+    for (runtime, analysis), compilers in passed.items():
+        if analysis and compilers:
+            try:
+                check.analysis(compilers, runtime, analysis)
+            except Exception as failure:
+                if len(compilers) == 1:
+                    failures.append((compilers.pop(), runtime, analysis, failure))
+                    continue
+                # A successful sweep shares setup and installation across versions.
+                # Only a failed batch needs individual retries for exact failure issues.
+                for compiler in compilers[:]:
+                    try:
                         check.analysis([compiler], runtime, analysis)
-                    passed[runtime, analysis].append(compiler)
-                    title = issue_title(compiler, runtime, analysis)
-                    if title in issues:
-                        passed_issues.append(issues[title]['number'])
-                except Exception as failure:
-                    failures.append((compiler, runtime, analysis, failure))
+                    except Exception as failure:
+                        compilers.remove(compiler)
+                        failures.append((compiler, runtime, analysis, failure))
+        for compiler in compilers:
+            title = issue_title(compiler, runtime, analysis)
+            if title in issues:
+                passed_issues.append(issues[title]['number'])
     # A failed, unavailable, or issue-blocked compiler holds this relationship's
     # boundaries. Other relationships can still advance; historical ranges stay.
     records = [{'result': 'pass', 'runtime': r, 'analysis': a, 'kotlin': compilers, 'revision': check.revision}
