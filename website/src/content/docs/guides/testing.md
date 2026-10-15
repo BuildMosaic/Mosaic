@@ -5,24 +5,7 @@ description: 'Replace dependency Tiles with values, failures, and virtual-time d
 
 Test real response logic by replacing its dependency Tiles. `mosaic-test` uses the same runtime as production, with selected substitutions inside a scoped execution. `withMosaic` inherits the calling coroutine context, including the enclosing `runTest` Job, dispatcher, and virtual-time scheduler. Use Canvas sources for request input and service fakes.
 
-The examples on `develop` use the unreleased scoped test API. For the published 0.7.0 artifact, use the [release test guide](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/mosaic-test/README.md); see [scoped execution migration](/reference/releases/#scoped-execution-migration) when updating consumers.
-
-## Quick Start
-
-## Installation
-
-In an existing Kotlin/JVM project with a configured test runner:
-
-```kotlin
-dependencies {
-  testImplementation("org.buildmosaic:mosaic-test:0.7.0")
-  testImplementation(kotlin("test"))
-}
-```
-
-Use the same version of `mosaic-test` and `mosaic-core`. See [runtime compatibility](/reference/compatibility/) for supported Kotlin versions and Java requirements.
-
-`mosaic-test` exposes Mosaic core and coroutine test APIs and must use the same Mosaic version as `mosaic-core`. Use the [BOM](https://github.com/BuildMosaic/Mosaic/blob/main/mosaic-bom/README.md) to keep runtime modules aligned and omit versions on Mosaic dependencies.
+Add `mosaic-test` at the same Runtime version as `mosaic-core`; the module exposes core and coroutine test APIs. Use the [installation guide](/start/installation/) for released dependencies and BOM alignment. The scoped examples below require the upcoming 1.0 API. For 0.7.0, use the [released test guide](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/mosaic-test/README.md); see [migration guidance](/reference/releases/#scoped-execution-migration) when upgrading.
 
 ## Your first Tile test
 

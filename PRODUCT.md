@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-User-selected Astro and Starlight, native Astro/CSS homepage, Markdown/MDX guides,
+Astro and Starlight, native Astro/CSS homepage, Markdown/MDX guides,
 native Dokka HTML, pnpm, Node 22, and GitHub Pages. No application server or CMS.
 
 ## Audience and job
@@ -34,10 +34,8 @@ own detailed methodology and source-revision-specific evidence.
 ## Success and constraints
 
 A mature framework website, fast and mostly static, responsive and accessible in
-both themes, with documentation search and exact Kotlin API lookup. No tracking,
-customer claims, speculative features, blog, or duplicated long-form manual.
-Runtime behavior and publishing identities stay unchanged. Website PR is reviewed
-before deployment from protected main; no release is published by this task.
+both themes, with documentation search and exact Kotlin API lookup. Keep claims
+tied to shipped behavior and measured evidence; avoid a duplicated long-form manual.
 
 ## Voice and brand commitments
 
@@ -53,13 +51,7 @@ material; no generated abstract imagery or SaaS card catalog.
 ## Evidence
 
 README.md, runnable examples, runtime source/tests, module guides, public KDoc,
-performance/README.md, docs/performance.md, and docs/releases/0.6.0.md.
+performance/README.md, docs/performance.md, and public release notes.
 Performance summaries distinguish CPU/request, HTTP latency, synthetic operation
 time, allocation, and application behavior. Application benchmarks identify their
-measured revision and are not a fresh measurement of 0.6.0.
-
-## Reading density
-
-The implementation uses a compact technical narrative with substantial real code
-and diagrams, inferred from the explicit brief. An optional preference question
-received no additional direction; it is not a pending approval.
+measured revision; do not imply that historical results measure a newer release.

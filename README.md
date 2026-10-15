@@ -20,7 +20,7 @@ Tiles. A request-scoped Mosaic shares repeated Tile work automatically.
 
 The public stable release is **[0.7.0](https://github.com/BuildMosaic/Mosaic/releases/tag/0.7.0)**.
 For released examples, use the [0.7.0 README](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/README.md);
-`develop` is the integration branch for subsequent unreleased work.
+the examples below preview the upcoming **1.0 API** and can differ from 0.7.0.
 
 ## 🚀 **Why Mosaic?**
 
@@ -160,10 +160,9 @@ covers application setup, resource ownership, and runtime requirements.
 
 ## 🔗 **Compatibility**
 
-Mosaic 1.x targets Java 17+ and officially supports Kotlin minor families for
-18 months after their first stable release, including their stable patches.
-Runtime and optional Analysis are independently versioned. Find
-supported Kotlin versions and compatible Runtime/Analysis combinations in the
+Starting with 1.0, Mosaic preserves supported Runtime APIs and behavior within
+1.x. Runtime and optional Analysis are independently versioned. Find the supported
+Java and Kotlin versions, Runtime/Analysis combinations, and guarantees in the
 [compatibility reference](https://BuildMosaic.org/reference/compatibility/).
 These guarantees do not apply to published 0.x artifacts.
 

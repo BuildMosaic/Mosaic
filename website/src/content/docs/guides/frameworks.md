@@ -7,7 +7,7 @@ Mosaic composes application logic; your HTTP framework owns routing, serializati
 
 ## Run an example
 
-Clone [BuildMosaic/Mosaic](https://github.com/BuildMosaic/Mosaic), use JDK 21, and run one application from the repository root:
+Clone [BuildMosaic/Mosaic](https://github.com/BuildMosaic/Mosaic), check out tag `0.7.0` for the published release, use JDK 21, and run one application from the repository root:
 
 ```bash
 ./gradlew -p examples :spring-example:run
@@ -76,6 +76,6 @@ canvas {
 
 `instance` borrows a value: Canvas never closes it, including on construction failure. The framework or application keeps ownership. The request ID is also an existing value, so the child Canvas registers it with `instance(OrderKey, orderId)`. Neither Canvas owns closeable resources in these examples.
 
-Use `provide { ... }` when Canvas creates and owns a service. If the application Canvas owns `AutoCloseable` services, close it during framework shutdown. If a request child owns local resources, scope it explicitly around composition; `withMosaic` does not close Canvas. See [resource ownership](/guides/resources/).
+In the upcoming 1.0 API, use `provide { ... }` when Canvas creates and owns a service. If the application Canvas owns `AutoCloseable` services, close it during framework shutdown. If a request child owns local resources, scope it explicitly around composition; `withMosaic` does not close Canvas. See [resource ownership](/guides/resources/) for 1.0 ownership semantics.
 
 Use [OpenTelemetry tracing](/guides/tracing/) with your framework's existing request context propagation. Test the response composition separately with [mosaic-test](/guides/testing/); keep framework-specific HTTP assertions in your application tests.

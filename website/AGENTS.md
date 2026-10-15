@@ -1,39 +1,7 @@
 # BuildMosaic.org
 
-The website is an isolated Astro/Starlight project, using pnpm and Node 22.23.3. The homepage is native Astro/CSS; authored docs are Markdown/MDX; `/api/` is native Dokka HTML. Keep client JavaScript small and preserve Starlight's sidebar, search, theme selector, contents, and code-copy machinery.
+Use [README.md](README.md) for the local workflow and content ownership. Use the root public-docs and technical-docs skills by reader purpose. All published content must help framework users; maintainer operations stay outside website sources and navigation. Keep API descriptions in KDoc and build output untracked.
 
-## Ownership
+For visual changes, use the project-local Impeccable skill and read `../PRODUCT.md`, `../DESIGN.md`, and the relevant `../.impeccable/surfaces/` brief. Preserve the canonical identity, real Kotlin examples, response-first narrative, Starlight navigation/search/theme/code controls, and native Dokka layout. Ordinary content editing does not call for a redesign.
 
-- `src/content/docs/`: canonical user tutorials, concepts, and how-to guides.
-- Root README: GitHub adoption and concrete feature proof, with site links.
-- Module READMEs: purpose, install, first-use orientation, important constraints.
-- KDoc: canonical API descriptions. Gradle owns Dokka generation and publication.
-- `performance/README.md` and `docs/performance.md`: full benchmark evidence.
-- `../.impeccable/BRAND.md`: canonical identity and logo usage; `../assets/`: logo SVG masters. `prepare:assets` copies the SVGs unchanged; do not edit the ignored copies in `public/brand`.
-
-Use `../.agents/skills/public-docs/SKILL.md` for homepage, overview, adoption, and public proof; use `technical-docs` for tutorials, concepts, and guides. Preserve runtime versus analysis compatibility and benchmark dataset distinctions.
-
-Use the project-local Impeccable skill for design work. Read root PRODUCT.md, DESIGN.md, and `.impeccable/surfaces/` before changing visual decisions. New-feature Markdown edits do not require a redesign. Keep canonical colors and supplied logo geometry. Do not turn the homepage into interchangeable feature cards.
-
-## Commands
-
-From `website/`, with Node from `.node-version` and pnpm from `package.json`:
-
-```bash
-pnpm install --frozen-lockfile
-pnpm dev
-pnpm check
-pnpm api
-pnpm build
-pnpm check:links
-pnpm format:check
-pnpm qa
-```
-
-`pnpm api` requires JDK 21 and the repository Gradle wrapper. Normal Markdown editing does not need API generation. For a complete site build, generate API first. Generated assets, API HTML, `.astro`, QA output, and `dist` stay uncommitted.
-
-## QA and deployment
-
-Inspect the running site in a browser, not just source or generated screenshots. Batch first inspection and one bounded polish pass across 1440/1920 desktop, 1280 laptop, 820 tablet, and 390/430 mobile in light/dark. Review homepage, Quick Start, long concepts, tables, large code, API, menu/search/theme, keyboard/focus, copy/anchors, overflow, image scaling, reduced motion, and loading stability. Run Playwright/axe and internal link validation. Record actual findings and limits.
-
-GitHub Actions validates site PRs and deploys only protected canonical main to GitHub Pages. The apex site is `https://BuildMosaic.org`, with no repository base path. Do not deploy branches, add analytics, or commit build output. Update DNS instructions in README when hosting requirements change.
+Inspect changed surfaces at 1440/1920 desktop, 1280 laptop, 820 tablet, and 390/430 mobile in both themes. Check keyboard focus, overflow, large code, tables, menu/search/theme, and relevant API links. Run the README's content, formatting, build, link, and browser checks; record findings and limits. Deployments use only protected canonical `main`; do not deploy branches.

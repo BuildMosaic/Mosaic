@@ -3,11 +3,11 @@ title: 'Quick Start'
 description: 'Create a Tile, bind request input, and compose a response in a runnable Kotlin program.'
 ---
 
-Build a small response from request input, then compose it with another Tile. This tutorial uses Kotlin/JVM, JDK 21, and Gradle. You do not need an HTTP server. If you already have a Kotlin project, add the [core dependency](/start/installation/) and start at the program below.
+Build a small response from request input, then compose it with another Tile. This runnable tutorial uses published Mosaic 0.7.0, Kotlin/JVM, JDK 21, and Gradle. You do not need an HTTP server. If you already have a Kotlin project, add the [core dependency](/start/installation/) and start at the program below.
 
 ## Create the project
 
-Add `settings.gradle.kts` with `rootProject.name = "mosaic-hello"`, then create this build file. The Kotlin version matches Mosaic's own build toolchain.
+Add `settings.gradle.kts` with `rootProject.name = "mosaic-hello"`, then create this build file. This Kotlin version supports the published dependency below.
 
 ```kotlin title="build.gradle.kts"
 plugins {
@@ -53,7 +53,7 @@ fun main() = runBlocking {
 
 Run `./gradlew run` if your project has a wrapper, or `gradle run`. The program prints `Hello, user-123!`.
 
-The **Canvas** binds input under a typed key. `instance` registers the existing request value without transferring ownership to Canvas; use `provide { ... }` when Canvas constructs and owns a value. `withLayer` adds request values without changing the application Canvas. `withMosaic { ... }` creates a **Mosaic** with its own Tile cache, owned by the calling coroutine. Leaving the block cancels unfinished work and waits for cleanup. `compose(GreetingTile)` executes the Tile and suspends until its value is available. The Tile reads the input using `source`.
+The **Canvas** binds input under a typed key. `instance` registers the existing request value without transferring ownership to Canvas. `withLayer` adds request values without changing the application Canvas. `withMosaic { ... }` creates a **Mosaic** with its own Tile cache, owned by the calling coroutine. Leaving the block cancels unfinished work and waits for cleanup. `compose(GreetingTile)` executes the Tile and suspends until its value is available. The Tile reads the input using `source`.
 
 ## Compose the response from Tiles
 

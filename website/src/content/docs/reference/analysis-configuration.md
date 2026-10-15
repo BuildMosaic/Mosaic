@@ -5,39 +5,6 @@ description: 'Complete reference for the Mosaic analysis Gradle DSL, rules, supp
 
 Use this reference to configure the optional `org.buildmosaic.analysis` plugin. For a first walkthrough, start with [Analyze architecture](/guides/analysis/). Runtime libraries remain independent of the analysis tooling.
 
-## Plugin setup
-
-Analysis supports pure Kotlin/JVM `main` sources with the compiler/KGP versions listed for your release in [compatibility](/reference/compatibility/). See the [supported project boundary](#supported-project-boundary) before applying it.
-
-```kotlin title="settings.gradle.kts"
-pluginManagement {
-  repositories { gradlePluginPortal(); mavenCentral() }
-}
-```
-
-```kotlin title="build.gradle.kts"
-import org.buildmosaic.analysis.MosaicRuleSeverity
-import org.buildmosaic.gradle.MosaicAnalysisEnforcement
-import org.buildmosaic.gradle.MosaicAnalysisRole
-
-plugins {
-  kotlin("jvm") version "2.4.20"
-  id("org.buildmosaic.analysis") version "0.7.0"
-}
-
-repositories { mavenCentral() }
-
-mosaicAnalysis {
-  role = MosaicAnalysisRole.APPLICATION
-  enforcement = MosaicAnalysisEnforcement.STANDARD
-  rules {
-    severity("MOSAIC_RECURSIVE_MULTITILE", MosaicRuleSeverity.WARNING)
-  }
-}
-```
-
-Add Mosaic runtime dependencies separately. The plugin neither applies Kotlin nor installs the application runtime. It resolves the matching compiler plugin through Kotlin's normal compiler-subplugin integration. The analysis components are bundled with the compiler and Gradle plugins, so no separate analysis dependency is needed; analysis tooling is outside the runtime BOM.
-
 ## Gradle DSL
 
 The extension is `org.buildmosaic.gradle.MosaicAnalysisExtension`. These are its public configuration options:
@@ -52,6 +19,10 @@ The extension is `org.buildmosaic.gradle.MosaicAnalysisExtension`. These are its
 Use typed settings and ordinary Gradle properties:
 
 ```kotlin
+import org.buildmosaic.analysis.MosaicRuleSeverity
+import org.buildmosaic.gradle.MosaicAnalysisEnforcement
+import org.buildmosaic.gradle.MosaicAnalysisRole
+
 mosaicAnalysis {
   role = MosaicAnalysisRole.APPLICATION
   enforcement = MosaicAnalysisEnforcement.STRICT
@@ -226,11 +197,11 @@ Unsupported control flow, general callbacks, arbitrary virtual dispatch, mutable
 
 Reports show selected roots and receivers, statuses, closed witnesses and source locations, rule severity, suppressed sites, Canvas obligations, and uncertainty. Graph and verification reports use the same analysis findings; a loop in the diagram alone does not prove a cyclic result dependency. The graph represents possible static structure, not runtime timing, call counts, cache occupancy, or exact key batches.
 
-Dependency summary changes can rerun verification without recompiling unchanged application sources. Clean, incremental, and cache-restored paths preserve summary and verification results. Summary compatibility is determined by the header, not the `v1` resource directory. The reader accepts valid **`contractVersion = 6`**, complete `main` summaries from other nonblank Analysis and compiler producer versions, preserving those identities as provenance. Successful decoding does not certify compiler, Runtime, or Gradle interoperability. Construction-time lookup is serialized as `CONSTRUCTION`; required and optional Canvas/Mosaic lookups remain `REQUIRED` and `OPTIONAL`. `contractVersion` covers both serialized structure and meaning. The producer records the Analysis artifact build version in `producer.analysisVersion` and the normalized supported Kotlin version in `producer.compilerVersion`. Legacy format 5 and unsupported contract versions are rejected. Regenerate dependency summaries with the matching Mosaic analysis version.
+Dependency summary changes can rerun verification without recompiling unchanged application sources. A missing dependency summary leaves reached behavior unknown; a present but incompatible or malformed summary fails explicitly. Regenerate incompatible dependency summaries with compatible Analysis tooling. Compiler and Analysis producer versions identify provenance; matching version numbers alone do not prove interoperability.
 
 ## Supported project boundary
 
-Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibility](/reference/compatibility/). The plugin validates the Java toolchain against Kotlin's toolchain. The repository build and examples use JDK 21 and Gradle 8.14.4; these analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
+Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibility](/reference/compatibility/). The plugin validates the Java toolchain against Kotlin's toolchain. These analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
 
 The plugin rejects:
 
