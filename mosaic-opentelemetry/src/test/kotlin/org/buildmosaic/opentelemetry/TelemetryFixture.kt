@@ -11,10 +11,11 @@ import io.opentelemetry.sdk.trace.data.SpanData
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import io.opentelemetry.sdk.trace.samplers.Sampler
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
-import org.buildmosaic.core.MosaicImpl
+import org.buildmosaic.core.Mosaic
 import org.buildmosaic.core.injection.canvas
+import org.buildmosaic.core.injection.withMosaic
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.coroutines.CoroutineContext
 
@@ -32,10 +33,16 @@ internal class TelemetryFixture(
   val telemetry: OpenTelemetrySdk = OpenTelemetrySdk.builder().setTracerProvider(provider).build()
   val tracer = telemetry.getTracer("test")
   val spans: List<SpanData> get() = exporter.finishedSpanItems
-  private val mosaics = mutableListOf<MosaicImpl>()
 
-  suspend fun mosaic(dispatcher: CoroutineDispatcher): MosaicImpl =
-    MosaicImpl(canvas { tracing { telemetry } }, dispatcher).also { mosaics.add(it) }
+  suspend fun <T> withMosaic(
+    dispatcher: CoroutineDispatcher,
+    block: suspend Mosaic.() -> T,
+  ): T =
+    if (dispatcher is QueuedDispatcher) {
+      dispatcher.run { canvas { tracing { telemetry } }.withMosaic(block) }
+    } else {
+      withContext(dispatcher) { canvas { tracing { telemetry } }.withMosaic(block) }
+    }
 
   suspend fun <T> root(block: suspend (Span) -> T): T {
     val span = tracer.spanBuilder("request").setNoParent().startSpan()
@@ -47,7 +54,6 @@ internal class TelemetryFixture(
   }
 
   override fun close() {
-    mosaics.forEach { it.cancel() }
     telemetry.close()
   }
 }
@@ -62,6 +68,16 @@ internal class QueuedDispatcher : CoroutineDispatcher() {
   ) {
     queue.add(block)
   }
+
+  suspend fun <T> run(block: suspend () -> T): T =
+    kotlinx.coroutines.coroutineScope {
+      val execution = async(this@QueuedDispatcher) { block() }
+      while (!execution.isCompleted) {
+        drain()
+        kotlinx.coroutines.yield()
+      }
+      execution.await()
+    }
 
   fun next() = checkNotNull(queue.poll()) { "Expected scheduled Mosaic execution" }.run()
 

@@ -7,7 +7,7 @@ import org.openjdk.jmh.annotations.Scope
 import org.openjdk.jmh.annotations.Setup
 import org.openjdk.jmh.annotations.State
 
-/** Same graph operations, including complete request quiescence rather than result publication alone. */
+/** Fixed four-branch graph cases including scoped request teardown. */
 @State(Scope.Thread)
 open class ExecutionDrainBenchmark {
   private lateinit var diamond: Tile<Int>

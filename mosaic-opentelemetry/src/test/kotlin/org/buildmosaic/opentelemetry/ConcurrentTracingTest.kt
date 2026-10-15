@@ -3,11 +3,11 @@ package org.buildmosaic.opentelemetry
 import io.opentelemetry.api.trace.Span
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.core.singleTile
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,7 +18,6 @@ class ConcurrentTracingTest {
     runBlocking {
       repeat(10) {
         TelemetryFixture().use { otel ->
-          val mosaic = otel.mosaic(Dispatchers.Default)
           val gate = CompletableDeferred<Unit>()
           var producerId = ""
           val producer =
@@ -36,11 +35,12 @@ class ConcurrentTracingTest {
             }
           withTimeout(10_000) {
             otel.root {
-              val results = consumers.map { async { mosaic.compose(it) } }
-              gate.complete(Unit)
-              assertTrue(results.awaitAll().all { it == 7 })
-              // Application results settle before observation completes; join actual execution scopes.
-              mosaic.coroutineContext[Job]!!.children.toList().forEach { it.join() }
+              otel.withMosaic(Dispatchers.Default) {
+                val mosaic = this
+                val results = consumers.map { async { mosaic.compose(it) } }
+                gate.complete(Unit)
+                assertTrue(results.awaitAll().all { it == 7 })
+              }
             }
           }
           assertEquals(26, otel.spans.size)

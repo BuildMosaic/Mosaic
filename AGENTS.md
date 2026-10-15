@@ -17,6 +17,10 @@ analysis tooling.
 
 ## Documentation skills
 
+BuildMosaic.org teaches framework users; keep maintainer operations outside its
+content and navigation. For release execution, credential recovery, or failed
+registry publication, read [.github/MAINTAINING.md](.github/MAINTAINING.md).
+
 - For adoption-focused README/project docs and public summaries, read
   [public-docs](.agents/skills/public-docs/SKILL.md).
 - For guides, reference, and explanations in `docs/` or module documentation, read
@@ -47,8 +51,10 @@ Neither skill is required for routine edits or authorizes unrelated cleanup.
 
 ## Analysis invariants
 
-- Support exactly Kotlin compiler and Gradle plugin 2.4.20. Reject unsupported
-  project configurations conservatively.
+- Admit only bounded compatible compiler ABIs from
+  [CompilerVersionAdmission](mosaic-analysis-core/src/main/kotlin/org/buildmosaic/analysis/CompilerVersionAdmission.kt).
+  Keep admission separate from exact published certification in the compatibility
+  registry. Reject unsupported project configurations conservatively.
 - Mosaic analysis runs inside normal `main` Kotlin compilation. Production
   builds launch no separate Mosaic compiler process.
 - The compiler writes source-relative shards for affected files. Shards are
@@ -67,6 +73,18 @@ to contract fidelity in `mosaic-compiler-plugin` tests; and wiring, incremental
 build behavior, and publication in Gradle TestKit tests. Use the cheapest layer
 that decisively proves a regression. Keep direct K2 compiler fixtures: they test
 IR extraction even though production uses normal Kotlin compilation.
+
+Tests are evergreen behavioral specifications, not proof that a code change
+occurred. A production change does not inherently require a new test. Add or
+retain tests for durable observable behavior, semantic invariants, supported
+compatibility promises, or meaningful failure boundaries. Prefer tests that
+remain meaningful if the implementation is replaced while preserving behavior.
+
+Do not test implementation shape (method presence/absence, historical names,
+modifiers, synthetic flags, file/class structure, or unsupported internal access)
+merely because it changed. Negative API tests must protect an explicit supported
+compatibility contract, not ban historical names or memorialize implementation
+decisions.
 
 Run before submitting:
 

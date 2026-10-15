@@ -101,18 +101,20 @@ private fun roots(
 ): String =
   """
   ${if (imports.isNotEmpty()) "package $packageName\nimport org.buildmosaic.core.*\nimport org.buildmosaic.core.injection.*\n$imports" else ""}
-  suspend fun singleMissing() = canvas {}.create().compose(Single)
-  suspend fun batchMissing() = canvas {}.create().compose(Batch, "key")
-  suspend fun perKeyMissing() = canvas {}.create().compose(PerKey, "key")
-  suspend fun chunkedMissing() = canvas {}.create().compose(Chunked, "key")
+  suspend fun singleMissing() = canvas {}.withMosaic { compose(Single) }
+  suspend fun batchMissing() = canvas {}.withMosaic { compose(Batch, "key") }
+  suspend fun perKeyMissing() = canvas {}.withMosaic { compose(PerKey, "key") }
+  suspend fun chunkedMissing() = canvas {}.withMosaic { compose(Chunked, "key") }
   suspend fun supplied() {
-    val mosaic = canvas { single<Required> { Required() } }.create()
-    mosaic.compose(Single)
-    mosaic.compose(Batch, "key")
-    mosaic.compose(PerKey, "key")
-    mosaic.compose(Chunked, "key")
+    canvas { provide<Required> { Required() } }.withMosaic {
+      val mosaic = this
+      mosaic.compose(Single)
+      mosaic.compose(Batch, "key")
+      mosaic.compose(PerKey, "key")
+      mosaic.compose(Chunked, "key")
+    }
   }
-  suspend fun emptyBatch() = canvas {}.create().compose(Batch, emptyList<String>())
+  suspend fun emptyBatch() = canvas {}.withMosaic { compose(Batch, emptyList<String>()) }
   suspend fun metadata() { Single.name; Batch.name }
   """.trimIndent()
 
@@ -166,33 +168,37 @@ private fun localDelegationSource(): String =
     val tile by singleTile { source<Required>() }
     val alias by tile
     val ordinaryAlias = alias
-    val mosaic = canvas {}.create()
-    mosaic.compose(tile)
-    mosaic.compose(alias)
-    mosaic.compose(ordinaryAlias)
+    canvas {}.withMosaic {
+      val mosaic = this
+      mosaic.compose(tile)
+      mosaic.compose(alias)
+      mosaic.compose(ordinaryAlias)
+    }
   }
   suspend fun localSupplied() {
     val batch by multiTile<String, Required> { source<Required>(); emptyMap() }
     val perKey by perKeyTile<String, Required> { source<Required>() }
     val chunked by chunkedMultiTile<String, Required>(2) { source<Required>(); emptyMap() }
-    val mosaic = canvas { single<Required> { Required() } }.create()
-    mosaic.compose(batch, "key")
-    mosaic.compose(perKey, "key")
-    mosaic.compose(chunked, "key")
+    canvas { provide<Required> { Required() } }.withMosaic {
+      val mosaic = this
+      mosaic.compose(batch, "key")
+      mosaic.compose(perKey, "key")
+      mosaic.compose(chunked, "key")
+    }
   }
   suspend fun captured() {
     val dependency by singleTile { source<Required>() }
     val wrapper by singleTile { compose(dependency) }
-    canvas {}.create().compose(wrapper)
+    canvas {}.withMosaic { compose(wrapper) }
   }
   suspend fun manual(property: KProperty<*>) {
     val tile = singleTile { source<Required>() }.provideDelegate(null, property)
-    canvas {}.create().compose(tile)
+    canvas {}.withMosaic { compose(tile) }
   }
   val ReferenceTarget = singleTile { source<Required>() }
   suspend fun referenceDelegate() {
     val reference by ::ReferenceTarget
-    canvas {}.create().compose(reference)
+    canvas {}.withMosaic { compose(reference) }
   }
   val Arbitrary by lazy { singleTile { source<Required>() } }
   class ForeignDelegate {
@@ -201,7 +207,7 @@ private fun localDelegationSource(): String =
   }
   val Foreign by ForeignDelegate()
   class Holder(val required: Required) { val Member by singleTile { required } }
-  suspend fun arbitrary() = canvas {}.create().compose(Arbitrary)
-  suspend fun foreign() = canvas {}.create().compose(Foreign)
-  suspend fun member() = canvas {}.create().compose(Holder(Required()).Member)
+  suspend fun arbitrary() = canvas {}.withMosaic { compose(Arbitrary) }
+  suspend fun foreign() = canvas {}.withMosaic { compose(Foreign) }
+  suspend fun member() = canvas {}.withMosaic { compose(Holder(Required()).Member) }
   """.trimIndent()

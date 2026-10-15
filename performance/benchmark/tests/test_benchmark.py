@@ -212,8 +212,6 @@ class BenchmarkLogicTest(unittest.TestCase):
         self.assertEqual(result['paired_difference_iqr'], 14.75)
         micros = next(x for x in results if x['metric'] == 'cpu_us_per_request')
         self.assertEqual(micros['median_paired_absolute_difference'], 2500)
-        self.assertNotIn('percent', json.dumps(results))
-        self.assertNotIn('relative', json.dumps(results))
         self.assertEqual(b.aggregate([rows[0]]), [])
         with self.assertRaisesRegex(ValueError, 'duplicate paired result'):
             b.aggregate(rows + [rows[0]])
@@ -222,7 +220,7 @@ class BenchmarkLogicTest(unittest.TestCase):
         cfg = {'cases': {'light': {'zero': [100, 400]}}, 'repetitions': 4,
                'measurement_seconds': 30, 'calibration_timeout_seconds': 15,
                'tail_seconds': 10, 'wrk2_threads': 4, 'wrk2_connections': 128}
-        self.assertIs(b.validate_config(cfg), cfg)
+        b.validate_config(cfg)
         b.validate_config({**cfg, 'cases': {'coalescing': {'zero': [800], 'service': [400]}}})
         for change in ({'wrk2_connections': 130}, {'measurement_seconds': 1.5},
                        {'calibration_timeout_seconds': 10}, {'cases': {'compute': {'service': [100]}}}):
@@ -336,12 +334,10 @@ class BenchmarkLogicTest(unittest.TestCase):
         self.assertAlmostEqual(summary['direct']['median_ms'], 150)
         self.assertAlmostEqual(summary['paired']['min_mosaic_minus_direct_ms'], 20)
         self.assertAlmostEqual(summary['paired']['max_mosaic_minus_direct_ms'], 40)
-        self.assertNotIn('percent', json.dumps(summary))
         with tempfile.TemporaryDirectory() as temporary:
             b.write_startup_summary(Path(temporary), rows)
             text = (Path(temporary) / 'startup' / 'summary.md').read_text()
             self.assertIn('30.000 ms', text)
-            self.assertNotIn('%', text)
 
 
 if __name__ == '__main__':

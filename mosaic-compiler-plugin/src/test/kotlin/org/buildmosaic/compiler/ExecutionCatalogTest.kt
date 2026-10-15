@@ -165,7 +165,7 @@ class ExecutionCatalogTest {
   @Test fun `D4 registration actual work precedes provider construction`() {
     missing("registrationArgument")
     unknown("foreignRegistration", "registration receiver")
-    unknown("foreignPaint", "CanvasFactory receiver")
+    unknown("foreignConstruction", "CanvasFactory receiver")
   }
 
   @Test fun `D5 optional argument effects remain required work`() {
@@ -304,7 +304,7 @@ class ExecutionCatalogTest {
     val lookups = report("capturedOnceEntry").findings.filter { it.key?.classId == "catalog.First" }
     assertEquals(1, lookups.size, lookups.toString())
     assertEquals(FindingKind.CONSTRUCTION_LOOKUP, lookups.single().kind)
-    assertEquals("catalog.outerWithPaint()", lookups.single().site.owner)
+    assertEquals("catalog.outerWithConstruction()", lookups.single().site.owner)
   }
 
   @Test fun `D2 captured CanvasFactory receiver cannot borrow nested registration`() {
@@ -314,7 +314,7 @@ class ExecutionCatalogTest {
     assertEquals(null, lookup.bindingSite)
   }
 
-  @Test fun `D2 nested paint uses own layer while captured factory uses original layer`() {
+  @Test fun `D2 nested source uses own layer while captured factory uses original layer`() {
     verified("nestedFactorySupplied")
     val layer =
       module.canvases.single {

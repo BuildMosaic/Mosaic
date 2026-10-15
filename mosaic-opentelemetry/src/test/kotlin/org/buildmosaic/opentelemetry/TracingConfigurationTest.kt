@@ -2,11 +2,9 @@ package org.buildmosaic.opentelemetry
 
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.OpenTelemetry
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.runTest
-import org.buildmosaic.core.MosaicImpl
 import org.buildmosaic.core.injection.canvas
-import org.buildmosaic.core.injection.create
+import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.core.singleTile
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -55,13 +53,10 @@ class TracingConfigurationTest {
         TelemetryFixture().use { otel ->
           // Failed discovery did not register a no-op fallback. Explicit configuration also bypasses it.
           val explicit = canvas { tracing { OpenTelemetry.noop() } }
-          assertEquals(3, explicit.create().compose(singleTile { 3 }))
+          assertEquals(3, explicit.withMosaic { compose(singleTile { 3 }) })
           GlobalOpenTelemetry.set(otel.telemetry)
           val discovered = canvas { tracing() }
-          val mosaic = discovered.create() as MosaicImpl
-          assertEquals(7, mosaic.compose(singleTile { 7 }))
-          mosaic.coroutineContext[Job]!!.children.toList().forEach { it.join() }
-          mosaic.coroutineContext[Job]!!.cancel()
+          discovered.withMosaic { assertEquals(7, compose(singleTile { 7 })) }
           assertTrue(otel.spans.single().name == "Mosaic single")
           assertEquals("org.buildmosaic.mosaic-opentelemetry", otel.spans.single().instrumentationScopeInfo.name)
           discovered.close()

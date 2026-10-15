@@ -11,3 +11,12 @@ plugins {
 dependencies {
   implementation(libs.kotlinx.serialization.json)
 }
+
+// Kept with the bundled Analysis code in both compiler and Gradle artifacts.
+tasks.processResources {
+  val analysisArtifactVersion = project.version.toString()
+  inputs.property("analysisVersion", analysisArtifactVersion)
+  filesMatching("org/buildmosaic/analysis/version.properties") {
+    expand("analysisVersion" to analysisArtifactVersion)
+  }
+}

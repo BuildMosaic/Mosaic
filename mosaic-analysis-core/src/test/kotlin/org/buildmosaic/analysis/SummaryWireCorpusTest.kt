@@ -36,8 +36,13 @@ class SummaryWireCorpusTest {
         module,
         limitations = listOf("external const origin", "capture uncertain"),
         binaryLocators = mapOf("export" to "example/Exports#tile"),
+        coreAnalysisRevisions = setOf(1),
       )
     val restored = SummaryCodec.decode(bytes)
+    assertEquals(6, restored.contractVersion)
+    assertEquals(ANALYSIS_KOTLIN_VERSION, restored.producer.compilerVersion)
+    assertTrue(restored.producer.analysisVersion.isNotBlank())
+    assertTrue(bytes.decodeToString().contains("\"lookupKind\":\"CONSTRUCTION\""))
     assertEquals(module, restored.module)
     assertEquals(mapOf("export" to "example/Exports#tile"), restored.binaryLocators)
     assertEquals(listOf("capture uncertain", "external const origin"), restored.limitations)
@@ -47,6 +52,7 @@ class SummaryWireCorpusTest {
           module,
           limitations = listOf("capture uncertain", "external const origin"),
           binaryLocators = restored.binaryLocators,
+          coreAnalysisRevisions = setOf(1),
         ),
       ),
     )
@@ -82,7 +88,12 @@ private fun corpusModule(
       callables = listOf(CallableContract("helper", listOf(canvasParameter, booleanParameter), effects, site, false)),
       overrides =
         listOf(
-          ResolvedOverride("Owner", "base", "impl", listOf(OverrideSlot(canvasParameter, canvasParameter, 0))),
+          ResolvedOverride(
+            "Owner",
+            "base",
+            "impl",
+            listOf(OverrideSlot(canvasParameter, ContractParameter("impl", "renamed", ParameterKind.CANVAS), 0)),
+          ),
         ),
     )
   }
@@ -138,7 +149,7 @@ private fun corpusEffects(
     listOf<Effect>(
       Effect.Lookup("required", canvases[3], known, LookupKind.REQUIRED, site),
       Effect.Lookup("optional", CanvasExpression.Current, unknown, LookupKind.OPTIONAL, site),
-      Effect.Lookup("paint", CanvasExpression.Current, known, LookupKind.PAINT, site),
+      Effect.Lookup("construction", CanvasExpression.Current, known, LookupKind.CONSTRUCTION, site),
       Effect.Lookup(
         "runtime", CanvasExpression.Current,
         Fact.Known(

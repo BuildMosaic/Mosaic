@@ -144,7 +144,7 @@ class RootScopeTest {
       CanvasExpression.Layer(
         "services-layer",
         CanvasExpression.ParameterValue(parent),
-        listOf(binding(service, "service", listOf(lookup("paint", metrics, LookupKind.PAINT)))),
+        listOf(binding(service, "service", listOf(lookup("construction", metrics, LookupKind.CONSTRUCTION)))),
         site = site("services"),
       ),
       site("services"),

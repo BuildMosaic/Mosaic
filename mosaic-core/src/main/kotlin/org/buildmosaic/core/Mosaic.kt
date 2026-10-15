@@ -119,7 +119,7 @@ fun <T : Any> Mosaic.source(key: CanvasKey<T>) = canvas.source(key)
  * @param qualifier Optional qualifier to distinguish between multiple instances of the same type
  * @return The dependency instance or null if not found
  */
-inline fun <reified T : Any> Mosaic.sourceOr(qualifier: String? = null) = canvas.sourceOr(T::class, qualifier)
+inline fun <reified T : Any> Mosaic.sourceOrNull(qualifier: String? = null) = canvas.sourceOrNull(T::class, qualifier)
 
 /**
  * Retrieves a dependency from the canvas using a [CanvasKey], returning null if not found.
@@ -128,4 +128,4 @@ inline fun <reified T : Any> Mosaic.sourceOr(qualifier: String? = null) = canvas
  * @param key The canvas key identifying the dependency
  * @return The dependency instance or null if not found
  */
-fun <T : Any> Mosaic.sourceOr(key: CanvasKey<T>) = canvas.sourceOr(key)
+fun <T : Any> Mosaic.sourceOrNull(key: CanvasKey<T>) = canvas.sourceOrNull(key)

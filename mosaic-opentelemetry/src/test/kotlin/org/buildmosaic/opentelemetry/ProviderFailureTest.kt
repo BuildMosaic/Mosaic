@@ -7,11 +7,11 @@ import io.opentelemetry.api.trace.SpanBuilder
 import io.opentelemetry.api.trace.SpanContext
 import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.api.trace.Tracer
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.buildmosaic.core.MosaicImpl
+import kotlinx.coroutines.withContext
 import org.buildmosaic.core.injection.canvas
+import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.core.singleTile
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -36,11 +36,12 @@ class ProviderFailureTest {
                 }
               }
             }
-          val mosaic = MosaicImpl(canvas { tracing { telemetry } }, StandardTestDispatcher(testScheduler))
-          try {
-            assertEquals(7, mosaic.compose(singleTile { 7 }))
-          } finally {
-            mosaic.coroutineContext[Job]!!.cancel()
+          withContext(StandardTestDispatcher(testScheduler)) {
+            canvas { tracing { telemetry } }.withMosaic {
+              val mosaic = this
+
+              assertEquals(7, mosaic.compose(singleTile { 7 }))
+            }
           }
         }
         // Post-creation failure rolls back its span; startSpan failure returns no handle to clean up.
@@ -84,18 +85,19 @@ class ProviderFailureTest {
               }
             }
           }
-        val mosaic = MosaicImpl(canvas { tracing { telemetry } }, StandardTestDispatcher(testScheduler))
-        try {
-          val producer = singleTile { 7 }
-          assertEquals(7, mosaic.compose(singleTile { compose(producer) }))
-          val failed = mosaic.composeAsync(singleTile { throw IllegalArgumentException("private application") })
-          testScheduler.runCurrent()
-          assertFailsWith<IllegalArgumentException> { failed.await() }
-          assertTrue(callbacks >= 5)
-          assertEquals(3, otel.spans.size)
-          assertTrue(otel.spans.none { it.toString().contains("private") })
-        } finally {
-          mosaic.coroutineContext[Job]!!.cancel()
+        withContext(StandardTestDispatcher(testScheduler)) {
+          canvas { tracing { telemetry } }.withMosaic {
+            val mosaic = this
+
+            val producer = singleTile { 7 }
+            assertEquals(7, mosaic.compose(singleTile { compose(producer) }))
+            val failed = mosaic.composeAsync(singleTile { throw IllegalArgumentException("private application") })
+            testScheduler.runCurrent()
+            assertFailsWith<IllegalArgumentException> { failed.await() }
+            assertTrue(callbacks >= 5)
+            assertEquals(3, otel.spans.size)
+            assertTrue(otel.spans.none { it.toString().contains("private") })
+          }
         }
       }
     }

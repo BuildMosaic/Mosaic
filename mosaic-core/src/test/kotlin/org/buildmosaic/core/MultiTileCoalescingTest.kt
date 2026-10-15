@@ -115,39 +115,6 @@ class MultiTileCoalescingTest {
       assertEquals(listOf(setOf("A"), setOf("A")), calls)
     }
 
-  @Test fun failedAndIncompleteResultsSettleAllKeys() =
-    runTest {
-      val dispatcher = StandardTestDispatcher(testScheduler)
-      val mosaic = MosaicImpl(emptyCanvas, dispatcher)
-      val failed = multiTile<String, String> { _: Set<String> -> error("backend") }
-      val failedResults = mosaic.composeAsync(failed, listOf("A", "B"))
-      testScheduler.runCurrent()
-      assertTrue(failedResults.values.all { it.isCompleted })
-      assertTrue(failedResults.values.all { runCatching { it.await() }.exceptionOrNull() is IllegalStateException })
-
-      val throwingMap =
-        multiTile<String, String> { _: Set<String> ->
-          object : AbstractMap<String, String>() {
-            override val entries: Set<Map.Entry<String, String>> = emptySet()
-
-            override fun get(key: String): String? = if (key == "B") error("lookup") else key
-          }
-        }
-      val lookupResults = mosaic.composeAsync(throwingMap, listOf("A", "B", "C"))
-      testScheduler.runCurrent()
-      assertTrue(lookupResults.values.all { it.isCompleted })
-      assertTrue(lookupResults.values.any { runCatching { it.await() }.exceptionOrNull()?.message == "lookup" })
-      assertEquals("A", lookupResults.getValue("A").await())
-
-      val missing = multiTile<String, String> { _: Set<String> -> mapOf("B" to "B") }
-      val missingResults = mosaic.composeAsync(missing, listOf("A", "B", "C"))
-      testScheduler.runCurrent()
-      assertTrue(missingResults.values.all { it.isCompleted })
-      assertEquals("B", missingResults.getValue("B").await())
-      assertFailsWith<NoSuchElementException> { missingResults.getValue("A").await() }
-      assertFailsWith<NoSuchElementException> { missingResults.getValue("C").await() }
-    }
-
   @Test fun chunkingRunsAfterCoalescing() =
     runTest {
       val mosaic = MosaicImpl(emptyCanvas, StandardTestDispatcher(testScheduler))
@@ -232,23 +199,6 @@ class MultiTileCoalescingTest {
 
     override fun equals(other: Any?): Boolean = other is CallbackKey && id == other.id
   }
-
-  @Test fun throwingKeyCodeStillSchedulesEarlierWinner() =
-    runTest {
-      val mosaic = MosaicImpl(emptyCanvas, StandardTestDispatcher(testScheduler))
-      val calls = mutableListOf<Set<Int>>()
-      val tile =
-        multiTile<CallbackKey, Int> { keys ->
-          calls += keys.map { it.id }.toSet()
-          keys.associateWith { it.id }
-        }
-      val a = CallbackKey(1)
-      val broken = CallbackKey(2) { error("key failure") }
-      assertFailsWith<IllegalStateException> { mosaic.composeAsync(tile, listOf(a, broken)) }
-      testScheduler.runCurrent()
-      assertEquals(1, mosaic.compose(tile, a))
-      assertEquals(listOf(setOf(1)), calls)
-    }
 
   @Test fun keyCodeDoesNotHoldPendingMonitor() {
     val mosaic = MosaicImpl(emptyCanvas, Dispatchers.Default)

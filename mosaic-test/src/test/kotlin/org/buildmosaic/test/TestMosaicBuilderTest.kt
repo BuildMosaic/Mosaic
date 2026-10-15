@@ -16,7 +16,7 @@
 
 package org.buildmosaic.test
 
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.buildmosaic.core.injection.CanvasKey
 import org.buildmosaic.core.multiTile
@@ -24,315 +24,89 @@ import org.buildmosaic.core.singleTile
 import org.buildmosaic.core.source
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNull
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.measureTime
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @Suppress("LargeClass", "FunctionMaxLength")
 class TestMosaicBuilderTest {
   // Test tiles for single tile operations
   private val testSingleTile = singleTile { "original" }
-  private val testIntTile = singleTile { 42 }
-  private val testBooleanTile = singleTile { true }
 
   // Test tiles for multi tile operations
   private val testMultiTile = multiTile<String, String> { keys -> keys.associateWith { "original-$it" } }
-  private val testIntMultiTile = multiTile<Int, String> { keys -> keys.associateWith { "value-$it" } }
 
   @Test
-  fun `builds a test mosaic`() =
+  fun `failed SingleTile mocks preserve the supplied exception type and message`() =
     runTest {
-      assertIs<TestMosaic>(mosaicBuilder().build())
-    }
-
-  @Test
-  fun `registers successful mock single tiles`() =
-    runTest {
-      val singleTileData = "mocked-data"
-      val intTileData = 123
-      val booleanTileData = false
-
-      val testMosaic =
-        mosaicBuilder()
-          .withMockTile(testSingleTile, singleTileData)
-          .withMockTile(testIntTile, intTileData)
-          .withMockTile(testBooleanTile, booleanTileData)
-          .build()
-
-      testMosaic.assertEquals(testSingleTile, singleTileData)
-      testMosaic.assertEquals(testIntTile, intTileData)
-      testMosaic.assertEquals(testBooleanTile, booleanTileData)
-    }
-
-  @Test
-  fun `registers successful mock multi tiles`() =
-    runTest {
-      val multiTileData = mapOf("a" to "A", "b" to "B")
-      val intMultiTileData = mapOf(1 to "one", 2 to "two")
-
-      val testMosaic =
-        mosaicBuilder()
-          .withMockTile(testMultiTile, multiTileData)
-          .withMockTile(testIntMultiTile, intMultiTileData)
-          .build()
-
-      testMosaic.assertEquals(testMultiTile, multiTileData.keys, multiTileData)
-      testMosaic.assertEquals(testIntMultiTile, intMultiTileData.keys, intMultiTileData)
-    }
-
-  @Test
-  fun `registers failed single tiles`() =
-    runTest {
-      val exception = IllegalStateException("test error")
-      val runtimeException = RuntimeException("runtime error")
-
-      val testMosaic =
-        mosaicBuilder()
-          .withFailedTile(testSingleTile, exception)
-          .withFailedTile(testIntTile, runtimeException)
-          .build()
-
-      testMosaic.assertThrows(testSingleTile, IllegalStateException::class)
-      testMosaic.assertThrows(testIntTile, RuntimeException::class)
-    }
-
-  @Test
-  fun `registers failed multi tiles`() =
-    runTest {
-      val exception = IllegalStateException("multi tile error")
-      val runtimeException = RuntimeException("multi runtime error")
-
-      val testMosaic =
-        mosaicBuilder()
-          .withFailedTile(testMultiTile, exception)
-          .withFailedTile(testIntMultiTile, runtimeException)
-          .build()
-
-      testMosaic.assertThrows(testMultiTile, listOf("a"), IllegalStateException::class)
-      testMosaic.assertThrows(testIntMultiTile, listOf(1), RuntimeException::class)
-    }
-
-  @Test
-  fun `registers delayed single tiles`() =
-    runTest {
-      val singleDelay = 50L
-      val singleData = "delayed-single"
-      val intDelay = 75L
-      val intData = 999
-
-      val testMosaic =
-        mosaicBuilder()
-          .withDelayedTile(testSingleTile, singleData, singleDelay)
-          .withDelayedTile(testIntTile, intData, intDelay)
-          .build()
-
-      var singleResult: String? = null
-      var intResult: Int? = null
-
-      launch {
-        val workDuration =
-          testScheduler.timeSource.measureTime {
-            singleResult = testMosaic.compose(testSingleTile)
-            intResult = testMosaic.compose(testIntTile)
-          }
-        assertEquals((singleDelay + intDelay).milliseconds, workDuration)
+      val failure = IllegalStateException("mock failure")
+      mosaicBuilder().withFailedTile(testSingleTile, failure).withMosaic {
+        assertEquals(
+          failure.message,
+          kotlin.test.assertFailsWith<IllegalStateException> { compose(testSingleTile) }.message,
+        )
       }
-
-      testScheduler.runCurrent()
-      testScheduler.advanceTimeBy(10.milliseconds)
-      assertNull(singleResult)
-      assertNull(intResult)
-
-      testScheduler.advanceTimeBy(singleDelay.milliseconds)
-      assertEquals(singleData, singleResult)
-      assertNull(intResult)
-
-      testScheduler.advanceTimeBy(intDelay.milliseconds)
-      assertEquals(singleData, singleResult)
-      assertEquals(intData, intResult)
-
-      testScheduler.advanceUntilIdle()
     }
 
   @Test
-  fun `registers delayed multi tiles`() =
+  fun `failed MultiTile mocks preserve the supplied exception type and message`() =
     runTest {
-      val multiDelay = 100L
-      val multiData = mapOf("x" to "X", "y" to "Y")
-      val intMultiDelay = 150L
-      val intMultiData = mapOf(10 to "ten", 20 to "twenty")
-
-      val testMosaic =
-        mosaicBuilder()
-          .withDelayedTile(testMultiTile, multiData, multiDelay)
-          .withDelayedTile(testIntMultiTile, intMultiData, intMultiDelay)
-          .build()
-
-      var multiResult: Map<String, String>? = null
-      var intMultiResult: Map<Int, String>? = null
-
-      launch {
-        val workDuration =
-          testScheduler.timeSource.measureTime {
-            multiResult = testMosaic.compose(testMultiTile, multiData.keys)
-            intMultiResult = testMosaic.compose(testIntMultiTile, intMultiData.keys)
-          }
-        assertEquals((multiDelay + intMultiDelay).milliseconds, workDuration)
+      val failure = IllegalStateException("mock failure")
+      mosaicBuilder().withFailedTile(testMultiTile, failure).withMosaic {
+        assertEquals(
+          failure.message,
+          kotlin.test.assertFailsWith<IllegalStateException> { compose(testMultiTile, "a") }.message,
+        )
       }
-
-      testScheduler.runCurrent()
-      testScheduler.advanceTimeBy(10.milliseconds)
-      assertNull(multiResult)
-      assertNull(intMultiResult)
-
-      testScheduler.advanceTimeBy(multiDelay.milliseconds)
-      assertEquals(multiData, multiResult)
-      assertNull(intMultiResult)
-
-      testScheduler.advanceTimeBy(intMultiDelay.milliseconds)
-      assertEquals(multiData, multiResult)
-      assertEquals(intMultiData, intMultiResult)
-
-      testScheduler.advanceUntilIdle()
     }
 
   @Test
-  fun `registers custom single tiles`() =
+  fun `delayed SingleTile mocks complete at the requested virtual time`() =
     runTest {
-      val testMosaic =
-        mosaicBuilder()
-          .withCustomTile(testSingleTile) { "custom-single" }
-          .withCustomTile(testIntTile) { 777 }
-          .build()
-
-      testMosaic.assertEquals(testSingleTile, "custom-single")
-      testMosaic.assertEquals(testIntTile, 777)
+      mosaicBuilder().withDelayedTile(testSingleTile, "delayed", 50L).withMosaic {
+        val result = composeAsync(testSingleTile)
+        testScheduler.runCurrent()
+        testScheduler.advanceTimeBy(49)
+        kotlin.test.assertFalse(result.isCompleted)
+        testScheduler.advanceTimeBy(1)
+        testScheduler.runCurrent()
+        assertEquals("delayed", result.await())
+      }
     }
 
   @Test
-  fun `registers custom multi tiles`() =
+  fun `delayed MultiTile mocks complete at the requested virtual time`() =
     runTest {
-      val inputStringKeys = setOf("a", "b")
-      val inputIntKeys = setOf(1, 2)
-
-      val testMosaic =
-        mosaicBuilder()
-          .withCustomTile(testMultiTile) { keys ->
-            keys.associateWith { it.uppercase() + "-custom" }
-          }
-          .withCustomTile(testIntMultiTile) { keys ->
-            keys.associateWith { "custom-${it * 10}" }
-          }
-          .build()
-
-      val expectedStringResult = inputStringKeys.associateWith { it.uppercase() + "-custom" }
-      val expectedIntResult = inputIntKeys.associateWith { "custom-${it * 10}" }
-
-      testMosaic.assertEquals(testMultiTile, inputStringKeys, expectedStringResult)
-      testMosaic.assertEquals(testIntMultiTile, inputIntKeys, expectedIntResult)
+      val values = mapOf("x" to "X", "y" to "Y")
+      mosaicBuilder().withDelayedTile(testMultiTile, values, 100L).withMosaic {
+        val results = composeAsync(testMultiTile, values.keys)
+        testScheduler.runCurrent()
+        testScheduler.advanceTimeBy(99)
+        kotlin.test.assertTrue(results.values.none { it.isCompleted })
+        testScheduler.advanceTimeBy(1)
+        testScheduler.runCurrent()
+        assertEquals(values, results.mapValues { it.value.await() })
+      }
     }
 
   @Test
-  fun `supports dependency injection with KClass`() =
+  fun `custom MultiTile mocks receive the requested keys`() =
     runTest {
-      data class TestService(val name: String)
-      val testService = TestService("test-service")
-
-      val testMosaic =
-        mosaicBuilder()
-          .withCanvasSource(TestService::class, testService)
-          .build()
-
-      testMosaic.assertEquals(singleTile { source<TestService>() }, testService)
+      mosaicBuilder().withCustomTile(testMultiTile) { keys ->
+        keys.associateWith { it.uppercase() }
+      }.withMosaic {
+        assertEquals(testMultiTile, setOf("a", "b"), mapOf("a" to "A", "b" to "B"))
+      }
     }
 
   @Test
-  fun `supports dependency injection with reified type`() =
+  fun `empty MultiTile mocks never fall back to the real provider`() =
     runTest {
-      data class AnotherService(val value: Int)
-      val anotherService = AnotherService(42)
-
-      val testMosaic =
-        mosaicBuilder()
-          .withCanvasSource(anotherService)
-          .build()
-
-      testMosaic.assertEquals(singleTile { source<AnotherService>() }, anotherService)
+      mosaicBuilder().withMockTile(testMultiTile, emptyMap()).withMosaic {
+        assertThrows(testMultiTile, listOf("a"), NoSuchElementException::class)
+      }
     }
 
   @Test
-  fun `supports qualified and keyed source overloads`() =
-    runTest {
-      val key = CanvasKey(String::class, "keyed")
-      val testMosaic =
-        mosaicBuilder()
-          .withCanvasSource(String::class, "explicit", "first")
-          .withCanvasSource("reified", "second")
-          .withCanvasSource(key, "third")
-          .build()
-
-      testMosaic.assertEquals(singleTile { source<String>("explicit") }, "first")
-      testMosaic.assertEquals(singleTile { source<String>("reified") }, "second")
-      testMosaic.assertEquals(singleTile { source(key) }, "third")
-    }
-
-  @Test
-  fun `mosaicBuilder() methods return mosaicBuilder() for chaining`() =
-    runTest {
-      val result =
-        mosaicBuilder()
-          .withMockTile(testSingleTile, "test")
-          .withMockTile(testMultiTile, mapOf("a" to "A"))
-          .withFailedTile(testIntTile, RuntimeException("error"))
-          .withDelayedTile(testBooleanTile, true, 100L)
-          .withCanvasSource(String::class, "injected")
-
-      assertIs<TestMosaicBuilder>(result)
-      assertIs<TestMosaic>(result.build())
-    }
-
-  @Test
-  fun `handles null values in mock tiles`() =
-    runTest {
-      val nullableTile = singleTile<String?> { null }
-      val testMosaic =
-        mosaicBuilder()
-          .withMockTile(nullableTile, null)
-          .build()
-
-      testMosaic.assertEquals(nullableTile, null)
-    }
-
-  @Test
-  fun `handles empty maps in multi tiles`() =
-    runTest {
-      val emptyMap = emptyMap<String, String>()
-      val testMosaic =
-        mosaicBuilder()
-          .withMockTile(testMultiTile, emptyMap)
-          .build()
-
-      testMosaic.assertEquals(testMultiTile, emptySet(), emptyMap)
-    }
-
-  @Test
-  fun `supports complex data types`() =
-    runTest {
-      data class ComplexData(val id: Int, val name: String, val tags: List<String>)
-      val complexTile = singleTile { ComplexData(1, "test", listOf("tag1", "tag2")) }
-      val complexData = ComplexData(99, "mocked", listOf("mock", "test"))
-
-      val testMosaic =
-        mosaicBuilder()
-          .withMockTile(complexTile, complexData)
-          .build()
-
-      testMosaic.assertEquals(complexTile, complexData)
-    }
-
-  @Test
-  fun `supports nested tile composition in custom tiles`() =
+  fun `custom SingleTile mocks compose substituted dependencies`() =
     runTest {
       val baseTile = singleTile { "base" }
       val composedTile =
@@ -341,29 +115,76 @@ class TestMosaicBuilderTest {
           "composed-$base"
         }
 
-      val testMosaic =
-        mosaicBuilder()
-          .withMockTile(baseTile, "mocked-base")
-          .withCustomTile(composedTile) {
-            val base = compose(baseTile)
-            "custom-composed-$base"
-          }
-          .build()
-
-      testMosaic.assertEquals(composedTile, "custom-composed-mocked-base")
+      mosaicBuilder()
+        .withMockTile(baseTile, "mocked-base")
+        .withCustomTile(composedTile) {
+          val base = compose(baseTile)
+          "custom-composed-$base"
+        }
+        .withMosaic {
+          assertEquals(composedTile, "custom-composed-mocked-base")
+        }
     }
 
-  @Test
-  fun `handles multiple registrations of same tile type`() =
+  @Test fun `execution snapshots all configuration and later reuse sees mutations`() =
     runTest {
-      // Last registration should win
-      val testMosaic =
+      val single = singleTile { "real single" }
+      val multi = multiTile<Int, String> { keys -> keys.associateWith { "real multi" } }
+      val nested = singleTile { "real nested" }
+      val customMulti = multiTile<Int, String> { error("substitute") }
+      val realMulti = multiTile<Int, String> { keys -> keys.associateWith { compose(nested) } }
+      val subject = singleTile { compose(realMulti, 1) + compose(customMulti, 1) + source<String>() }
+      val builder =
         mosaicBuilder()
-          .withMockTile(testSingleTile, "first")
-          .withMockTile(testSingleTile, "second")
-          .withMockTile(testSingleTile, "third")
-          .build()
+          .withMockTile(single, "old single")
+          .withMockTile(multi, mapOf(1 to "old multi"))
+          .withCanvasSource("old source")
+          .withCustomTile(nested) { compose(single) }
+          .withCustomTile(customMulti) { keys -> keys.associateWith { compose(multi, it) } }
+      builder.withMosaic {
+        builder.withMockTile(single, "new single")
+          .withMockTile(multi, mapOf(1 to "new multi"))
+          .withCanvasSource("new source")
+        // No cache has been populated: nested real and custom providers must use the snapshot.
+        assertEquals(subject, "old singleold multiold source")
+      }
+      builder.withMosaic { assertEquals(subject, "new singlenew multinew source") }
+    }
 
-      testMosaic.assertEquals(testSingleTile, "third")
+  private class BorrowedSource : AutoCloseable {
+    var closes = 0
+
+    override fun close() {
+      closes++
+    }
+  }
+
+  @Test fun `Canvas sources stay caller owned across all overloads and failed executions`() =
+    runTest {
+      val resource = BorrowedSource()
+      val key = CanvasKey(AutoCloseable::class, "key")
+      val builder =
+        mosaicBuilder()
+          .withCanvasSource(resource)
+          .withCanvasSource(AutoCloseable::class, resource)
+          .withCanvasSource("inferred", resource)
+          .withCanvasSource(AutoCloseable::class, "explicit", resource)
+          .withCanvasSource(key, resource)
+      kotlin.test.assertFailsWith<IllegalStateException> {
+        builder.withMosaic {
+          kotlin.test.assertSame(resource, source<BorrowedSource>())
+          kotlin.test.assertSame(resource, source<AutoCloseable>())
+          kotlin.test.assertSame(resource, source<BorrowedSource>("inferred"))
+          kotlin.test.assertSame(resource, source<AutoCloseable>("explicit"))
+          kotlin.test.assertSame(resource, source(key))
+          assertEquals(0, resource.closes)
+          error("test failure")
+        }
+      }
+      assertEquals(0, resource.closes)
+      builder.withMosaic { kotlin.test.assertSame(resource, source(key)) }
+      assertEquals(0, resource.closes)
+      resource.close()
+      assertEquals(1, resource.closes)
     }
 }

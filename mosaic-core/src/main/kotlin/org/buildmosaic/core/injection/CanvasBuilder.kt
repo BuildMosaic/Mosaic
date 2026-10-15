@@ -44,35 +44,35 @@ class CanvasBuilder internal constructor(inheritedConfig: MosaicRuntimeConfig = 
   private enum class ObserverState { ABSENT, INSTALLING, CONFIGURED }
 
   /**
-   * Registers a Canvas-owned singleton dependency. Constructed [AutoCloseable] values
+   * Registers a dependency for eager Canvas-owned construction. Constructed [AutoCloseable] values
    * are closed on Canvas close or construction rollback. Use [instance] to borrow a value.
    *
    * @param T The type of the dependency
    * @param key The [CanvasKey] associated with your dependency
    * @param ctor Constructor function that creates the dependency instance
    */
-  fun <T : Any> single(
+  fun <T : Any> provide(
     key: CanvasKey<T>,
     ctor: suspend CanvasFactory.() -> T,
   ) = check(bindings.putIfAbsent(key, SingleBinding(ctor)) == null) { "Duplicate binding for $key" }
 
   /**
-   * Registers a Canvas-owned singleton dependency. Constructed [AutoCloseable] values
+   * Registers a dependency for eager Canvas-owned construction. Constructed [AutoCloseable] values
    * are closed on Canvas close or construction rollback. Use [instance] to borrow a value.
    *
    * @param T The type of the dependency
    * @param qualifier Optional qualifier to distinguish between multiple instances of the same type
    * @param ctor Constructor function that creates the dependency instance
    */
-  inline fun <reified T : Any> single(
+  inline fun <reified T : Any> provide(
     qualifier: String? = null,
     noinline ctor: suspend CanvasFactory.() -> T,
-  ) = single(CanvasKey(T::class, qualifier), ctor)
+  ) = provide(CanvasKey(T::class, qualifier), ctor)
 
   /**
    * Registers an externally owned value. Canvas never closes this value, including on
    * construction rollback. The external owner remains responsible for its lifetime.
-   * Available eagerly to constructors through [CanvasFactory.paint], with normal local-first lookup.
+   * Available eagerly to constructors through [CanvasFactory.source], with normal local-first lookup.
    *
    * @param key The typed key under which the existing value is registered
    * @param value The already-existing value to borrow without transferring ownership
@@ -85,7 +85,7 @@ class CanvasBuilder internal constructor(inheritedConfig: MosaicRuntimeConfig = 
   /**
    * Registers an externally owned [value] under type [T], without a qualifier.
    * Canvas never closes it, including on construction rollback. Use an explicit type
-   * argument to bind under an interface or superclass. Use [single] to construct an owned value.
+   * argument to bind under an interface or superclass. Use [provide] to construct an owned value.
    *
    * @param value The already-existing value to borrow without transferring ownership
    */
@@ -95,7 +95,7 @@ class CanvasBuilder internal constructor(inheritedConfig: MosaicRuntimeConfig = 
    * Registers an externally owned [value] under type [T] and [qualifier].
    * Canvas never closes it, including on construction rollback. A `null` qualifier means
    * the unqualified binding. Use an explicit type argument to bind an interface or superclass.
-   * This mirrors `single<T>(qualifier) { ... }` while leaving ownership with the external owner.
+   * This mirrors `provide<T>(qualifier) { ... }` while leaving ownership with the external owner.
    *
    * @param qualifier Qualifier distinguishing bindings of the same type, or `null`
    * @param value The already-existing value to borrow without transferring ownership
@@ -128,7 +128,17 @@ class CanvasFactory internal constructor(
     ConstructingBinding(binding, constructionKey)
 
   internal fun created(instance: Any) {
-    if (instance is AutoCloseable) synchronized(closeables) { closeables.add(instance) }
+    if (instance !is AutoCloseable) return
+    synchronized(closeables) {
+      // Borrowed bindings are initialized before construction, regardless of registration order.
+      if (closeables.any { it === instance } ||
+        bindings.values.any { it.instanceOrNull() === instance } ||
+        parent?.containsInstance(instance) == true
+      ) {
+        return
+      }
+      closeables.add(instance)
+    }
   }
 
   private fun createdResources(): List<AutoCloseable> = synchronized(closeables) { closeables.toList() }
@@ -186,7 +196,7 @@ class CanvasFactory internal constructor(
   }
 
   /**
-   * Creates a dependency instance during the canvas building phase.
+   * Resolves a required dependency during eager Canvas construction.
    * Local bindings are resolved first. If this canvas does not contain [key], lookup falls
    * back through the parent canvas. Construction is eager, so parent-owned instances are
    * reused and child overrides do not rewire services already created by the parent.
@@ -195,21 +205,21 @@ class CanvasFactory internal constructor(
    * @param key The canvas key identifying the dependency
    * @return The created dependency instance
    */
-  suspend fun <T : Any> paint(key: CanvasKey<T>): T {
+  suspend fun <T : Any> source(key: CanvasKey<T>): T {
     @Suppress("UNCHECKED_CAST")
     val local = bindings[key] as SingleBinding<T>?
     if (local != null) return create(local)
-    return parent?.sourceOr(key) ?: missingKeyError(key)
+    return parent?.sourceOrNull(key) ?: missingKeyError(key)
   }
 
   /**
-   * Creates a dependency instance using reified type parameters.
+   * Resolves a required dependency during construction using reified type parameters.
    *
    * @param T The type of the dependency
    * @param qualifier Optional qualifier to distinguish between multiple instances
    * @return The created dependency instance
    */
-  suspend inline fun <reified T : Any> paint(qualifier: String? = null): T = paint(CanvasKey(T::class, qualifier))
+  suspend inline fun <reified T : Any> source(qualifier: String? = null): T = source(CanvasKey(T::class, qualifier))
 }
 
 /** Child coroutines inherit the current constructor for each factory, including across nested Canvas builds. */
@@ -230,8 +240,8 @@ private class ConstructingBinding(
  *
  * ```kotlin
  * val canvas = canvas {
- *   single<UserService> { UserServiceImpl() }
- *   single<DatabaseConfig> { loadConfig() }
+ *   provide<UserService> { UserServiceImpl() }
+ *   provide<DatabaseConfig> { loadConfig() }
  * }
  * ```
  */

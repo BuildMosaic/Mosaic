@@ -72,7 +72,7 @@ class ApplicationTest {
       )
 
     assertEquals(HttpStatus.OK, response.status)
-    val totalResponse = response.body() as Map<String, Any>
+    val totalResponse = requireNotNull(response.body())
     assertEquals(55.97, totalResponse["total"] as Double, 0.001)
   }
 

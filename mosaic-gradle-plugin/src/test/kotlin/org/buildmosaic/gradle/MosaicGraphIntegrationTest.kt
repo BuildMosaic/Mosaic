@@ -24,7 +24,7 @@ class MosaicGraphIntegrationTest {
         import org.buildmosaic.core.injection.*
         val MissingTile = singleTile { source<String>() }
         val IdleTile = singleTile { "idle" }
-        suspend fun entry(): String = canvas { }.create().compose(MissingTile)
+        suspend fun entry(): String = canvas { }.withMosaic { compose(MissingTile) }
         """.trimIndent(),
       )
     }

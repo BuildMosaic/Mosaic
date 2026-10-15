@@ -3,7 +3,7 @@ package org.buildmosaic.performance
 import kotlinx.coroutines.runBlocking
 import org.buildmosaic.core.injection.CanvasKey
 import org.buildmosaic.core.injection.canvas
-import org.buildmosaic.core.injection.create
+import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.core.multiTile
 import org.buildmosaic.core.singleTile
 import org.buildmosaic.core.source
@@ -90,30 +90,30 @@ private object MosaicGraph {
 
 class MosaicExecutor(services: SimulatedServices) : ScenarioExecutor {
   private val applicationCanvas = runBlocking {
-    canvas { single<SimulatedServices> { services } }
+    canvas { instance(services) }
   }
   // Force graph initialization during application setup, before the first request.
   private val graph = MosaicGraph
 
   override suspend fun light(input: LightInput): LightResponse =
-    applicationCanvas.withLayer { single(CustomerIdKey) { input.customerId } }
-      .create().compose(graph.light)
+    applicationCanvas.withLayer { instance(CustomerIdKey, input.customerId) }
+      .withMosaic { compose(graph.light) }
 
   override suspend fun aggregate(input: AggregateInput): AggregateResponse =
-    applicationCanvas.withLayer { single(CustomerIdKey) { input.customerId } }
-      .create().compose(graph.aggregate)
+    applicationCanvas.withLayer { instance(CustomerIdKey, input.customerId) }
+      .withMosaic { compose(graph.aggregate) }
 
   override suspend fun batching(input: BatchingInput): BatchingResponse =
-    applicationCanvas.withLayer { single(CatalogIdKey) { input.catalogId } }
-      .create().compose(graph.batching)
+    applicationCanvas.withLayer { instance(CatalogIdKey, input.catalogId) }
+      .withMosaic { compose(graph.batching) }
 
   override suspend fun coalescing(input: BatchingInput): BatchingResponse =
-    applicationCanvas.withLayer { single(CatalogIdKey) { input.catalogId } }
-      .create().compose(graph.coalescing)
+    applicationCanvas.withLayer { instance(CatalogIdKey, input.catalogId) }
+      .withMosaic { compose(graph.coalescing) }
 
   override suspend fun compute(input: ComputeInput): ComputeResponse =
-    applicationCanvas.withLayer { single(ComputeSeedKey) { input.seed } }
-      .create().compose(graph.compute)
+    applicationCanvas.withLayer { instance(ComputeSeedKey, input.seed) }
+      .withMosaic { compose(graph.compute) }
 }
 
 fun main() {

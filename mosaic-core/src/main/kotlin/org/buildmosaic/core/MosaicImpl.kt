@@ -1,11 +1,9 @@
 package org.buildmosaic.core
 
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
@@ -28,19 +26,13 @@ import kotlin.coroutines.CoroutineContext
  * Request-scoped Tile execution, caching, and batching, with optional execution observation.
  *
  * @param canvas Dependency bindings and immutable runtime configuration.
- * Prefer [org.buildmosaic.core.injection.withMosaic] for request-owned execution.
- * The public dispatcher constructor retains unscoped execution for compatibility.
+ * Owned by [org.buildmosaic.core.injection.withMosaic].
  */
 @Suppress("LargeClass", "TooManyFunctions") // Keep request ownership and protected startup settlement together.
-open class MosaicImpl internal constructor(
+internal open class MosaicImpl(
   override val canvas: Canvas,
   context: CoroutineContext,
 ) : Mosaic, CoroutineScope {
-  constructor(
-    canvas: Canvas,
-    dispatcher: CoroutineDispatcher = Dispatchers.Default,
-  ) : this(canvas, dispatcher as CoroutineContext)
-
   private val job = SupervisorJob(context[Job])
   override val coroutineContext: CoroutineContext = context + job
 

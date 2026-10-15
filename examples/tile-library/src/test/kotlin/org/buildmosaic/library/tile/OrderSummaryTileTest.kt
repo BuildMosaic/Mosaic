@@ -7,7 +7,7 @@ import org.buildmosaic.library.model.Order
 import org.buildmosaic.library.model.OrderSummary
 import org.buildmosaic.library.model.Price
 import org.buildmosaic.library.model.Product
-import org.buildmosaic.test.TestMosaicBuilder
+import org.buildmosaic.test.mosaicBuilder
 import kotlin.test.Test
 
 class OrderSummaryTileTest {
@@ -19,22 +19,23 @@ class OrderSummaryTileTest {
       val lineItems =
         listOf(LineItemDetail(Product("product-1", "Coffee Mug"), Price("sku-1", 12.99), 2))
       val expected = OrderSummary(order, customer, lineItems)
-      val testMosaic =
-        TestMosaicBuilder(this)
-          .withMockTile(OrderTile, order)
-          .withMockTile(CustomerTile, customer)
-          .withMockTile(LineItemsTile, lineItems)
-          .build()
-      testMosaic.assertEquals(OrderSummaryTile, expected)
+
+      mosaicBuilder()
+        .withMockTile(OrderTile, order)
+        .withMockTile(CustomerTile, customer)
+        .withMockTile(LineItemsTile, lineItems)
+        .withMosaic {
+          assertEquals(OrderSummaryTile, expected)
+        }
     }
 
   @Test
   fun `order summary tile fails when order tile fails`() =
     runTest {
-      val testMosaic =
-        TestMosaicBuilder(this)
-          .withFailedTile(OrderTile, RuntimeException("boom"))
-          .build()
-      testMosaic.assertThrows(OrderSummaryTile, RuntimeException::class)
+      mosaicBuilder()
+        .withFailedTile(OrderTile, RuntimeException("boom"))
+        .withMosaic {
+          assertThrows(OrderSummaryTile, RuntimeException::class)
+        }
     }
 }

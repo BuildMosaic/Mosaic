@@ -97,13 +97,16 @@ import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 internal class SourceContractExtractor(
   private val moduleId: String,
   private val sourceRoot: String?,
+  private val coreAnalysisRevision: Int,
 ) {
+  private lateinit var locations: SourceLocations
   private val limitations = mutableListOf<String>()
   private val freshTemplates = linkedMapOf<String, TileContract>()
   private val localTileDelegates =
     mutableMapOf<org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol, org.jetbrains.kotlin.ir.symbols.IrValueSymbol>()
 
   fun extract(file: IrFile): SourceShard {
+    locations = SourceLocations(file)
     val canvases = mutableListOf<CanvasContract>()
     val tiles = mutableListOf<TileContract>()
     val callables = mutableListOf<CallableContract>()
@@ -115,7 +118,7 @@ internal class SourceContractExtractor(
       declaration: IrDeclaration,
       inherited: List<MosaicSuppression>,
     ) {
-      val suppressions = inherited + mosaicSuppressions(declaration.annotations, file, declaration)
+      val suppressions = inherited + mosaicSuppressions(declaration.annotations, declaration)
 
       when (declaration) {
         is IrClass -> {
@@ -158,7 +161,7 @@ internal class SourceContractExtractor(
         is IrProperty -> {
           val initializer = declaration.backingField?.initializer?.expression
           stableKeyProperty(declaration)?.let { key ->
-            keys += KeyContract(propertyId(declaration), key, location(file, declaration, propertyId(declaration)))
+            keys += KeyContract(propertyId(declaration), key, location(declaration, propertyId(declaration)))
           }
           val stableTile = tilePropertyEligibility(declaration) == TilePropertyEligibility.LOCAL_STABLE
           if (stableTile) {
@@ -173,11 +176,11 @@ internal class SourceContractExtractor(
             if (body != null) {
               normalizer.body(body)
             } else {
-              normalizer.effects += Effect.Unknown("${propertyId(declaration)}:body", "Tile block is unavailable", location(file, declaration, propertyId(declaration)))
+              normalizer.effects += Effect.Unknown("${propertyId(declaration)}:body", "Tile block is unavailable", location(declaration, propertyId(declaration)))
             }
             tiles +=
               TileContract(
-                propertyId(declaration), normalizer.effects, location(file, declaration, propertyId(declaration)),
+                propertyId(declaration), normalizer.effects, location(declaration, propertyId(declaration)),
                 suppressions = suppressions,
                 multi =
                   call.symbol.owner.name.asString() !in setOf("singleTile", "<init>") ||
@@ -189,7 +192,7 @@ internal class SourceContractExtractor(
           }
           listOfNotNull(declaration.getter, declaration.setter).forEach { accessor ->
             val id = symbolId(accessor)
-            val site = location(file, accessor, id)
+            val site = location(accessor, id)
             val normalizer = Normalizer(file, id, collectFreshTemplates = !stableTile, suppressionScope = suppressions)
             val value =
               when {
@@ -224,10 +227,11 @@ internal class SourceContractExtractor(
         }
         is IrConstructor -> {
           val id = symbolId(declaration)
-          val site = location(file, declaration, id)
+          val site = location(declaration, id)
           val normalizer = Normalizer(file, id, suppressionScope = suppressions)
           // Delegation is an invocation too. Class initialization is deliberately a conservative boundary.
           (declaration.body as? IrBlockBody)?.statements?.filterIsInstance<IrDelegatingConstructorCall>()?.forEach {
+            locations.primaryDelegation(declaration, it)
             normalizer.evaluate(it)
           }
           val clazz = declaration.parent as? IrClass
@@ -250,7 +254,7 @@ internal class SourceContractExtractor(
           if (declaration.isFakeOverride || declaration.correspondingPropertySymbol != null) return
           val id = symbolId(declaration)
           locators[id] = binaryLocator(declaration, file)
-          val site = location(file, declaration, id)
+          val site = location(declaration, id)
           val normalizer = Normalizer(file, id, suppressionScope = suppressions)
           if (declaration.body == null) normalizer.effects += Effect.Unknown("$id:body", "Callable body is unavailable", site)
           val value = normalizer.body(declaration.body)
@@ -262,7 +266,7 @@ internal class SourceContractExtractor(
         }
       }
     }
-    val fileSuppressions = mosaicSuppressions(file.annotations, file, file)
+    val fileSuppressions = mosaicSuppressions(file.annotations, file)
     file.declarations.forEach { visit(it, fileSuppressions) }
     tiles += freshTemplates.values
     val sourceId = SourceShardStorage.sourceIdentity(file, sourceRoot)
@@ -272,13 +276,18 @@ internal class SourceContractExtractor(
         ModuleContract(moduleId, canvases, tiles, callables, overrides, keys),
         limitations.toList(),
         locators,
+        coreAnalysisRevision,
       )
     return shard
   }
 
+  private fun location(
+    element: IrElement,
+    owner: String,
+  ) = locations.location(element, owner)
+
   private fun mosaicSuppressions(
     annotations: List<IrConstructorCall>,
-    file: IrFile,
     declaration: IrElement,
   ): List<MosaicSuppression> =
     annotations.filter {
@@ -287,7 +296,7 @@ internal class SourceContractExtractor(
       annotation.arguments.filterIsInstance<IrVararg>().flatMap { it.elements }.filterIsInstance<IrConst>().mapNotNull {
         val id = it.value as? String
         if (MosaicRule.entries.any { rule -> rule.id == id && rule.suppressible }) {
-          MosaicSuppression(id!!, location(file, declaration, "suppression:$id"))
+          MosaicSuppression(id!!, location(declaration, "suppression:$id"))
         } else {
           null
         }
@@ -321,7 +330,7 @@ internal class SourceContractExtractor(
   ) {
     val effects = mutableListOf<Effect>()
 
-    private fun site(element: IrElement) = location(file, element, owner)
+    private fun site(element: IrElement) = location(element, owner)
 
     private fun valueId(element: IrElement) = "$owner:value:${identity(element)}"
 
@@ -388,7 +397,7 @@ internal class SourceContractExtractor(
           is IrReturn -> evaluate(element.value)
           is IrVariable -> {
             val previousScope = suppressionScope
-            suppressionScope = previousScope + mosaicSuppressions(element.annotations, file, element)
+            suppressionScope = previousScope + mosaicSuppressions(element.annotations, element)
             val value = element.initializer?.let(::evaluate) ?: Value()
             suppressionScope = previousScope
             if (!element.isVar) {
@@ -400,7 +409,7 @@ internal class SourceContractExtractor(
           }
           is IrLocalDelegatedProperty -> {
             val previousScope = suppressionScope
-            suppressionScope = previousScope + mosaicSuppressions(element.annotations, file, element)
+            suppressionScope = previousScope + mosaicSuppressions(element.annotations, element)
             val delegate = localTileDelegate(element)
             if (delegate != null) {
               evaluate(delegate)
@@ -508,7 +517,7 @@ internal class SourceContractExtractor(
       evaluatedChildren(expression).forEach(::evaluate)
       val property = expression.symbol.owner.correspondingPropertySymbol?.owner
       if (property != null && isKeyType(expression.type)) {
-        propertyKey(property, file, expression)?.let { return it }
+        propertyKey(property, expression)?.let { return it }
       }
       if (property?.isDelegated == true) unknown(expression, "Unsupported delegated property initialization")
       val initializer = expression.symbol.owner.initializer?.expression
@@ -550,7 +559,7 @@ internal class SourceContractExtractor(
       val intrinsic =
         call is IrCall && isIntrinsic(target) || isTileFactory(call) || isTileDelegate(call) ||
           target == "org.buildmosaic.core.injection.CanvasKey.<init>"
-      if (!intrinsic) effects += usedDefaultEffects(call, file, owner)
+      if (!intrinsic) effects += usedDefaultEffects(call, owner)
       val receiver =
         actuals.entries.firstOrNull { it.key.kind == IrParameterKind.ExtensionReceiver }
           ?.value ?: actuals.entries.firstOrNull { it.key.kind == IrParameterKind.DispatchReceiver }?.value ?: Value()
@@ -573,18 +582,17 @@ internal class SourceContractExtractor(
               } else {
                 receiver.mosaic ?: CanvasExpression.Unknown("Unresolved Mosaic receiver transfer", site(call))
               }
-            effects += Effect.Lookup(valueId(call), lookup, key(call, actuals, file, owner), if (target.endsWith("sourceOr")) LookupKind.OPTIONAL else LookupKind.REQUIRED, site(call))
+            effects += Effect.Lookup(valueId(call), lookup, key(call, actuals, owner), if (target.endsWith("sourceOrNull")) LookupKind.OPTIONAL else LookupKind.REQUIRED, site(call))
             return Value(callable = isCallableType(call.type))
           }
-          target == "org.buildmosaic.core.injection.CanvasFactory.paint" && call is IrCall -> {
-            effects += Effect.Lookup(valueId(call), receiver.canvas ?: CanvasExpression.Unknown("CanvasFactory receiver transfer is unsupported", site(call)), key(call, actuals, file, owner), LookupKind.PAINT, site(call))
+          target == "org.buildmosaic.core.injection.CanvasFactory.source" && call is IrCall -> {
+            effects += Effect.Lookup(valueId(call), receiver.canvas ?: CanvasExpression.Unknown("CanvasFactory receiver transfer is unsupported", site(call)), key(call, actuals, owner), LookupKind.CONSTRUCTION, site(call))
             return Value(callable = isCallableType(call.type))
           }
           (target == "org.buildmosaic.core.Mosaic.compose" || target == "org.buildmosaic.core.Mosaic.composeAsync") && call is IrCall -> {
             effects += Effect.Compose(valueId(call), receiver.mosaic ?: CanvasExpression.Unknown("Unresolved Mosaic receiver transfer", site(call)), argument("tile").tile ?: TileReference.Unknown("Unsupported Tile value provenance", site(call)), if (target.endsWith("composeAsync")) DiscoveryKind.COMPOSE_ASYNC else DiscoveryKind.COMPOSE, multiTileExecution(call), site(call), receiver.mosaicIdentity)
             return Value(callable = isCallableType(call.type))
           }
-          target == "org.buildmosaic.core.injection.create" -> return establishMosaic(call, receiver)
           target == "org.buildmosaic.core.injection.withMosaic" -> {
             val mosaic = establishMosaic(call, receiver)
             val block = lambdaFunction(call.argument("block"))
@@ -621,7 +629,7 @@ internal class SourceContractExtractor(
       }
       val getter = (function as? IrSimpleFunction)?.correspondingPropertySymbol?.owner
       if (getter != null && isKeyType(call.type)) {
-        propertyKey(getter, file, call)?.let { return it }
+        propertyKey(getter, call)?.let { return it }
       }
       val eligibility = callableEligibility(call) { actuals[it]?.callable == true }
       val boundary = (eligibility as? CallableEligibility.Unsupported)?.reason
@@ -746,7 +754,7 @@ internal class SourceContractExtractor(
       body?.statements?.forEach { statement ->
         if (statement is IrCall && resolvedName(statement) in
           setOf(
-            "org.buildmosaic.core.injection.CanvasBuilder.single",
+            "org.buildmosaic.core.injection.CanvasBuilder.provide",
             "org.buildmosaic.core.injection.CanvasBuilder.instance",
           )
         ) {
@@ -758,8 +766,8 @@ internal class SourceContractExtractor(
           }
           if (resolvedName(statement).endsWith(".instance")) {
             // prepare already evaluated key/qualifier and value in source order.
-            // Normalize by parameter name, just like single; borrowed values have no constructor effects.
-            bindings += Binding(key(statement, prepared, file, owner), site = site(statement))
+            // Normalize by parameter name, just like provide; borrowed values have no constructor effects.
+            bindings += Binding(key(statement, prepared, owner), site = site(statement))
             return@forEach
           }
           val ctor = statement.argument("ctor")
@@ -777,7 +785,7 @@ internal class SourceContractExtractor(
           } else {
             provider.evaluate(ctorBody)
           }
-          bindings += Binding(key(statement, prepared, file, owner), provider.effects, site(statement))
+          bindings += Binding(key(statement, prepared, owner), provider.effects, site(statement))
         } else if (statement is IrVariable) {
           builder.evaluate(statement)
         } else if (!provenHarmless(statement)) {
@@ -864,8 +872,8 @@ internal class SourceContractExtractor(
       setOf(
         "org.buildmosaic.core.Mosaic.<get-canvas>",
         "org.buildmosaic.core.injection.CanvasKey.<init>",
-        "org.buildmosaic.core.injection.CanvasFactory.paint", "org.buildmosaic.core.Mosaic.compose",
-        "org.buildmosaic.core.Mosaic.composeAsync", "org.buildmosaic.core.injection.create",
+        "org.buildmosaic.core.injection.CanvasFactory.source", "org.buildmosaic.core.Mosaic.compose",
+        "org.buildmosaic.core.Mosaic.composeAsync",
         "org.buildmosaic.core.injection.withMosaic",
         "org.buildmosaic.core.injection.canvas", "org.buildmosaic.core.injection.Canvas.withLayer",
         "org.buildmosaic.core.singleTile", "org.buildmosaic.core.multiTile", "org.buildmosaic.core.perKeyTile",
@@ -1054,7 +1062,6 @@ internal class SourceContractExtractor(
 
   private fun usedDefaultEffects(
     call: IrFunctionAccessExpression,
-    file: IrFile,
     owner: String,
   ): List<Effect> =
     call.symbol.owner.parameters.filter {
@@ -1070,7 +1077,7 @@ internal class SourceContractExtractor(
         } else {
           "Capability-bearing default expression is unsupported for ${symbolId(call.symbol.owner)}.${parameter.name}"
         },
-        location(file, call, owner),
+        location(call, owner),
       )
     }
 
@@ -1089,10 +1096,9 @@ internal class SourceContractExtractor(
   private fun key(
     call: IrCall,
     actuals: Map<IrValueParameter, Value>,
-    file: IrFile,
     owner: String,
   ): Fact<CanvasKeyIdentity> {
-    val site = location(file, call, owner)
+    val site = location(call, owner)
 
     fun actual(name: String): Value? = actuals.entries.firstOrNull { it.key.name.asString() == name }?.value
     actual("key")?.let { return it.key ?: Fact.Unknown("Dynamic CanvasKey value", site) }
@@ -1125,10 +1131,9 @@ internal class SourceContractExtractor(
 
   private fun propertyKey(
     property: IrProperty,
-    file: IrFile,
     element: IrElement,
   ): Value? {
-    val site = location(file, element, propertyId(property))
+    val site = location(element, propertyId(property))
     val stable =
       property.parent is IrPackageFragment && !property.isVar && !property.isDelegated &&
         (property.parent !is IrFile || property.getter?.origin == IrDeclarationOrigin.DEFAULT_PROPERTY_ACCESSOR)

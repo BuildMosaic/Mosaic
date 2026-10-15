@@ -1,0 +1,45 @@
+---
+title: 'Compatibility'
+description: 'Runtime, test, tracing, and optional analysis requirements.'
+---
+
+import CompatibilityTables from '../../../components/CompatibilityTables.astro';
+
+Runtime 1.0.0 supports Kotlin/JVM on **Java 17+**, using Kotlin language/API level 2.2. Optional Analysis 1.0.0 requires
+matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions within its
+[supported project boundary](/reference/analysis-configuration/#supported-project-boundary).
+
+## Supported Kotlin versions
+
+Mosaic supports each Kotlin minor family for **18 months after its first stable release**, including stable patches. New
+versions become supported after verification; prereleases are excluded.
+
+The tables list exact verified combinations. Official support requires a listed combination within the 18-month window.
+Unlisted combinations are uncertified. Historical results remain available after official support ends. Kotlin compiler
+certification is separate from Mosaic's own binary compatibility.
+
+<CompatibilityTables />
+
+## Runtime compatibility
+
+Mosaic follows semantic versioning for stable Runtime APIs, covering Kotlin source compatibility, JVM binary
+compatibility, and documented behavior. Minor releases may add compatible capabilities; breaking changes normally belong
+in major releases. Deprecations provide migration guidance with timing appropriate to the change. The Runtime ABI
+validator protects existing JVM signatures.
+
+Keep `mosaic-core`, `mosaic-test`, and `mosaic-opentelemetry` at the same Runtime version; the BOM aligns these modules.
+Analysis releases independently and is outside the BOM. Runtime and Analysis versions need not match when their
+combination is certified compatible.
+
+## Optional analysis
+
+Analysis APIs, configuration, metadata, diagnostics, and reports remain provisional, with migration guidance for
+breaking changes. The plugin selects its compiler integration automatically; use a verified combination above.
+
+Missing dependency metadata and unsupported paths remain `UNVERIFIED`. Present but incompatible metadata fails, and
+unsupported Runtime semantics never silently become `VERIFIED`. Regenerate incompatible summaries with compatible
+tooling. A STANDARD pass with warnings does not prove every lookup safe; STRICT also fails uncertainty.
+
+<p id="scoped-execution-migration">
+  See the <a href="/reference/releases/#scoped-execution-migration">1.0 migration notes</a> when upgrading from 0.7.0.
+</p>

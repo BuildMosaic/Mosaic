@@ -1,0 +1,61 @@
+name: Kotlin compatibility maintenance
+
+on:
+  schedule:
+    - cron: '23 7 * * *'
+  workflow_dispatch:
+    inputs:
+      kotlin:
+        description: Exact stable version to retry (blank discovers uncertified combinations)
+        type: string
+
+concurrency:
+  group: kotlin-compatibility-maintenance
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment: compatibility-writer
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+    steps:
+      - name: Require main
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
+        run: test "$WORKFLOW_REF" = refs/heads/main
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+      - name: Certify published artifacts and report failures
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_KOTLIN: ${{ inputs.kotlin }}
+        run: python3 compatibility/maintain.py scan --kotlin "$REQUESTED_KOTLIN" --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+      - name: Authenticate the registry writer
+        if: ${{ !cancelled() && steps.verify.outputs.evidence == 'true' }}
+        id: writer
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.KOTLIN_COMPATIBILITY_APP_ID }}
+          private-key: ${{ secrets.KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - name: Record passing combinations on main and deploy the website
+        if: ${{ !cancelled() && steps.writer.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ steps.writer.outputs.token }}
+          GH_WORKFLOW_TOKEN: ${{ github.token }}
+        run: python3 compatibility/maintain.py publish --evidence build/reports/compatibility/published.json

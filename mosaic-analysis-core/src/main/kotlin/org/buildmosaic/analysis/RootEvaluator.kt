@@ -161,7 +161,7 @@ internal class RootEvaluator(
       addLookupFinding(effect, outcome.context, key, resolution)
       val blocked =
         outcome.context.blocked ||
-          effect.kind == LookupKind.PAINT && rawResolution.certainty == Certainty.MISSING
+          effect.kind == LookupKind.CONSTRUCTION && rawResolution.certainty == Certainty.MISSING
       outcome.context.copy(
         blocked = blocked,
         cycleProofSupported = outcome.context.cycleProofSupported && resolution.certainty == Certainty.VERIFIED,
@@ -1075,7 +1075,7 @@ internal class RootEvaluator(
       when (effect.kind) {
         LookupKind.REQUIRED -> FindingKind.REQUIRED_LOOKUP
         LookupKind.OPTIONAL -> FindingKind.OPTIONAL_LOOKUP
-        LookupKind.PAINT -> FindingKind.CONSTRUCTION_LOOKUP
+        LookupKind.CONSTRUCTION -> FindingKind.CONSTRUCTION_LOOKUP
       }
     record(
       context,

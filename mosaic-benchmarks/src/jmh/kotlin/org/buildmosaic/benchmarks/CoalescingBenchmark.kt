@@ -1,7 +1,7 @@
 package org.buildmosaic.benchmarks
 
 import org.buildmosaic.core.Tile
-import org.buildmosaic.core.injection.create
+import org.buildmosaic.core.injection.withMosaic
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.OperationsPerInvocation
 import org.openjdk.jmh.annotations.Param
@@ -21,5 +21,5 @@ open class CoalescingBenchmark {
 
   @Benchmark
   @OperationsPerInvocation(BATCH_SIZE)
-  open fun siblingConsumers(): Int = suspendBatch { emptyCanvas.create().compose(root) }
+  open fun siblingConsumers(): Int = suspendBatch { emptyCanvas.withMosaic { compose(root) } }
 }

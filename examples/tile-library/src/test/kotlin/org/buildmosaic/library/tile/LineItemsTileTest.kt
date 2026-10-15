@@ -6,7 +6,7 @@ import org.buildmosaic.library.model.Order
 import org.buildmosaic.library.model.OrderLineItem
 import org.buildmosaic.library.model.Price
 import org.buildmosaic.library.model.Product
-import org.buildmosaic.test.TestMosaicBuilder
+import org.buildmosaic.test.mosaicBuilder
 import kotlin.test.Test
 
 class LineItemsTileTest {
@@ -29,13 +29,14 @@ class LineItemsTileTest {
             quantity = 2,
           ),
         )
-      val testMosaic =
-        TestMosaicBuilder(this)
-          .withMockTile(OrderTile, order)
-          .withMockTile(ProductsByIdTile, products)
-          .withMockTile(PricingBySkuTile, prices)
-          .build()
-      testMosaic.assertEquals(LineItemsTile, expected)
+
+      mosaicBuilder()
+        .withMockTile(OrderTile, order)
+        .withMockTile(ProductsByIdTile, products)
+        .withMockTile(PricingBySkuTile, prices)
+        .withMosaic {
+          assertEquals(LineItemsTile, expected)
+        }
     }
 
   @Test
@@ -47,11 +48,12 @@ class LineItemsTileTest {
           customerId = "customer-1",
           items = listOf(OrderLineItem("product-1", "sku-1", 1)),
         )
-      val testMosaic =
-        TestMosaicBuilder(this)
-          .withMockTile(OrderTile, order)
-          .withFailedTile(ProductsByIdTile, RuntimeException("boom"))
-          .build()
-      testMosaic.assertThrows(LineItemsTile, RuntimeException::class)
+
+      mosaicBuilder()
+        .withMockTile(OrderTile, order)
+        .withFailedTile(ProductsByIdTile, RuntimeException("boom"))
+        .withMosaic {
+          assertThrows(LineItemsTile, RuntimeException::class)
+        }
     }
 }

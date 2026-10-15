@@ -10,8 +10,9 @@ import io.opentelemetry.sdk.trace.samplers.Sampler
 import io.opentelemetry.sdk.trace.samplers.SamplingResult
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.buildmosaic.core.MosaicImpl
+import kotlinx.coroutines.withContext
 import org.buildmosaic.core.injection.canvas
+import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.core.multiTile
 import org.buildmosaic.core.singleTile
 import kotlin.test.Test
@@ -40,23 +41,25 @@ class SamplingTracingTest {
           }
         }
       TelemetryFixture(sampler).use { otel ->
-        val mosaic = otel.mosaic(StandardTestDispatcher(testScheduler))
-        val tile = multiTile<Int, Int> { keys -> keys.associateWith { it } }
-        val callers = (1..65).map { otel.tracer.spanBuilder("contributor $it").setNoParent().startSpan() }
-        val results =
-          callers.mapIndexed { index, caller ->
-            caller.makeCurrent().use { mosaic.composeAsync(tile, index) }
-          }
-        testScheduler.runCurrent()
-        assertEquals((0..64).toList(), results.map { it.await() })
-        val batch = otel.spans.single()
-        assertEquals(callers.first().spanContext.spanId, batch.parentSpanId)
-        assertEquals(callers.subList(1, 64).map { it.spanContext }, sampledLinks.single().map { it.spanContext })
-        assertEquals(sampledLinks.single(), batch.links)
-        assertEquals(65, batch.count("mosaic.batch.size"))
-        assertEquals(65, batch.count("mosaic.contributors.count"))
-        assertTrue(batch.flag("mosaic.contributors.truncated")!!)
-        callers.forEach { it.end() }
+        otel.withMosaic(StandardTestDispatcher(testScheduler)) {
+          val mosaic = this
+          val tile = multiTile<Int, Int> { keys -> keys.associateWith { it } }
+          val callers = (1..65).map { otel.tracer.spanBuilder("contributor $it").setNoParent().startSpan() }
+          val results =
+            callers.mapIndexed { index, caller ->
+              caller.makeCurrent().use { mosaic.composeAsync(tile, index) }
+            }
+          testScheduler.runCurrent()
+          assertEquals((0..64).toList(), results.map { it.await() })
+          val batch = otel.spans.single()
+          assertEquals(callers.first().spanContext.spanId, batch.parentSpanId)
+          assertEquals(callers.subList(1, 64).map { it.spanContext }, sampledLinks.single().map { it.spanContext })
+          assertEquals(sampledLinks.single(), batch.links)
+          assertEquals(65, batch.count("mosaic.batch.size"))
+          assertEquals(65, batch.count("mosaic.contributors.count"))
+          assertTrue(batch.flag("mosaic.contributors.truncated")!!)
+          callers.forEach { it.end() }
+        }
       }
     }
 
@@ -84,25 +87,27 @@ class SamplingTracingTest {
             }
         }
       TelemetryFixture(sampler).use { otel ->
-        val mosaic = otel.mosaic(StandardTestDispatcher(testScheduler))
-        var unsampled = Span.getInvalid().spanContext
-        val tile =
-          singleTile {
-            unsampled = Span.current().spanContext
-            7
+        otel.withMosaic(StandardTestDispatcher(testScheduler)) {
+          val mosaic = this
+          var unsampled = Span.getInvalid().spanContext
+          val tile =
+            singleTile {
+              unsampled = Span.current().spanContext
+              7
+            }
+          otel.root { request ->
+            assertEquals(7, mosaic.compose(tile))
+            assertTrue(unsampled.isValid)
+            assertFalse(unsampled.isSampled)
+            assertTrue(unsampled.spanId != request.spanContext.spanId)
           }
-        otel.root { request ->
-          assertEquals(7, mosaic.compose(tile))
-          assertTrue(unsampled.isValid)
-          assertFalse(unsampled.isSampled)
-          assertTrue(unsampled.spanId != request.spanContext.spanId)
+          val consumer = mosaic.composeAsync(singleTile { compose(tile) })
+          testScheduler.runCurrent()
+          assertEquals(7, consumer.await())
+          val recorded = otel.spans.single { it.name == "Mosaic single" }
+          assertEquals(listOf(unsampled.spanId), recorded.dependencies())
+          assertFalse(recorded.links.single().spanContext.isSampled)
         }
-        val consumer = mosaic.composeAsync(singleTile { compose(tile) })
-        testScheduler.runCurrent()
-        assertEquals(7, consumer.await())
-        val recorded = otel.spans.single { it.name == "Mosaic single" }
-        assertEquals(listOf(unsampled.spanId), recorded.dependencies())
-        assertFalse(recorded.links.single().spanContext.isSampled)
       }
     }
 
@@ -124,19 +129,20 @@ class SamplingTracingTest {
               }
             }
           }
-        val mosaic = MosaicImpl(canvas { tracing { custom } }, StandardTestDispatcher(testScheduler))
-        val tile = singleTile { Span.current().spanContext }
-        try {
-          otel.root { parent ->
-            assertEquals(parent.spanContext, mosaic.compose(tile))
-            val reused = mosaic.composeAsync(singleTile { compose(tile) })
-            testScheduler.runCurrent()
-            assertEquals(parent.spanContext, reused.await())
-            assertTrue(otel.spans.single().links.isEmpty())
+        withContext(StandardTestDispatcher(testScheduler)) {
+          canvas { tracing { custom } }.withMosaic {
+            val mosaic = this
+            val tile = singleTile { Span.current().spanContext }
+
+            otel.root { parent ->
+              assertEquals(parent.spanContext, mosaic.compose(tile))
+              val reused = mosaic.composeAsync(singleTile { compose(tile) })
+              testScheduler.runCurrent()
+              assertEquals(parent.spanContext, reused.await())
+              assertTrue(otel.spans.single().links.isEmpty())
+            }
+            assertEquals(2, starts)
           }
-          assertEquals(2, starts)
-        } finally {
-          mosaic.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
         }
       }
     }

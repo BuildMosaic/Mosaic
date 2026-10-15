@@ -62,10 +62,10 @@ class MultiTileObservationTest {
       assertNull(failure.get())
       assertSame(first.get(), second.get())
       assertEquals(1, observer.captures)
-      // Exactly the winning placeholder and its pending launch remain attached to Mosaic.
-      assertEquals(2, checkNotNull(mosaic.coroutineContext[Job]).children.count())
       testScheduler.runCurrent()
       assertEquals(9, first.get().await())
+      // Neither the winning reservation nor its race loser leaves a parked child.
+      assertTrue(checkNotNull(mosaic.coroutineContext[Job]).children.none())
       assertEquals(1, observer.executions.size)
       assertEquals(1, observer.executions.single().start.contributors.totalCount)
       assertTrue(observer.failures.isEmpty())

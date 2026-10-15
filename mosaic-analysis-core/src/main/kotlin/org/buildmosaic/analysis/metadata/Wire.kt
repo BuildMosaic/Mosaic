@@ -4,10 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable internal data class WireEnvelope(
-  val formatVersion: Int,
-  val semanticsVersion: String,
-  val toolVersion: String,
-  val kotlinCompilerVersion: String,
+  val contractVersion: Int,
+  val producer: WireProducer,
   val moduleId: String,
   val sourceSet: String,
   val complete: Boolean,
@@ -15,10 +13,13 @@ import kotlinx.serialization.Serializable
   val payload: WirePayload,
 )
 
+@Serializable internal data class WireProducer(val analysisVersion: String, val compilerVersion: String)
+
 @Serializable internal data class WirePayload(
   val module: WireModule,
   val limitations: List<String>,
   val binaryLocators: List<WireLocator>,
+  val coreAnalysisRevisions: List<Int>,
 )
 
 @Serializable internal data class WireLocator(val id: String, val locator: String)

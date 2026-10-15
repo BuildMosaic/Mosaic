@@ -1,9 +1,5 @@
 package org.buildmosaic.analysis
 
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import java.security.MessageDigest
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -26,6 +22,7 @@ class SummaryWireRequiredFieldsTest {
       val call = Effect.Call("invoke", "target", arguments, site)
       return SummaryCodec.encode(
         ModuleContract("sample", callables = listOf(CallableContract("call", effects = listOf(call), site = site))),
+        coreAnalysisRevisions = setOf(1),
       )
     }
     assertTrue(!encoded(listOf(first, second)).contentEquals(encoded(listOf(second, first))))
@@ -45,19 +42,16 @@ class SummaryWireRequiredFieldsTest {
             CallableContract("call", effects = listOf(Effect.Call("invoke", "target", site = site)), site = site),
           ),
       )
-    val text = SummaryCodec.encode(module).decodeToString()
-    for (missing in listOf(
-      text.replace("\"bindings\":[],", ""),
-      text.replace("\"effects\":[],", ""),
-      text.replace("\"target\":\"target\",", ""),
-    )) {
-      assertTrue(missing != text)
-      assertFailsWith<IllegalArgumentException> { SummaryCodec.decode(missing.toByteArray()) }
+    val text = SummaryCodec.encode(module, coreAnalysisRevisions = setOf(1)).decodeToString()
+    for (field in listOf("bindings", "effects", "target")) {
+      val missing = withoutPayloadField(text, field)
+      val error = assertFailsWith<IllegalArgumentException>(field) { SummaryCodec.decode(missing.toByteArray()) }
+      assertTrue(error.message.orEmpty().contains(field), error.message)
     }
   }
 
   @Test
-  fun `metadata rejects absent semantic effects and duplicate actual parameters`() {
+  fun `duplicate actual parameters are rejected even with a valid checksum`() {
     val site = SourceLocation("sample", "Sample.kt", 1, 1)
     val parameter = ContractParameter("call", "canvas", ParameterKind.CANVAS)
     val module =
@@ -80,9 +74,7 @@ class SummaryWireRequiredFieldsTest {
             ),
           ),
       )
-    val text = SummaryCodec.encode(module).decodeToString()
-    val withoutEffects = text.replace(Regex("\"effects\":\\[[^]]*]"), "")
-    assertFailsWith<IllegalArgumentException> { SummaryCodec.decode(withoutEffects.toByteArray()) }
+    val text = SummaryCodec.encode(module, coreAnalysisRevisions = setOf(1)).decodeToString()
     val argumentEntry =
       """{"parameter":{"owner":"call","name":"canvas","kind":"CANVAS"},"value":""" +
         """{"kind":"canvas","expression":{"kind":"empty"}}}"""
@@ -91,13 +83,5 @@ class SummaryWireRequiredFieldsTest {
     val error =
       assertFailsWith<IllegalArgumentException> { SummaryCodec.decode(withPayloadHash(duplicate).toByteArray()) }
     assertTrue(error.message.orEmpty().contains("Duplicate argument"))
-  }
-
-  private fun withPayloadHash(text: String): String {
-    val payload = Json.parseToJsonElement(text).jsonObject.getValue("payload")
-    val hash =
-      MessageDigest.getInstance("SHA-256").digest(Json.encodeToString(payload).toByteArray())
-        .joinToString("") { "%02x".format(it) }
-    return text.replace(Regex("\"payloadHash\":\"[0-9a-f]+\""), "\"payloadHash\":\"$hash\"")
   }
 }

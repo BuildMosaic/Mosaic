@@ -4,7 +4,7 @@ import kotlinx.coroutines.test.runTest
 import org.buildmosaic.library.model.Customer
 import org.buildmosaic.library.model.Order
 import org.buildmosaic.library.service.CustomerService
-import org.buildmosaic.test.TestMosaicBuilder
+import org.buildmosaic.test.mosaicBuilder
 import kotlin.test.Test
 
 class CustomerTileTest {
@@ -13,22 +13,23 @@ class CustomerTileTest {
     runTest {
       val order = Order("order-1", "customer-1", emptyList())
       val expected = Customer("customer-1", "Jane Doe")
-      val testMosaic =
-        TestMosaicBuilder(this)
-          .withCanvasSource(CustomerService())
-          .withMockTile(OrderTile, order)
-          .build()
-      testMosaic.assertEquals(CustomerTile, expected)
+
+      mosaicBuilder()
+        .withCanvasSource(CustomerService())
+        .withMockTile(OrderTile, order)
+        .withMosaic {
+          assertEquals(CustomerTile, expected)
+        }
     }
 
   @Test
   fun `customer tile fails when order tile fails`() =
     runTest {
-      val testMosaic =
-        TestMosaicBuilder(this)
-          .withCanvasSource(CustomerService())
-          .withFailedTile(OrderTile, RuntimeException("boom"))
-          .build()
-      testMosaic.assertThrows(CustomerTile, RuntimeException::class)
+      mosaicBuilder()
+        .withCanvasSource(CustomerService())
+        .withFailedTile(OrderTile, RuntimeException("boom"))
+        .withMosaic {
+          assertThrows(CustomerTile, RuntimeException::class)
+        }
     }
 }

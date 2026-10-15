@@ -15,7 +15,7 @@ val OrderPageTile by singleTile {
 }
 ```
 
-The example uses the models and dependencies in the [shared order library](https://github.com/BuildMosaic/Mosaic/tree/0.7.0/examples/tile-library). Summary and logistics can run concurrently. Each branch asks for its own requirements; repeated requests for the same Tile share one execution.
+The example uses the models and dependencies in the [shared order library](https://github.com/BuildMosaic/Mosaic/tree/runtime-1.0.0/examples/tile-library). Summary and logistics can run concurrently. Each branch asks for its own requirements; repeated requests for the same Tile share one execution.
 
 ## When it helps
 

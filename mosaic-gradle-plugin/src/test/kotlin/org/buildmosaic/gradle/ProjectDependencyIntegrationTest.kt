@@ -27,7 +27,7 @@ class ProjectDependencyIntegrationTest {
       pluginManagement {
         repositories { gradlePluginPortal(); mavenCentral() }
         resolutionStrategy.eachPlugin {
-          if (requested.id.id == "org.jetbrains.kotlin.jvm") useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20")
+          if (requested.id.id == "org.jetbrains.kotlin.jvm") useModule("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21")
         }
       }
       rootProject.name = "project-dependency"
@@ -38,12 +38,9 @@ class ProjectDependencyIntegrationTest {
       val module = File(root, name).apply { mkdirs() }
       File(module, "build.gradle.kts").writeText(
         """
-        plugins { kotlin("jvm") version "2.4.20"; id("org.buildmosaic.analysis") }
+        plugins { kotlin("jvm") version "2.4.21"; id("org.buildmosaic.analysis") }
         group = "fixture"
-        repositories {
-          flatDir { dirs("${pluginJar.parentFile.invariantSeparatorsPath}") }
-          mavenCentral()
-        }
+        ${fixtureRepositories(pluginJar)}
         dependencies {
           implementation(files("${coreJar.invariantSeparatorsPath}"))
           implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
@@ -67,7 +64,7 @@ class ProjectDependencyIntegrationTest {
         val Batch by multiTile<String, Metrics> { source<Metrics>(); emptyMap() }
         val PerKey by perKeyTile<String, Metrics> { source<Metrics>() }
         val Chunked by chunkedMultiTile<String, Metrics>(2) { source<Metrics>(); emptyMap() }
-        suspend fun base(): Canvas = canvas { single<Metrics> { Metrics() } }
+        suspend fun base(): Canvas = canvas { provide<Metrics> { Metrics() } }
         """.trimIndent(),
       )
     }
@@ -81,12 +78,14 @@ class ProjectDependencyIntegrationTest {
         import producer.*
         val MetricsTile by singleTile { source<Metrics>() }
         suspend fun entry(): Metrics {
-          val mosaic = base().create()
-          mosaic.compose(Single)
-          mosaic.compose(Batch, "key")
-          mosaic.compose(PerKey, "key")
-          mosaic.compose(Chunked, "key")
-          return mosaic.compose(MetricsTile)
+          return base().withMosaic {
+            val mosaic = this
+            mosaic.compose(Single)
+            mosaic.compose(Batch, "key")
+            mosaic.compose(PerKey, "key")
+            mosaic.compose(Chunked, "key")
+            mosaic.compose(MetricsTile)
+          }
         }
         """.trimIndent(),
       )

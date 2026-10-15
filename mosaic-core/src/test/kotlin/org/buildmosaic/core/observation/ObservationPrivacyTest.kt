@@ -52,7 +52,7 @@ class ObservationPrivacyTest {
       val mosaic =
         MosaicImpl(
           canvas {
-            single<String> { "secret-canvas-value" }
+            provide<String> { "secret-canvas-value" }
             installExecutionObserver { observer }
           },
           StandardTestDispatcher(testScheduler),

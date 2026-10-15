@@ -3,9 +3,10 @@ package org.buildmosaic.benchmarks
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import org.buildmosaic.core.MosaicImpl
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.buildmosaic.core.Tile
-import org.buildmosaic.core.injection.create
+import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.core.multiTile
 import org.buildmosaic.core.singleTile
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -59,8 +60,7 @@ object CoalescingDiagnostic {
       for ((name, fanOut, depth) in shapes) {
         val batches = ConcurrentLinkedQueue<Set<Int>>()
         val root = CoalescingFixtures.graph(fanOut, depth, name == "external-suspension") { batches.add(it.toSet()) }
-        val request = if (dispatcher == null) emptyCanvas.create() else MosaicImpl(emptyCanvas, dispatcher)
-        val result = request.compose(root)
+        val result = withContext(dispatcher ?: Dispatchers.Default) { emptyCanvas.withMosaic { compose(root) } }
         check(result == CoalescingFixtures.expected(fanOut))
         val distinct = CoalescingFixtures.keys(fanOut).flatten().toSet()
         check(batches.flatMap { it }.sorted() == distinct.sorted())

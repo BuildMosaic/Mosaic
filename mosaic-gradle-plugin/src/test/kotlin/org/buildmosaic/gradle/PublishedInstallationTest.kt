@@ -23,7 +23,7 @@ class PublishedInstallationTest {
         .first { it.startsWith("mosaic.version=") }.substringAfter('=')
     val workspace = Files.createTempDirectory("mosaic-published-install-").toFile()
     val maven = workspace.resolve("maven")
-    run(
+    runPublished(
       repositoryRoot,
       ":mosaic-core:publishAllPublicationsToInstallTestRepository",
       ":mosaic-test:publishAllPublicationsToInstallTestRepository",
@@ -31,6 +31,8 @@ class PublishedInstallationTest {
       ":mosaic-bom:publishAllPublicationsToInstallTestRepository",
       ":mosaic-compiler-plugin:publishAllPublicationsToInstallTestRepository",
       ":mosaic-gradle-plugin:publishAllPublicationsToInstallTestRepository",
+      "-Pmosaic.runtime.version=$version",
+      "-Pmosaic.analysis.version=$version",
       "-Pmosaic.installTestRepository=${maven.absolutePath}",
     )
 
@@ -73,33 +75,10 @@ class PublishedInstallationTest {
       maven.resolve("org/buildmosaic/mosaic-gradle-plugin/$version/mosaic-gradle-plugin-$version.pom").readText()
     assertTrue(!pluginPom.contains("<artifactId>mosaic-analysis-core</artifactId>"), pluginPom)
     assertTrue(!pluginPom.contains("kotlin-gradle-plugin"), pluginPom)
-    JarFile(maven.resolve("org/buildmosaic/mosaic-gradle-plugin/$version/mosaic-gradle-plugin-$version.jar")).use {
-        jar ->
-      assertTrue(jar.getEntry("org/buildmosaic/analysis/SummaryCodec.class") != null)
-      assertTrue(jar.getEntry("kotlinx/serialization/json/Json.class") != null)
-    }
     val compilerPom =
       maven.resolve("org/buildmosaic/mosaic-compiler-plugin/$version/mosaic-compiler-plugin-$version.pom").readText()
     assertTrue(!compilerPom.contains("<artifactId>mosaic-analysis-core</artifactId>"), compilerPom)
     assertTrue(!compilerPom.contains("kotlin-compiler-embeddable"), compilerPom)
-    JarFile(maven.resolve("org/buildmosaic/mosaic-compiler-plugin/$version/mosaic-compiler-plugin-$version.jar")).use {
-        jar ->
-      for ((service, implementation) in listOf(
-        "CompilerPluginRegistrar" to "MosaicCompilerRegistrar",
-        "CommandLineProcessor" to "MosaicCommandLineProcessor",
-      )) {
-        val entry = jar.getJarEntry("META-INF/services/org.jetbrains.kotlin.compiler.plugin.$service")
-        assertTrue(entry != null)
-        assertEquals(
-          "org.buildmosaic.compiler.$implementation",
-          jar.getInputStream(entry).bufferedReader().readText().trim(),
-        )
-      }
-      assertTrue(jar.getEntry("org/buildmosaic/analysis/SummaryCodec.class") != null)
-      assertTrue(jar.getEntry("kotlinx/serialization/json/Json.class") != null)
-      assertTrue(jar.entries().asSequence().none { it.name.startsWith("com/fasterxml/jackson/") })
-    }
-
     val consumer = workspace.resolve("app").apply { mkdirs() }
     consumer.resolve("settings.gradle.kts").writeText(
       """
@@ -111,7 +90,7 @@ class PublishedInstallationTest {
     consumer.resolve("build.gradle.kts").writeText(
       """
       plugins {
-        kotlin("jvm") version "2.4.20"
+        kotlin("jvm") version "2.4.21"
         id("org.buildmosaic.analysis") version "$version"
       }
       version = "99.0.0"
@@ -146,7 +125,14 @@ class PublishedInstallationTest {
       )
     }
     val result =
-      run(consumer, "build", "mosaicGraph", "dependencies", "--configuration", "kotlinCompilerPluginClasspathMain")
+      runPublished(
+        consumer,
+        "build",
+        "mosaicGraph",
+        "dependencies",
+        "--configuration",
+        "kotlinCompilerPluginClasspathMain",
+      )
     assertEquals(TaskOutcome.SUCCESS, result.task(":verifyMosaicMain")?.outcome)
     assertEquals(TaskOutcome.SUCCESS, result.task(":mosaicGraph")?.outcome)
     assertTrue(result.output.contains("org.buildmosaic:mosaic-compiler-plugin:$version"), result.output)
@@ -155,23 +141,26 @@ class PublishedInstallationTest {
     assertTrue(report.contains("VERIFIED REQUIRED_LOOKUP"), report)
     assertTrue(consumer.resolve("build/reports/mosaic-analysis/graph.md").readText().contains("## Root: app.entry()"))
     val summary = SummaryCodec.decode(consumer.resolve("build/mosaic-analysis/main/summary.json").readBytes())
-    assertEquals(4, summary.formatVersion)
-    assertEquals("analysis-contract-3", summary.semanticsVersion)
-    assertEquals("prototype-11", summary.toolVersion)
     assertTrue(summary.module.callables.any { it.id == "app.entry()" && it.effects.isNotEmpty() })
-    JarFile(consumer.resolve("build/libs/app-99.0.0.jar")).use { assertTrue(it.getEntry(SUMMARY_PATH) != null) }
+    JarFile(consumer.resolve("build/libs/app-99.0.0.jar")).use { archive ->
+      val packaged = SummaryCodec.decode(archive.getInputStream(archive.getJarEntry(SUMMARY_PATH)).readBytes())
+      assertEquals(summary, packaged)
+      assertEquals(6, packaged.contractVersion)
+      assertEquals(version, packaged.producer.analysisVersion)
+      assertEquals("2.4.21", packaged.producer.compilerVersion)
+    }
 
-    verifyRuntimeConsumer(workspace, maven, version, useBom = false, kotlinVersion = "2.3.0")
+    verifyRuntimeConsumer(workspace, maven, version, useBom = false)
     verifyRuntimeConsumer(workspace, maven, version, useBom = true)
   }
 }
 
-private fun verifyRuntimeConsumer(
+internal fun verifyRuntimeConsumer(
   workspace: File,
   maven: File,
   version: String,
   useBom: Boolean,
-  kotlinVersion: String = "2.4.20",
+  kotlinVersion: String = "2.4.21",
 ) {
   val consumer = workspace.resolve(if (useBom) "bom-consumer" else "runtime-consumer").apply { mkdirs() }
   consumer.resolve("settings.gradle.kts").writeText(
@@ -204,9 +193,9 @@ private fun verifyRuntimeConsumer(
       """
       import kotlinx.coroutines.test.runTest
       import org.buildmosaic.core.singleTile
-      import org.buildmosaic.test.TestMosaicBuilder
+      import org.buildmosaic.test.mosaicBuilder
       import org.buildmosaic.core.injection.canvas
-      import org.buildmosaic.core.injection.create
+      import org.buildmosaic.core.injection.withMosaic
       import org.buildmosaic.opentelemetry.tracing
       import io.opentelemetry.api.OpenTelemetry
       import kotlin.test.Test
@@ -215,19 +204,20 @@ private fun verifyRuntimeConsumer(
         @Test fun composes() = runTest {
           val input by singleTile { "original" }
           val response by singleTile { compose(input).uppercase() }
-          val mosaic = TestMosaicBuilder(this).withMockTile(input, "published").build()
-          mosaic.assertEquals(response, "PUBLISHED")
-          kotlin.test.assertEquals("response", response.name)
+          mosaicBuilder().withMockTile(input, "published").withMosaic {
+            assertEquals(response, "PUBLISHED")
+            kotlin.test.assertEquals("response", response.name)
+          }
         }
         @Test fun tracingInstalls() = runTest {
           val configured = canvas { tracing { OpenTelemetry.noop() } }
-          kotlin.test.assertEquals("published", configured.create().compose(singleTile { "published" }))
+          kotlin.test.assertEquals("published", configured.withMosaic { compose(singleTile { "published" }) })
         }
       }
       """.trimIndent(),
     )
   }
-  val result = run(consumer, "test", "dependencies", "--configuration", "testRuntimeClasspath")
+  val result = runPublished(consumer, "test", "dependencies", "--configuration", "testRuntimeClasspath")
   assertEquals(TaskOutcome.SUCCESS, result.task(":test")?.outcome)
   assertTrue(result.output.contains("org.buildmosaic:mosaic-core:$version"), result.output)
   assertTrue(result.output.contains("org.buildmosaic:mosaic-test:$version"), result.output)
@@ -237,15 +227,21 @@ private fun verifyRuntimeConsumer(
   assertTrue(!result.output.contains("io.opentelemetry:opentelemetry-extension-kotlin:"), result.output)
 }
 
-private fun run(
+internal fun runPublished(
   project: File,
   vararg arguments: String,
-): org.gradle.testkit.runner.BuildResult =
-  GradleRunner.create().withProjectDir(project)
+  expectFailure: Boolean = false,
+): org.gradle.testkit.runner.BuildResult {
+  println("MOSAIC_PUBLISHED_GRADLE_INVOCATION: ${arguments.joinToString(" ")}")
+  return GradleRunner.create().withProjectDir(project)
     .withArguments(
       *arguments,
       "--stacktrace",
+      "--console=plain",
+      "--max-workers=2",
+      "-Porg.gradle.java.installations.paths=${System.getProperty("mosaic.test.javaInstallations", "")}",
       "--gradle-user-home",
       File(System.getProperty("user.home"), ".gradle").absolutePath,
     )
-    .build()
+    .let { if (expectFailure) it.buildAndFail() else it.build() }
+}

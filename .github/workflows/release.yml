@@ -3,8 +3,19 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: Existing immutable version tag, for example 0.7.0
+      train:
+        description: Release train
+        required: true
+        type: choice
+        options:
+          - runtime
+          - analysis
+      counterparts:
+        description: Published versions of the other train to check (comma-separated; blank uses latest recorded)
+        required: false
+        type: string
+      version:
+        description: Version to release
         required: true
         type: string
 
@@ -16,10 +27,11 @@ jobs:
   release:
     name: Publish release
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     environment: release
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Require dispatch from main
         env:
@@ -29,24 +41,43 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: main
+          fetch-depth: 0
 
       - name: Fetch and validate the immutable tag
+        id: release
         env:
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TRAIN: ${{ inputs.train }}
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          [[ "$RELEASE_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
-          git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null
-          git fetch --no-tags origin "refs/tags/$RELEASE_TAG"
-          git checkout --detach 'FETCH_HEAD^{commit}'
-          sha="$(git rev-parse HEAD)"
-          test "$(sed -n 's/^mosaic.version=//p' gradle.properties)" = "$RELEASE_TAG"
+          case "$RELEASE_TRAIN" in runtime|analysis) ;; *) exit 1 ;; esac
+          [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          RELEASE_TAG="${RELEASE_TRAIN}-${RELEASE_VERSION}"
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main' "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          sha="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          if ! git merge-base --is-ancestor "$sha" refs/remotes/origin/main; then
+            echo "::error::Release tag $RELEASE_TAG must point to a commit reachable from protected main"
+            exit 1
+          fi
+          git checkout --detach "$sha"
           entry="$(grep -F "## [$RELEASE_TAG] - " CHANGELOG.md)"
           [[ "$entry" =~ ^##\ \[$RELEASE_TAG\]\ -\ [0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
           entry_date="${entry##* - }"
           test "$(date -d "$entry_date" +%F)" = "$entry_date"
+          test -s "docs/releases/$RELEASE_TAG.md"
           test -z "$(git status --porcelain)"
           echo "Validated $RELEASE_TAG at $sha"
+          {
+            echo "version=$RELEASE_VERSION"
+            echo "tag=$RELEASE_TAG"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 17 for compatibility consumers
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -61,19 +92,44 @@ jobs:
       - name: Check examples
         run: ./gradlew check -p examples
 
-      - name: Publish release
+      - name: Certify release compatibility
         env:
+          RELEASE_TRAIN: ${{ inputs.train }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          COUNTERPARTS: ${{ inputs.counterparts }}
+        run: |
+          args=()
+          if [ -n "$COUNTERPARTS" ]; then args+=("-Pcompat.counterparts=$COUNTERPARTS"); fi
+          ./gradlew certifyReleaseCompatibility -Pcompat.scope="$RELEASE_TRAIN" -Pcompat.release="$RELEASE_VERSION" "${args[@]}" --no-configuration-cache -Porg.gradle.java.installations.paths="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+          cat "build/reports/compatibility/release-$RELEASE_TRAIN.json"
+
+      - name: Publish Runtime
+        if: ${{ success() && inputs.train == 'runtime' }}
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+        run: ./gradlew releaseRuntime -Pmosaic.runtime.version="$RELEASE_VERSION" --no-configuration-cache
+
+      - name: Publish Analysis
+        if: ${{ success() && inputs.train == 'analysis' }}
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_PRIVATE_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
           GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
-        run: ./gradlew release --no-configuration-cache
+        run: ./gradlew releaseAnalysis -Pmosaic.analysis.version="$RELEASE_VERSION" --no-configuration-cache
 
       - name: Create GitHub Release from checked-in release notes and changelog
         env:
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TRAIN: ${{ inputs.train }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: |
           entry="$(grep -F "## [$RELEASE_TAG] - " CHANGELOG.md)"
@@ -90,8 +146,30 @@ jobs:
             echo "::error::A GitHub Release already exists for $RELEASE_TAG: $existing_release"
             exit 1
           elif [[ "$existing_release" == 'release not found' ]]; then
-            gh release create "$RELEASE_TAG" --verify-tag --title "Mosaic $RELEASE_TAG" --notes-file "$notes"
+            gh release create "$RELEASE_TAG" --verify-tag --title "Mosaic $RELEASE_TRAIN $RELEASE_VERSION" --notes-file "$notes"
           else
             echo "::error::Could not inspect GitHub Release for $RELEASE_TAG: $existing_release"
             exit 1
           fi
+
+      - name: Authenticate the registry writer
+        if: success() && !contains(steps.release.outputs.version, '-')
+        id: writer
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.KOTLIN_COMPATIBILITY_APP_ID }}
+          private-key: ${{ secrets.KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      # Publication and GitHub Release creation must both succeed.
+      - name: Record published compatibility on main and deploy the website
+        if: success() && !contains(steps.release.outputs.version, '-')
+        env:
+          RELEASE_TRAIN: ${{ inputs.train }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          GH_TOKEN: ${{ steps.writer.outputs.token }}
+          GH_WORKFLOW_TOKEN: ${{ github.token }}
+        run: |
+          evidence="$GITHUB_WORKSPACE/build/reports/compatibility/release-$RELEASE_TRAIN.json"
+          python3 compatibility/maintain.py record --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"

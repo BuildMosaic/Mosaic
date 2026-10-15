@@ -22,7 +22,7 @@ class EnterpriseAnalysisTest {
   private val applicationParent = ContractParameter("applicationLayer", "parent", ParameterKind.CANVAS)
 
   @Test
-  fun `enterprise composition verifies transitive sources and eager paint`() {
+  fun `enterprise composition verifies transitive sources and eager construction`() {
     val result = enterpriseReport(setOf(global, metrics, platform))
 
     assertEquals(RootStatus.VERIFIED, result.roots.single().status)
@@ -43,7 +43,7 @@ class EnterpriseAnalysisTest {
   }
 
   @Test
-  fun `missing constructor dependency blocks request composition at earlier paint`() {
+  fun `missing constructor dependency blocks request composition at earlier construction`() {
     val result = enterpriseReport(setOf(global, platform))
     val missing = result.findings.single { it.certainty == Certainty.MISSING }
 
@@ -72,7 +72,7 @@ class EnterpriseAnalysisTest {
         CanvasExpression.Layer(
           "application",
           CanvasExpression.ParameterValue(applicationParent),
-          listOf(binding(service, "service-binding", listOf(lookup("service-paint", metrics, LookupKind.PAINT)))),
+          listOf(binding(service, "service-binding", listOf(lookup("init", metrics, LookupKind.CONSTRUCTION)))),
           site = site("applicationLayer"),
         ),
         site("applicationLayer"),

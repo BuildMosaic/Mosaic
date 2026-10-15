@@ -104,35 +104,36 @@ class PathStateRegressionTest {
   }
 
   @Test
-  fun `missing paint follows MultiTile execution and launch semantics`() {
-    val empty = multiReport(MultiTileExecution.KNOWN_EMPTY, invalid = missingPaint())
+  fun `missing construction follows MultiTile execution and launch semantics`() {
+    val empty = multiReport(MultiTileExecution.KNOWN_EMPTY, invalid = missingConstruction())
     assertEquals(listOf(platform), empty.findings.map { it.key })
     assertEquals(Certainty.MISSING, empty.findings.single().certainty)
 
-    val nonEmpty = multiReport(MultiTileExecution.KNOWN_NON_EMPTY, invalid = missingPaint())
+    val nonEmpty = multiReport(MultiTileExecution.KNOWN_NON_EMPTY, invalid = missingConstruction())
     assertEquals(listOf(FindingKind.CONSTRUCTION_LOOKUP), nonEmpty.findings.map { it.kind })
     assertEquals(Certainty.MISSING, nonEmpty.findings.single().certainty)
 
-    val async = multiReport(MultiTileExecution.KNOWN_NON_EMPTY, DiscoveryKind.COMPOSE_ASYNC, invalid = missingPaint())
+    val async =
+      multiReport(MultiTileExecution.KNOWN_NON_EMPTY, DiscoveryKind.COMPOSE_ASYNC, invalid = missingConstruction())
     assertEquals(Certainty.MISSING, async.findings.single { it.key == platform }.certainty)
   }
 
   @Test
-  fun `unresolved paint does not assert a definite construction abort`() {
-    val unknownPaint =
+  fun `unresolved construction does not assert a definite construction abort`() {
+    val unknownConstruction =
       Effect.Lookup(
-        "unknown-paint",
+        "unknown-construction",
         CanvasExpression.Current,
         Fact.Unknown("dynamic key", site("dynamic-key")),
-        LookupKind.PAINT,
-        site("unknown-paint"),
+        LookupKind.CONSTRUCTION,
+        site("unknown-construction"),
       )
     val invalid =
       CanvasExpression.Layer(
-        "unknown-paint-layer",
+        "unknown-construction-layer",
         CanvasExpression.Empty,
-        listOf(binding(service, "unknown-service", listOf(unknownPaint))),
-        site = site("unknown-paint-layer"),
+        listOf(binding(service, "unknown-service", listOf(unknownConstruction))),
+        site = site("unknown-construction-layer"),
       )
     val result = continuationReport(invalid, CanvasExpression.Empty)
 
@@ -443,14 +444,14 @@ class PathStateRegressionTest {
       site = site("duplicate"),
     )
 
-  private fun missingPaint() =
+  private fun missingConstruction() =
     CanvasExpression.Layer(
-      "missing-paint",
+      "missing-construction",
       CanvasExpression.Empty,
-      listOf(binding(service, "service", listOf(lookup("paint", metrics, LookupKind.PAINT)))),
-      site = site("missing-paint"),
+      listOf(binding(service, "service", listOf(lookup("construction", metrics, LookupKind.CONSTRUCTION)))),
+      site = site("missing-construction"),
     )
 
   private fun invalidCanvases() =
-    listOf(duplicate() to FindingKind.DUPLICATE_BINDING, missingPaint() to FindingKind.CONSTRUCTION_LOOKUP)
+    listOf(duplicate() to FindingKind.DUPLICATE_BINDING, missingConstruction() to FindingKind.CONSTRUCTION_LOOKUP)
 }

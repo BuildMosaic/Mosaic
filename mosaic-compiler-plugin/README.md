@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This build-tooling module is a read-only Kotlin 2.4.20 K2 compiler plugin. It uses
+This build-tooling module is a read-only K2 compiler plugin for the [supported Kotlin versions](https://BuildMosaic.org/reference/compatibility/). It uses
 `CompilerPluginRegistrar` and `IrGenerationExtension` before IR lowering. It
 does not transform Kotlin or run Mosaic code. The Gradle plugin installs it into the normal Kotlin/JVM `main`
 compilation through Kotlin’s compiler-subplugin API. It emits per-source internal
@@ -13,8 +13,8 @@ mode supports compiler fixtures.
 ## Supported semantic boundary
 
 The supported extraction path covers public `Tile` and `MultiTile` creation,
-reified, KClass, and CanvasKey lookup, `canvas`, `single`, `instance`, `withLayer`,
-`paint`, `withMosaic`, `create`, `compose`, and `composeAsync` in the tested shapes;
+reified, KClass, and CanvasKey lookup, `canvas`, `provide`, `instance`, `withLayer`,
+`source`, `sourceOrNull`, `withMosaic`, `compose`, and `composeAsync` in the tested shapes;
 immutable local Canvas, Mosaic, Tile, and CanvasKey aliases; caller-side
 argument evaluation in source order; parameterized Canvas helpers; ordinary
 resolved calls and getters; and the direct final template method to protected
@@ -45,9 +45,12 @@ Kotlin interpreter.
 
 Direct `withMosaic` evaluates its receiver, establishes one fresh standard
 Mosaic, and analyzes the direct lambda once in source order. Receiver aliases
-retain identity. `create` establishes a separate standard Mosaic identity.
+retain identity.
 `instance` evaluates existing values during registration, with no deferred
-constructor effects. Applicable Kotlin Mosaic `@Suppress` annotations travel
+constructor effects. A `provide` constructor resolves required dependencies through
+`CanvasFactory.source`, extracted as `LookupKind.CONSTRUCTION`; built Canvas/Mosaic
+`source` and `sourceOrNull` remain required and optional lookup respectively.
+Applicable Kotlin Mosaic `@Suppress` annotations travel
 with Tile contracts. The canonical [analysis configuration reference](https://BuildMosaic.org/reference/analysis-configuration/)
 explains scope ownership and remaining unknown boundaries.
 
@@ -65,6 +68,12 @@ that can affect Mosaic is explicitly unknown. The extractor never substitutes
 the newest helper body into an already compiled caller.
 
 ## Incremental compiler integration and metadata
+
+Before interpreting Mosaic IR, the compiler validates the manifest revision of
+the actual Core on its compilation classpath, including in direct K2 fixtures.
+Each shard records that observed revision. A private compiler option carries the
+selected revision as a Kotlin incremental compilation input and is checked
+against the actual artifact; it cannot override admission.
 
 The Gradle plugin assembles deterministic UTF-8 JSON at
 `META-INF/mosaic-analysis/v1/summary.json` for packaging. Source shards are

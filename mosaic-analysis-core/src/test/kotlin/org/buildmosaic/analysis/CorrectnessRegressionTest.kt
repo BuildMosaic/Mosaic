@@ -460,7 +460,7 @@ class CorrectnessRegressionTest {
     CanvasExpression.Layer(
       "invalid",
       CanvasExpression.Empty,
-      listOf(binding(service, "service", listOf(lookup("paint", metrics, LookupKind.PAINT)))),
+      listOf(binding(service, "service", listOf(lookup("construction", metrics, LookupKind.CONSTRUCTION)))),
       site = site("invalid"),
     )
 
@@ -472,7 +472,7 @@ class CorrectnessRegressionTest {
         CanvasExpression.Empty,
         listOf(
           binding(metrics, "$id-metrics"),
-          binding(service, "$id-service", listOf(lookup("$id-paint", metrics, LookupKind.PAINT))),
+          binding(service, "$id-service", listOf(lookup("$id-construction", metrics, LookupKind.CONSTRUCTION))),
         ),
         site = site("$id-layer"),
       ),

@@ -8,17 +8,12 @@ as production, with the enclosing coroutine TestScope and scheduler.
 
 ## Installation
 
-In a Kotlin/JVM project with a configured test runner:
+Use the [installation guide](https://BuildMosaic.org/start/installation/) for
+dependencies and BOM alignment.
 
-```kotlin
-dependencies {
-  testImplementation("org.buildmosaic:mosaic-test:0.7.0")
-  testImplementation(kotlin("test"))
-}
-```
-
-The module exposes core and coroutine test APIs. Use the same Mosaic version as
-core, or the [runtime BOM](../mosaic-bom/README.md). See
+The module exposes core and coroutine test APIs. `mosaic-test` must use the same
+Mosaic version as `mosaic-core`; use the [runtime BOM](../mosaic-bom/README.md) to
+keep runtime modules aligned. See
 [runtime compatibility](https://BuildMosaic.org/reference/compatibility/).
 
 ## Test the real composition
@@ -34,14 +29,18 @@ class GreetingTest {
   fun `greeting formats a dependency`() = runTest {
     val nameTile = singleTile { "Production name" }
     val greetingTile = singleTile { "Hello, ${compose(nameTile)}!" }
-    val testMosaic = mosaicBuilder().withMockTile(nameTile, "Jane").build()
-    testMosaic.assertEquals(greetingTile, "Hello, Jane!")
+    mosaicBuilder().withMockTile(nameTile, "Jane").withMosaic {
+      assertEquals(greetingTile, "Hello, Jane!")
+    }
   }
 }
 ```
 
 Mock the same Tile instance the subject composes. Unmocked Tiles execute their
-real blocks. Create a fresh test Mosaic for each scenario.
+real blocks. Each `withMosaic` invocation creates a fresh cache, snapshots the
+builder configuration, and uses the calling coroutine context. Inside `runTest`,
+that includes its Job, dispatcher, and virtual-time scheduler. Every exit cancels
+unfinished work and waits for producer and attached-child cleanup, just as in production.
 
 The **[testing guide at BuildMosaic.org](https://BuildMosaic.org/guides/testing/)**
 covers Canvas input, MultiTile substitution, failures, and virtual-time delays.

@@ -48,9 +48,9 @@ class BinaryDependencyIntegrationTest {
       class Metrics
       class PlatformConfig
       suspend fun platformCanvas(): Canvas = canvas {
-        single<GlobalContext> { GlobalContext() }
-        single<Metrics> { Metrics() }
-        single<PlatformConfig> { PlatformConfig() }
+        provide<GlobalContext> { GlobalContext() }
+        provide<Metrics> { Metrics() }
+        provide<PlatformConfig> { PlatformConfig() }
       }
       abstract class PlatformComponent {
         suspend fun handle(requestId: String): String = respond(platformCanvas(), requestId)
@@ -152,32 +152,32 @@ class BinaryDependencyIntegrationTest {
         import tilelib.*
         import adapter.applicationBase
         suspend fun applicationLayer(parent: Canvas): Canvas = parent.withLayer {
-          single<Service> { Service(paint<Metrics>()) }
+          provide<Service> { Service(source<Metrics>()) }
         }
         class ApplicationComponent : PlatformComponent() {
           override suspend fun respond(base: Canvas, requestId: String): String {
             val application = applicationLayer(base)
-            val request = application.withLayer { single<RequestContext> { RequestContext(requestId) } }
-            return request.create().compose(EnterpriseTile)
+            val request = application.withLayer { provide<RequestContext> { RequestContext(requestId) } }
+            return request.withMosaic { compose(EnterpriseTile) }
           }
         }
         class FrameworkApplication : PlatformComponent() {
           override suspend fun respond(base: Canvas, requestId: String): String {
             val application = applicationLayer(base)
-            val request = application.withLayer { single<RequestContext> { RequestContext(requestId) } }
-            return request.create().compose(EnterpriseTile)
+            val request = application.withLayer { provide<RequestContext> { RequestContext(requestId) } }
+            return request.withMosaic { compose(EnterpriseTile) }
           }
         }
         class SlotApplication : SlotComponent() {
           override suspend fun slotRespond(second: Canvas, marker: String, first: Canvas): String =
-            second.create().compose(MetricsOnlyTile)
+            second.withMosaic { compose(MetricsOnlyTile) }
         }
         suspend fun entry(): String = ApplicationComponent().handle("r")
         suspend fun slotEntry(): String = SlotApplication().slotHandle()
         suspend fun adapterEntry(): String {
           val application = applicationLayer(applicationBase())
-          val request = application.withLayer { single<RequestContext> { RequestContext("r") } }
-          return request.create().compose(EnterpriseTile)
+          val request = application.withLayer { provide<RequestContext> { RequestContext("r") } }
+          return request.withMosaic { compose(EnterpriseTile) }
         }
         """.trimIndent(),
       )
@@ -257,7 +257,7 @@ class BinaryDependencyIntegrationTest {
     platformSource.writeText(
       originalPlatform
         .replace("platform initialization executed", "platform initialization updated")
-        .replace("  single<PlatformConfig> { PlatformConfig() }\n", ""),
+        .replace("  provide<PlatformConfig> { PlatformConfig() }\n", ""),
     )
     val changedPlatform = run(platform, "jar")
     assertEquals(TaskOutcome.SUCCESS, changedPlatform.task(":extractMosaicMain")?.outcome)
@@ -274,6 +274,10 @@ class BinaryDependencyIntegrationTest {
       assertFalse(bindings.any { it.key.toString().contains("PlatformConfig") })
     }
     assertEquals(adapterHash, sha256(adapterJar))
+    val changedSummary =
+      JarFile(platformJar).use { archive ->
+        archive.getInputStream(archive.getJarEntry(SUMMARY_PATH)).readBytes()
+      }
     val broken = run(app, "build", expectFailure = true)
     val brokenReport = File(app, "build/reports/mosaic-analysis/main.txt").readText()
     assertEquals(TaskOutcome.FAILED, broken.task(":verifyMosaicMain")?.outcome)
@@ -305,6 +309,16 @@ class BinaryDependencyIntegrationTest {
     assertEquals(initialReport, File(app, "build/reports/mosaic-analysis/main.txt").readText())
 
     val completeBytes = platformJar.readBytes()
+    run(app, "mosaicGraph")
+    val originalGraph = File(app, "build/reports/mosaic-analysis/graph.md").readText()
+    rewriteSummary(platformJar, changedSummary)
+    val metadataOnly = run(app, "mosaicGraph verifyMosaicMain", expectFailure = true)
+    assertEquals(TaskOutcome.UP_TO_DATE, metadataOnly.task(":compileKotlin")?.outcome)
+    assertEquals(TaskOutcome.UP_TO_DATE, metadataOnly.task(":extractMosaicMain")?.outcome)
+    assertEquals(TaskOutcome.SUCCESS, metadataOnly.task(":mosaicGraph")?.outcome)
+    assertEquals(TaskOutcome.FAILED, metadataOnly.task(":verifyMosaicMain")?.outcome)
+    assertNotEquals(originalGraph, File(app, "build/reports/mosaic-analysis/graph.md").readText())
+    platformJar.writeBytes(completeBytes)
     appBuildFile.writeText(explicitBuildText)
     rewriteSummary(platformJar, null)
     val missingMetadata = run(app, "verifyMosaicMain", expectFailure = true)
@@ -331,11 +345,10 @@ class BinaryDependencyIntegrationTest {
     appBuildFile.writeText(explicitBuildText)
     rewriteSummary(platformJar, "{malformed".toByteArray())
     val malformed = run(app, "verifyMosaicMain", expectFailure = true)
-    val malformedReport = File(app, "build/reports/mosaic-analysis/main.txt").readText()
-    assertEquals(TaskOutcome.FAILED, malformed.task(":verifyMosaicMain")?.outcome)
-    assertEquals(TaskOutcome.UP_TO_DATE, malformed.task(":extractMosaicMain")?.outcome)
-    assertTrue(malformedReport.contains("Artifact metadata error"), malformedReport)
-    assertTrue(malformedReport.contains("invalid Mosaic summary"), malformedReport)
+    assertEquals(TaskOutcome.FAILED, malformed.task(":extractMosaicMain")?.outcome)
+    assertEquals(TaskOutcome.UP_TO_DATE, malformed.task(":compileKotlin")?.outcome)
+    assertEquals(null, malformed.task(":verifyMosaicMain")?.outcome)
+    assertTrue(malformed.output.contains("invalid Mosaic summary"), malformed.output)
     platformJar.writeBytes(completeBytes)
   }
 }

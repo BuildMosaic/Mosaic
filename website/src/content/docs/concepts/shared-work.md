@@ -34,9 +34,9 @@ suspend fun handler(mosaic: Mosaic): OrderPage = mosaic.compose(OrderPageTile)
 val page = requestCanvas.withMosaic { handler(this) }
 ```
 
-`Canvas.create()` is deprecated with a warning and remains available for compatibility. Migration is structural: move the handler call into the scoped block.
+`Canvas.withMosaic` is the supported execution boundary. Keep the complete handler call inside its block.
 
-Creating two Mosaics from that Canvas would execute the work separately. An application-wide Mosaic would share results across requests; create one per request to keep request input and reuse scoped correctly.
+Calling `withMosaic` twice on that Canvas executes the work separately. Use one invocation per request to keep request input and reuse scoped correctly.
 
 ## Identity is not a name or source body
 

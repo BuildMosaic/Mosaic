@@ -6,7 +6,7 @@ compiler and Gradle plugins; it is not published separately, an application
 runtime dependency, or a BOM entry.
 It accepts immutable, hand-authored contracts describing Canvas construction,
 lookups, Tile composition, calls, conditions, and selected verification roots.
-It verifies exact Canvas-key availability, eager local singleton construction,
+It verifies exact Canvas-key availability, eager local provider construction,
 and proven cyclic Tile result dependencies while preserving unknown boundaries
 and source provenance.
 Canvas arguments are evaluated eagerly at calls, while aliases and parameter
@@ -39,6 +39,7 @@ val site = SourceLocation("example.Application", "Application.kt", 1, 1)
 val metrics = CanvasKeyIdentity("example.Metrics")
 val tile = TileContract(
   id = "example.MetricsTile",
+  site = site,
   effects = listOf(
     Effect.Lookup(
       id = "metrics-source",
@@ -51,6 +52,7 @@ val tile = TileContract(
 )
 val entry = CallableContract(
   id = "example.entry",
+  site = site,
   effects = listOf(
     Effect.Compose(
       id = "entry-compose",
@@ -103,18 +105,33 @@ locators. Unordered declarations, limitations, and locator entries are sorted;
 effect and argument order is retained. Arguments are ordered parameter/value
 entries, and duplicate parameters are rejected.
 
-Format 4 has separate `formatVersion`, `semanticsVersion`, `toolVersion`,
-`kotlinCompilerVersion`, `moduleId`, `sourceSet`, and `complete` header fields.
-The reader accepts format 4, `analysis-contract-3`, Kotlin 2.4.20, and complete
-`main` source-set summaries. The module identity must be nonblank and match the
-payload. A nonblank producer version is required but does not determine semantic
-compatibility. Regenerate incompatible summaries with the supported Mosaic
-analysis toolchain before consuming them.
+`contractVersion = 6` covers serialized structure and meaning. The envelope has
+`producer.analysisVersion`, `producer.compilerVersion`, `moduleId`, `sourceSet`,
+and `complete` header fields. The Analysis version comes from its bundled build
+resource; the compiler version records the actual stable Kotlin compiler.
+The writer and extractor admit bounded compatible compiler ABIs; the reader accepts valid
+contract-6, complete `main` summaries from other nonblank Analysis and compiler
+producer versions, preserving those identities as provenance. Successful decoding
+does not certify compiler, Runtime, or Gradle interoperability. The module identity
+must be nonblank and match the payload. Regenerate incompatible summaries with the
+supported Mosaic analysis toolchain before consuming them. Construction-time required lookup uses
+`LookupKind.CONSTRUCTION` and the serialized `CONSTRUCTION` lookup tag. Required
+and optional lookups use `REQUIRED` and `OPTIONAL`. Older formats are rejected
+with regeneration guidance.
+
+`payload.coreAnalysisRevisions` records every retained Core semantic requirement.
+Analysis admits revisions by explicit membership and understands exactly revision 1.
+Core declares that revision in its JAR manifest as
+`Mosaic-Core-Analysis-Revision: 1`. Release numbers and producer identities do not
+determine semantic admission. Keep the revision when changes preserve older
+analyzers' soundness; change it when an older analyzer could interpret Core
+operations incorrectly, such as treating a conditional registration as unconditional.
+Admission does not establish full Runtime binary or toolchain compatibility.
 
 `payloadHash` is lowercase SHA-256 of the canonical compact UTF-8 JSON
-serialization of the entire `payload` object (module, limitations, and binary
-locators), without the envelope or hash field. It detects corruption; it does
-not authenticate a producer or serve as a build-cache fingerprint. Missing
+serialization of the entire `payload` object (module, limitations, binary
+locators, and Core semantic requirements), without the envelope or hash field.
+It detects corruption; it does not authenticate a producer or serve as a build-cache fingerprint. Missing
 required fields, unknown kinds, partial output, and checksum mismatches fail
 decoding.
 

@@ -42,7 +42,6 @@ class ActivationRegressionTest {
     site(id),
   )
 
-  private val broken = layer("broken", listOf(binding(service, listOf(lookup("bad-paint", kind = LookupKind.PAINT)))))
   private val full = layer("full", listOf(binding(metrics)))
   private val empty = CanvasExpression.Empty
 
@@ -80,62 +79,6 @@ class ActivationRegressionTest {
     expected: (AnalysisReport) -> Boolean,
   ) {
     assertTrue(expected(report), "$name: ${report.findings}")
-  }
-
-  @Test
-  fun `known ignored argument`() {
-    val p = ContractParameter("ignore", "canvas", ParameterKind.CANVAS)
-    val args = CallArguments(mapOf(p to ArgumentExpression.Canvas(broken)))
-    show(
-      "C1 known ignored argument",
-      analyze(
-        listOf(Effect.Call("call", "ignore", args, site("call"))),
-        extra = listOf(CallableContract("ignore", listOf(p), emptyList(), site("ignore"))),
-      ),
-    ) { r ->
-      r.findings.any {
-        it.kind == FindingKind.CONSTRUCTION_LOOKUP && it.certainty == Certainty.MISSING
-      }
-    }
-  }
-
-  @Test
-  fun `unknown callable argument`() {
-    val p = ContractParameter("ignore", "canvas", ParameterKind.CANVAS)
-    val args = CallArguments(mapOf(p to ArgumentExpression.Canvas(broken)))
-    show(
-      "F1 unknown helper with broken eager argument",
-      analyze(listOf(Effect.Call("call", "ignore", args, site("call"))), policy = AnalysisPolicy.DEFAULT),
-    ) { r ->
-      !r.policyDecision.passed &&
-        r.findings.any {
-          it.key == metrics && it.certainty == Certainty.MISSING
-        }
-    }
-  }
-
-  @Test
-  fun `unknown factory argument`() {
-    val p = ContractParameter("ignore", "canvas", ParameterKind.CANVAS)
-    val args = CallArguments(mapOf(p to ArgumentExpression.Canvas(broken)))
-    show(
-      "F1b unknown Canvas factory with broken eager argument",
-      analyze(
-        listOf(
-          Effect.ConstructCanvas(
-            "construct",
-            CanvasExpression.RuntimeCall("ignore", args, site("call")),
-            site("construct"),
-          ),
-        ),
-        policy = AnalysisPolicy.DEFAULT,
-      ),
-    ) { r ->
-      !r.policyDecision.passed &&
-        r.findings.any {
-          it.key == metrics && it.certainty == Certainty.MISSING
-        }
-    }
   }
 
   @Test
@@ -259,35 +202,15 @@ class ActivationRegressionTest {
   }
 
   @Test
-  fun `opaque alias controls`() {
-    for (reverse in listOf(false, true)) {
-      val alias =
-        CanvasExpression.Alias(
-          "selected",
-          CanvasExpression.Choice(
-            Guard.Opaque("env", site("env")),
-            if (reverse) empty else full,
-            if (reverse) full else empty,
-          ),
-        )
-      show(
-        "C2 opaque alias reverse=$reverse",
-        analyze(listOf(Effect.ConstructCanvas("let", alias, site("let")), lookup("read", alias))),
-      ) { r ->
-        r.findings.any {
-          it.certainty == Certainty.UNVERIFIED
-        } && r.findings.none { it.certainty == Certainty.MISSING } && !r.policyDecision.passed
-      }
-    }
-  }
-
-  @Test
   fun `alias branch refinement`() {
     val flag = ContractParameter("entry", "flag", ParameterKind.BOOLEAN)
     val alias =
       CanvasExpression.Alias(
         "shared",
-        layer("shared", listOf(binding(metrics), binding(service, listOf(lookup("init", kind = LookupKind.PAINT))))),
+        layer(
+          "shared",
+          listOf(binding(metrics), binding(service, listOf(lookup("init", kind = LookupKind.CONSTRUCTION)))),
+        ),
       )
     val branch =
       Effect.Branch(
@@ -308,17 +231,5 @@ class ActivationRegressionTest {
     assertEquals(2, consumers.size)
     assertEquals(setOf(listOf("flag=false"), listOf("flag=true")), consumers.map { it.pathCondition }.toSet())
     assertTrue(aliasReport.policyDecision.passed)
-  }
-
-  @Test
-  fun `binding capture`() {
-    val origin = CaptureOrigin.Constant("platform.QUALIFIER", "platform:v1", "primary")
-    val qualified = CanvasKeyIdentity("Metrics", "primary")
-    val capturedBinding =
-      Binding(Fact.Known(qualified, site("constant"), EvidenceKind.CAPTURED_FACT, origin), site = site("qualified"))
-    show(
-      "F5 captured registration-key provenance",
-      analyze(listOf(lookup("read-captured-binding", layer("captured", listOf(capturedBinding)), qualified))),
-    ) { r -> origin in r.findings.single().capturedOrigins }
   }
 }

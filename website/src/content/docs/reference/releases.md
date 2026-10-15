@@ -1,28 +1,25 @@
 ---
 title: 'Releases'
-description: 'Release notes and the maintained Mosaic changelog.'
+description: 'Release notes and migration guidance.'
 ---
 
-Mosaic **0.7.0** is the public stable release. It adds request execution through `withMosaic`, externally owned Canvas bindings, isolated MultiTile outcomes, and analysis of scoped execution and Tile cycles.
+**Runtime 1.0.0 and Analysis 1.0.0** were released on October 15, 2026. Runtime provides composition, testing, tracing, and the BOM. Analysis provides optional verification and architecture graphs. The two are independently versioned.
 
-- [0.7.0 release notes and migration](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/docs/releases/0.7.0.md)
-- [0.6.0 release notes and migration](https://github.com/BuildMosaic/Mosaic/blob/main/docs/releases/0.6.0.md)
-- [0.5.0: opportunistic MultiTile coalescing](https://github.com/BuildMosaic/Mosaic/blob/main/docs/releases/0.5.0.md)
-- [0.4.0: discovered analysis roots and architecture graphs](https://github.com/BuildMosaic/Mosaic/blob/main/docs/releases/0.4.0.md)
-- [0.3.0: optional Canvas contract analysis](https://github.com/BuildMosaic/Mosaic/blob/main/docs/releases/0.3.0.md)
+- [Runtime 1.0.0 notes](https://github.com/BuildMosaic/Mosaic/blob/runtime-1.0.0/docs/releases/runtime-1.0.0.md)
+- [Analysis 1.0.0 notes](https://github.com/BuildMosaic/Mosaic/blob/analysis-1.0.0/docs/releases/analysis-1.0.0.md)
 
-The [changelog](https://github.com/BuildMosaic/Mosaic/blob/main/CHANGELOG.md) owns release history. For current requirements use [compatibility](/reference/compatibility/); for installation use the [installation guide](/start/installation/).
+Use the [installation guide](/start/installation/) to get started and [compatibility](/reference/compatibility/) to select toolchains.
 
-## Upgrading within 0.x
+## Scoped execution migration
 
-The 0.x release history includes source and binary compatibility changes. For example, [0.6.0 changed Canvas construction and requires consumers to recompile](https://github.com/BuildMosaic/Mosaic/blob/0.6.0/docs/releases/0.6.0.md#compatibility-and-migration). Review the release notes for each intervening version, check [runtime and optional analysis requirements](/reference/compatibility/), and test your application before upgrading.
+Upgrading from 0.7.0 requires API changes and recompilation. Follow the [Runtime migration table](https://github.com/BuildMosaic/Mosaic/blob/runtime-1.0.0/docs/releases/runtime-1.0.0.md#upgrade-from-070) and [Analysis regeneration instructions](https://github.com/BuildMosaic/Mosaic/blob/analysis-1.0.0/docs/releases/analysis-1.0.0.md#upgrade-from-070).
 
-The [security policy](https://github.com/BuildMosaic/Mosaic/security/policy) supports only the latest minor release with security updates.
+## Historical releases
 
-## Released and unreleased code
+- [0.7.0 notes](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/docs/releases/0.7.0.md) and [versioned guides and examples](https://github.com/BuildMosaic/Mosaic/tree/0.7.0)
+- [0.6.0: Canvas construction and tracing](https://github.com/BuildMosaic/Mosaic/blob/main/docs/releases/0.6.0.md)
+- [0.5.0: MultiTile coalescing](https://github.com/BuildMosaic/Mosaic/blob/main/docs/releases/0.5.0.md)
+- [0.4.0: analysis roots and graphs](https://github.com/BuildMosaic/Mosaic/blob/main/docs/releases/0.4.0.md)
+- [0.3.0: Canvas contract analysis](https://github.com/BuildMosaic/Mosaic/blob/main/docs/releases/0.3.0.md)
 
-Use the [0.7.0 source and examples](https://github.com/BuildMosaic/Mosaic/tree/0.7.0) when evaluating the public stable release. The `develop` branch contains unreleased work; its APIs and examples can differ from published artifacts. Check [GitHub Releases](https://github.com/BuildMosaic/Mosaic/releases) for published versions.
-
-## API reference
-
-The [native Kotlin API reference](/api/) is generated from KDoc on canonical main. It covers `mosaic-core`, `mosaic-test`, and `mosaic-opentelemetry`. It describes the repository's current API, rather than offering versioned documentation.
+The [changelog](https://github.com/BuildMosaic/Mosaic/blob/main/CHANGELOG.md) records release history. The [Kotlin API reference](/api/) describes the current Runtime API.

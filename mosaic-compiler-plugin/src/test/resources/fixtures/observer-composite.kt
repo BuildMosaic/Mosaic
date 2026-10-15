@@ -2,7 +2,8 @@ package consumer
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import org.buildmosaic.core.MosaicImpl
+import org.buildmosaic.core.injection.withMosaic
+import kotlinx.coroutines.withContext
 import org.buildmosaic.core.injection.canvas
 import org.buildmosaic.core.observation.*
 import org.buildmosaic.core.singleTile
@@ -92,12 +93,14 @@ private class Composite(private val components: List<ExecutionObserver>) : Execu
 fun verifyComposite() = runBlocking {
     val first = Component(::FirstToken)
     val second = Component(::SecondToken)
-    val mosaic = MosaicImpl(canvas { installExecutionObserver { Composite(listOf(first, second)) } }, Dispatchers.Unconfined)
-    val result = mosaic.compose(singleTile {
+    val result = withContext(Dispatchers.Unconfined) {
+      canvas { installExecutionObserver { Composite(listOf(first, second)) } }.withMosaic { compose(singleTile {
         check(first.ambient.get() === first.identities.first())
         check(second.ambient.get() === second.identities.first())
         compose(singleTile { 42 })
     })
+      }
+    }
     check(result == 42)
     listOf(first, second).forEach { component ->
         check(component.starts.size == 2)

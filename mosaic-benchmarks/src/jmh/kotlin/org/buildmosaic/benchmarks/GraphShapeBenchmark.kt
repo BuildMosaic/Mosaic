@@ -1,7 +1,7 @@
 package org.buildmosaic.benchmarks
 
 import org.buildmosaic.core.Tile
-import org.buildmosaic.core.injection.create
+import org.buildmosaic.core.injection.withMosaic
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.OperationsPerInvocation
 import org.openjdk.jmh.annotations.Param
@@ -26,13 +26,13 @@ open class GraphShapeBenchmark {
 
   @Benchmark
   @OperationsPerInvocation(BATCH_SIZE)
-  open fun width(): Int = suspendBatch { emptyCanvas.create().compose(widthRoot) }
+  open fun width(): Int = suspendBatch { emptyCanvas.withMosaic { compose(widthRoot) } }
 
   @Benchmark
   @OperationsPerInvocation(BATCH_SIZE)
-  open fun depth(): Int = suspendBatch { emptyCanvas.create().compose(depthRoot) }
+  open fun depth(): Int = suspendBatch { emptyCanvas.withMosaic { compose(depthRoot) } }
 
   @Benchmark
   @OperationsPerInvocation(BATCH_SIZE)
-  open fun sharedDiamond(): Int = suspendBatch { emptyCanvas.create().compose(diamondRoot) }
+  open fun sharedDiamond(): Int = suspendBatch { emptyCanvas.withMosaic { compose(diamondRoot) } }
 }

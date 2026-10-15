@@ -281,7 +281,7 @@ class MosaicGraphTest {
                     Guard.Opaque("branch", site("branch")),
                     CanvasExpression.Empty,
                     CanvasExpression.WithEffects(
-                      listOf(lookup("paint", metrics)),
+                      listOf(lookup("construction", metrics)),
                       CanvasExpression.Empty,
                     ),
                   ),

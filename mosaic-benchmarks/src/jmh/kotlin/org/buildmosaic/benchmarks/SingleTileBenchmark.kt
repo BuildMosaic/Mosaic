@@ -1,10 +1,8 @@
 package org.buildmosaic.benchmarks
 
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.runBlocking
-import org.buildmosaic.core.Mosaic
 import org.buildmosaic.core.Tile
-import org.buildmosaic.core.injection.create
+import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.core.singleTile
 import org.openjdk.jmh.annotations.Benchmark
 import org.openjdk.jmh.annotations.OperationsPerInvocation
@@ -31,26 +29,33 @@ open class CpuTileState {
 @State(Scope.Thread)
 open class SingleTileBenchmark {
   private val trivial = singleTile { 7 }
-  private lateinit var cached: Mosaic
+  @Benchmark
+  @OperationsPerInvocation(BATCH_SIZE)
+  open fun coldTrivial(): Int = suspendBatch { emptyCanvas.withMosaic { compose(trivial) } }
 
-  @Setup
-  fun prepare() {
-    cached = emptyCanvas.create()
-    runBlocking { cached.compose(trivial) }
+  @Benchmark
+  @OperationsPerInvocation(BATCH_SIZE)
+  open fun completedCacheHit(): Int = runBlocking {
+    emptyCanvas.withMosaic {
+      compose(trivial)
+      var result = 0
+      repeat(BATCH_SIZE) { result += compose(trivial) }
+      result
+    }
   }
 
   @Benchmark
   @OperationsPerInvocation(BATCH_SIZE)
-  open fun coldTrivial(): Int = suspendBatch { emptyCanvas.create().compose(trivial) }
+  open fun completedCacheHitAsync(): Int = runBlocking {
+    emptyCanvas.withMosaic {
+      compose(trivial)
+      var result = 0
+      repeat(BATCH_SIZE) { result += composeAsync(trivial).await() }
+      result
+    }
+  }
 
   @Benchmark
   @OperationsPerInvocation(BATCH_SIZE)
-  open fun completedCacheHit(): Int = suspendBatch { cached.compose(trivial) }
-
-  @Benchmark
-  open fun completedCacheHitAsync(): Deferred<Int> = cached.composeAsync(trivial)
-
-  @Benchmark
-  @OperationsPerInvocation(BATCH_SIZE)
-  open fun smallCpu(state: CpuTileState): Int = suspendBatch { emptyCanvas.create().compose(state.cpuTile) }
+  open fun smallCpu(state: CpuTileState): Int = suspendBatch { emptyCanvas.withMosaic { compose(state.cpuTile) } }
 }

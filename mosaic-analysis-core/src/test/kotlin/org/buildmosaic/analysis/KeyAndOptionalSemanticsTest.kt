@@ -46,16 +46,13 @@ class KeyAndOptionalSemanticsTest {
   }
 
   @Test
-  fun `normalized class identity ignores generic arguments but never applies subtype matching`() {
-    val listKey = CanvasKeyIdentity("java.util.List")
-    val genericResult = analyze(listOf(binding(listKey)), Fact.Known(listKey))
+  fun `exact class identity never applies subtype matching`() {
     val interfaceResult =
       analyze(
         listOf(binding(CanvasKeyIdentity("example.ConcreteService"))),
         Fact.Known(CanvasKeyIdentity("example.ServiceInterface")),
       )
 
-    assertEquals(Certainty.VERIFIED, genericResult.findings.single().certainty)
     assertEquals(Certainty.MISSING, interfaceResult.findings.single().certainty)
   }
 

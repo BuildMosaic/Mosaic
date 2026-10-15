@@ -20,7 +20,8 @@ class SupportedBoundaryIntegrationTest {
     val root = Files.createTempDirectory("mosaic-boundary-integration").toFile()
     val repository = File(System.getProperty("user.dir")).parentFile
     val pluginJar = File(repository, "mosaic-compiler-plugin/build/libs/mosaic-compiler-plugin-${mosaicVersion()}.jar")
-    val project = project(root, "boundary", pluginJar, emptyList())
+    val coreJar = File(repository, "mosaic-core/build/libs/mosaic-core-${mosaicVersion()}.jar")
+    val project = project(root, "boundary", pluginJar, listOf(coreJar))
     val buildFile = File(project, "build.gradle.kts")
     val validBuild = buildFile.readText()
     buildFile.writeText("plugins { java; id(\"org.buildmosaic.analysis\") }")
@@ -60,10 +61,14 @@ class SupportedBoundaryIntegrationTest {
     )
     File(project, "src/main/kotlin/Script.kts").delete()
     buildFile.writeText(
-      validBuild + "\ntasks.named<org.buildmosaic.gradle.ExtractMosaicTask>(\"extractMosaicMain\") { productionCompilerVersion.set(\"2.2.10\") }",
+      validBuild + "\ntasks.named<org.buildmosaic.gradle.ExtractMosaicTask>(\"extractMosaicMain\") { productionCompilerVersion.set(\"999.0.0\") }",
     )
     assertTrue(
-      run(project, "extractMosaicMain", expectFailure = true).output.contains("requires Kotlin Gradle plugin 2.4.20"),
+      run(
+        project,
+        "extractMosaicMain",
+        expectFailure = true,
+      ).output.contains("does not support Kotlin compiler 999.0.0"),
     )
     buildFile.writeText(
       validBuild + "\ntasks.named<org.buildmosaic.gradle.ExtractMosaicTask>(\"extractMosaicMain\") { selectedJavaVersion.set(\"999\") }",

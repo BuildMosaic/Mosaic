@@ -7,7 +7,7 @@ import org.buildmosaic.library.model.Logistics
 import org.buildmosaic.library.model.Order
 import org.buildmosaic.library.model.OrderPage
 import org.buildmosaic.library.model.OrderSummary
-import org.buildmosaic.test.TestMosaicBuilder
+import org.buildmosaic.test.mosaicBuilder
 import kotlin.test.Test
 
 class OrderPageTileTest {
@@ -22,12 +22,13 @@ class OrderPageTileTest {
         )
       val logistics = Logistics(Address("123 Main St", "Springfield"), emptyMap())
       val expected = OrderPage(summary, logistics)
-      val testMosaic =
-        TestMosaicBuilder(this)
-          .withMockTile(OrderSummaryTile, summary)
-          .withMockTile(LogisticsTile, logistics)
-          .build()
-      testMosaic.assertEquals(OrderPageTile, expected)
+
+      mosaicBuilder()
+        .withMockTile(OrderSummaryTile, summary)
+        .withMockTile(LogisticsTile, logistics)
+        .withMosaic {
+          assertEquals(OrderPageTile, expected)
+        }
     }
 
   @Test
@@ -39,11 +40,12 @@ class OrderPageTileTest {
           customer = Customer("customer-1", "Jane Doe"),
           lineItems = emptyList(),
         )
-      val testMosaic =
-        TestMosaicBuilder(this)
-          .withMockTile(OrderSummaryTile, summary)
-          .withFailedTile(LogisticsTile, RuntimeException("boom"))
-          .build()
-      testMosaic.assertThrows(OrderPageTile, RuntimeException::class)
+
+      mosaicBuilder()
+        .withMockTile(OrderSummaryTile, summary)
+        .withFailedTile(LogisticsTile, RuntimeException("boom"))
+        .withMosaic {
+          assertThrows(OrderPageTile, RuntimeException::class)
+        }
     }
 }

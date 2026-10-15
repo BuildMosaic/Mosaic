@@ -2,6 +2,7 @@ package org.buildmosaic.gradle
 
 import org.buildmosaic.analysis.AnalysisPolicy
 import org.buildmosaic.analysis.AnalysisRequest
+import org.buildmosaic.analysis.CoreAnalysisRevision
 import org.buildmosaic.analysis.ModuleContract
 import org.buildmosaic.analysis.MosaicGraph
 import org.buildmosaic.analysis.MosaicRuleSeverity
@@ -50,11 +51,20 @@ abstract class MosaicGraphTask : DefaultTask() {
   @get:Input
   abstract val ruleSeverities: MapProperty<String, MosaicRuleSeverity>
 
+  @get:Internal abstract val coreCompileArtifacts: ConfigurableFileCollection
+
+  @get:Internal abstract val coreRuntimeArtifacts: ConfigurableFileCollection
+
+  @get:Input
+  val coreAnalysisRevision: Int
+    get() = CoreAnalysisRevision.selectedContext(coreCompileArtifacts.files, coreRuntimeArtifacts.files)
+
   @get:OutputFile abstract val graphFile: RegularFileProperty
 
   @TaskAction fun generate() {
     val output = graphFile.get().asFile
     output.delete()
+    CoreAnalysisRevision.requireUnderstood(listOf(coreAnalysisRevision))
     val selectedRoots = roots.get()
     validateRoots(selectedRoots)
     validateArtifacts()

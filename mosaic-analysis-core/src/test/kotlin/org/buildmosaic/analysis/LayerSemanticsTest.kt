@@ -40,20 +40,20 @@ class LayerSemanticsTest {
           binding(
             repository,
             "repository",
-            listOf(lookup("repository-paint", metrics, LookupKind.PAINT)),
+            listOf(lookup("repository-construction", metrics, LookupKind.CONSTRUCTION)),
           ),
         ),
         site = site("child"),
       )
     val result = analyzeCanvas(canvas, tile("RepositoryTile", lookup("repository", repository)))
-    val paint = result.findings.single { it.kind == FindingKind.CONSTRUCTION_LOOKUP }
+    val construction = result.findings.single { it.kind == FindingKind.CONSTRUCTION_LOOKUP }
 
-    assertEquals(site("parent-metrics"), paint.bindingSite)
-    assertEquals(listOf("child", "parent"), paint.canvasPath.map { it.layerId })
+    assertEquals(site("parent-metrics"), construction.bindingSite)
+    assertEquals(listOf("child", "parent"), construction.canvasPath.map { it.layerId })
   }
 
   @Test
-  fun `late local registration wins over parent for eager paint`() {
+  fun `late local registration wins over parent for eager construction`() {
     val parentMetrics = binding(metrics, "parent-metrics")
     val lateMetrics = binding(metrics, "late-local-metrics")
     val canvas =
@@ -66,7 +66,7 @@ class LayerSemanticsTest {
           site = site("parent"),
         ),
         listOf(
-          binding(service, "consumer", listOf(lookup("paint", metrics, LookupKind.PAINT))),
+          binding(service, "consumer", listOf(lookup("construction", metrics, LookupKind.CONSTRUCTION))),
           lateMetrics,
         ),
         site = site("child"),
@@ -90,7 +90,11 @@ class LayerSemanticsTest {
         CanvasExpression.Empty,
         listOf(
           parentMetrics,
-          binding(repository, "parent-repository", listOf(lookup("parent-paint", metrics, LookupKind.PAINT))),
+          binding(
+            repository,
+            "parent-repository",
+            listOf(lookup("parent-construction", metrics, LookupKind.CONSTRUCTION)),
+          ),
         ),
         site = site("parent"),
       )
@@ -117,7 +121,7 @@ class LayerSemanticsTest {
       CanvasExpression.Layer(
         "parent",
         CanvasExpression.Empty,
-        listOf(binding(repository, "repository", listOf(lookup("paint", metrics, LookupKind.PAINT)))),
+        listOf(binding(repository, "repository", listOf(lookup("construction", metrics, LookupKind.CONSTRUCTION)))),
         site = site("parent"),
       )
     val child =
@@ -139,7 +143,9 @@ class LayerSemanticsTest {
       CanvasExpression.Layer(
         "invalid",
         CanvasExpression.Empty,
-        listOf(binding(service, "unused-service", listOf(lookup("unused-paint", metrics, LookupKind.PAINT)))),
+        listOf(
+          binding(service, "unused-service", listOf(lookup("unused-construction", metrics, LookupKind.CONSTRUCTION))),
+        ),
         site = site("invalid"),
       )
     val module =
@@ -185,8 +191,8 @@ class LayerSemanticsTest {
         "invalid",
         CanvasExpression.Empty,
         listOf(
-          binding(first, "first", listOf(lookup("first-paint", metrics, LookupKind.PAINT))),
-          binding(second, "second", listOf(lookup("second-paint", repository, LookupKind.PAINT))),
+          binding(first, "first", listOf(lookup("first-construction", metrics, LookupKind.CONSTRUCTION))),
+          binding(second, "second", listOf(lookup("second-construction", repository, LookupKind.CONSTRUCTION))),
         ),
         site = site("invalid"),
       )
@@ -205,7 +211,7 @@ class LayerSemanticsTest {
       binding(
         metrics,
         "child-metrics",
-        listOf(lookup("child-failure", CanvasKeyIdentity("example.Platform"), LookupKind.PAINT)),
+        listOf(lookup("child-failure", CanvasKeyIdentity("example.Platform"), LookupKind.CONSTRUCTION)),
       )
     val canvas =
       CanvasExpression.Layer(
@@ -218,7 +224,7 @@ class LayerSemanticsTest {
         ),
         listOf(
           childMetrics,
-          binding(service, "consumer", listOf(lookup("consumer-paint", metrics, LookupKind.PAINT))),
+          binding(service, "consumer", listOf(lookup("consumer-construction", metrics, LookupKind.CONSTRUCTION))),
         ),
         site = site("child"),
       )
@@ -243,7 +249,7 @@ class LayerSemanticsTest {
           CanvasExpression.Empty,
           listOf(
             binding(metrics),
-            binding(service, "service", listOf(lookup("paint", metrics, LookupKind.PAINT))),
+            binding(service, "service", listOf(lookup("construction", metrics, LookupKind.CONSTRUCTION))),
           ),
           site = site("shared"),
         ),

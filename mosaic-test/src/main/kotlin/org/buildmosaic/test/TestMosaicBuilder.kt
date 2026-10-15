@@ -16,10 +16,8 @@
 
 package org.buildmosaic.test
 
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
 import org.buildmosaic.core.Mosaic
 import org.buildmosaic.core.MultiTile
 import org.buildmosaic.core.Tile
@@ -31,40 +29,40 @@ import kotlin.jvm.JvmName
 import kotlin.reflect.KClass
 
 /**
- * A builder for creating [TestMosaic] instances with mocked [Tile] implementations.
+ * Fluent configuration for scoped [TestMosaic] execution with substituted dependencies.
  *
  * This class provides a fluent API for setting up test scenarios by configuring mock tiles
  * with various behaviors. It supports both [Tile] and [MultiTile] mocks with
  * different behaviors like success, failure, delays, and custom logic.
- * Inside `runTest`, use [mosaicBuilder] to share its [TestScope] and scheduler.
+ * Each [withMosaic] invocation inherits its calling coroutine context, including the
+ * Job, dispatcher, and scheduler when called inside `runTest`.
  *
  * ### Basic Usage
  * ```kotlin
- * val testMosaic = mosaicBuilder()
+ * mosaicBuilder()
  *   .withMockTile(MyTile, "test data")
  *   .withFailedTile(OtherTile, RuntimeException("Test error"))
  *   .withDelayedTile(SlowTile, "delayed data", 1000) // 1 second delay
- *   .build()
+ *   .withMosaic { /* compose and assert here */ }
  * ```
  *
  * ### MultiTile Usage
  * ```kotlin
- * val testMosaic = mosaicBuilder()
+ * mosaicBuilder()
  *   .withMockTile(UserTile, mapOf("user1" to user1, "user2" to user2))
  *   .withCustomTile(ProfileTile) { keys ->
  *     // Custom logic based on requested keys
  *     keys.associateWith { key -> createMockProfile(key) }
  *   }
- *   .build()
+ *   .withMosaic { /* compose and assert here */ }
  * ```
  */
 @Suppress("LargeClass")
-class TestMosaicBuilder(testContext: TestScope) {
+class TestMosaicBuilder {
   private val sources = mutableMapOf<CanvasKey<*>, Any>()
-  private var dispatcher = StandardTestDispatcher(testContext.testScheduler)
 
-  private val mockTileCache: MutableMap<Tile<*>, Tile<*>> = mutableMapOf()
-  private val mockMultiTileCache: MutableMap<MultiTile<*, *>, MultiTile<*, *>> = mutableMapOf()
+  private val tileSubstitutions: MutableMap<Tile<*>, Tile<*>> = mutableMapOf()
+  private val multiTileSubstitutions: MutableMap<MultiTile<*, *>, MultiTile<*, *>> = mutableMapOf()
 
   /**
    * Adds a mock [Tile] that returns the specified response.
@@ -75,9 +73,9 @@ class TestMosaicBuilder(testContext: TestScope) {
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withMockTile(MyTile, "test data")
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   fun <V> withMockTile(
@@ -85,7 +83,7 @@ class TestMosaicBuilder(testContext: TestScope) {
     response: V,
   ): TestMosaicBuilder =
     apply {
-      mockTileCache[tile] = singleTile { response }
+      tileSubstitutions[tile] = singleTile { response }
     }
 
   /**
@@ -96,9 +94,9 @@ class TestMosaicBuilder(testContext: TestScope) {
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withFailedTile(MyTile, RuntimeException("Test error"))
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   fun withFailedTile(
@@ -106,7 +104,7 @@ class TestMosaicBuilder(testContext: TestScope) {
     throwable: Throwable,
   ): TestMosaicBuilder =
     apply {
-      mockTileCache[tile] = singleTile<Any> { throw throwable }
+      tileSubstitutions[tile] = singleTile<Any> { throw throwable }
     }
 
   /**
@@ -119,9 +117,9 @@ class TestMosaicBuilder(testContext: TestScope) {
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withDelayedTile(MyTile, "delayed data", 1000) // 1 second delay
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   fun <V> withDelayedTile(
@@ -130,7 +128,7 @@ class TestMosaicBuilder(testContext: TestScope) {
     delayMs: Long,
   ): TestMosaicBuilder =
     apply {
-      mockTileCache[tile] =
+      tileSubstitutions[tile] =
         singleTile {
           delay(delayMs)
           response
@@ -146,12 +144,12 @@ class TestMosaicBuilder(testContext: TestScope) {
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withCustomTile(MyTile) {
    *     // Custom logic here
    *     if (condition) "result1" else "result2"
    *   }
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   fun <V> withCustomTile(
@@ -159,7 +157,7 @@ class TestMosaicBuilder(testContext: TestScope) {
     provider: suspend Mosaic.() -> V,
   ): TestMosaicBuilder =
     apply {
-      mockTileCache[tile] = singleTile(provider)
+      tileSubstitutions[tile] = singleTile(provider)
     }
 
   /**
@@ -172,12 +170,12 @@ class TestMosaicBuilder(testContext: TestScope) {
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withMockTile(UserTile, mapOf(
    *     "user1" to User("user1"),
    *     "user2" to User("user2")
    *   ))
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   @JvmName("withMockMultiTile")
@@ -186,7 +184,7 @@ class TestMosaicBuilder(testContext: TestScope) {
     response: Map<K, V>,
   ): TestMosaicBuilder =
     apply {
-      mockMultiTileCache[tile] = multiTile { response }
+      multiTileSubstitutions[tile] = multiTile { response }
     }
 
   /**
@@ -197,9 +195,9 @@ class TestMosaicBuilder(testContext: TestScope) {
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withFailedTile(UserTile, RuntimeException("User not found"))
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   @JvmName("withFailedMultiTile")
@@ -208,7 +206,7 @@ class TestMosaicBuilder(testContext: TestScope) {
     throwable: Throwable,
   ): TestMosaicBuilder =
     apply {
-      mockMultiTileCache[tile] = multiTile<Any, Any> { throw throwable }
+      multiTileSubstitutions[tile] = multiTile<Any, Any> { throw throwable }
     }
 
   /**
@@ -222,9 +220,9 @@ class TestMosaicBuilder(testContext: TestScope) {
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withDelayedTile(UserTile, mapOf("user1" to User("user1")), 500)
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   @JvmName("withDelayedMultiTile")
@@ -234,7 +232,7 @@ class TestMosaicBuilder(testContext: TestScope) {
     delayMs: Long,
   ): TestMosaicBuilder =
     apply {
-      mockMultiTileCache[tile] =
+      multiTileSubstitutions[tile] =
         multiTile {
           delay(delayMs)
           response
@@ -251,7 +249,7 @@ class TestMosaicBuilder(testContext: TestScope) {
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withCustomTile(UserTile) { keys ->
    *     // Custom logic based on requested keys
    *     keys.associateWith { key ->
@@ -259,7 +257,7 @@ class TestMosaicBuilder(testContext: TestScope) {
    *       else createRegularUser(key)
    *     }
    *   }
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   @JvmName("withCustomMultiTile")
@@ -268,11 +266,11 @@ class TestMosaicBuilder(testContext: TestScope) {
     provider: suspend Mosaic.(Set<K>) -> Map<K, V>,
   ): TestMosaicBuilder =
     apply {
-      mockMultiTileCache[tile] = multiTile(provider)
+      multiTileSubstitutions[tile] = multiTile(provider)
     }
 
   /**
-   * Adds a source to the canvas with the specified class and object.
+   * Borrows a caller-owned source for the canvas with the specified class and object.
    * Allows for passing in a superclass as the retrieval type.
    *
    * @param clazz The class of the object to register
@@ -280,10 +278,10 @@ class TestMosaicBuilder(testContext: TestScope) {
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withCanvasSource(User::class, User("test-user"))
    *   .withMockTile(MyTile, "test data")
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   fun <T : Any, V : T> withCanvasSource(
@@ -295,22 +293,22 @@ class TestMosaicBuilder(testContext: TestScope) {
     }
 
   /**
-   * Adds a source to the canvas with the specified object.
+   * Borrows a caller-owned source for the canvas with the specified object.
    *
    * @param obj The object to register
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withCanvasSource(User("test-user"))
    *   .withMockTile(MyTile, "test data")
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   inline fun <reified T : Any> withCanvasSource(obj: T): TestMosaicBuilder = withCanvasSource(T::class, obj)
 
   /**
-   * Adds a source to the canvas with the specified class, qualifier, and object.
+   * Borrows a caller-owned source for the canvas with the specified class, qualifier, and object.
    *
    * @param clazz The class of the object to register
    * @param qualifier The qualifier to distinguish this instance
@@ -318,10 +316,10 @@ class TestMosaicBuilder(testContext: TestScope) {
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withCanvasSource(DatabaseService::class, "primary", primaryDb)
    *   .withCanvasSource(DatabaseService::class, "secondary", secondaryDb)
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   fun <T : Any, V : T> withCanvasSource(
@@ -334,17 +332,17 @@ class TestMosaicBuilder(testContext: TestScope) {
     }
 
   /**
-   * Adds a source to the canvas with the specified object and qualifier.
+   * Borrows a caller-owned source for the canvas with the specified object and qualifier.
    *
    * @param qualifier The qualifier to distinguish this instance
    * @param obj The object to register
    * @return This builder for method chaining
    *
    * ```kotlin
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withCanvasSource("primary", primaryDb)
    *   .withCanvasSource("secondary", secondaryDb)
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   inline fun <reified T : Any> withCanvasSource(
@@ -353,7 +351,7 @@ class TestMosaicBuilder(testContext: TestScope) {
   ): TestMosaicBuilder = withCanvasSource(T::class, qualifier, obj)
 
   /**
-   * Adds a source to the canvas using a CanvasKey.
+   * Borrows a caller-owned source for the canvas using a CanvasKey.
    *
    * @param key The canvas key to register under
    * @param obj The object to register
@@ -361,9 +359,9 @@ class TestMosaicBuilder(testContext: TestScope) {
    *
    * ```kotlin
    * val dbKey = CanvasKey(DatabaseService::class, "primary")
-   * val testMosaic = mosaicBuilder()
+   * mosaicBuilder()
    *   .withCanvasSource(dbKey, primaryDb)
-   *   .build()
+   *   .withMosaic { /* compose and assert here */ }
    * ```
    */
   fun <T : Any> withCanvasSource(
@@ -375,32 +373,30 @@ class TestMosaicBuilder(testContext: TestScope) {
     }
 
   /**
-   * Builds and returns a configured [TestMosaic] instance.
-   *
-   * This method finalizes the builder configuration and creates a new [TestMosaic]
-   * with all the specified mock tiles and request setup.
-   *
-   * @return A new [TestMosaic] instance ready for testing
-   *
-   * ```kotlin
-   * val testMosaic = mosaicBuilder()
-   *   .withMockTile(MyTile, "test data")
-   *   .build()
-   * ```
+   * Executes [block] with a fresh cache and a snapshot of this builder's configuration.
+   * Inherits the calling coroutine's Job, dispatcher, scheduler, and other context elements.
+   * Every exit cancels unfinished producers and waits for their attached children to clean up.
+   * Supplied Canvas sources are borrowed: they remain owned by the caller and are never closed.
+   * Configure this builder from one coroutine at a time; later changes affect only later executions.
    */
-  fun build(): TestMosaic {
-    // Supplied values need no suspending construction; keep the test builder API synchronous.
+  suspend fun <R> withMosaic(block: suspend TestMosaic.() -> R): R {
+    val tiles = tileSubstitutions.toMap()
+    val multiTiles = multiTileSubstitutions.toMap()
+    val canvasSources = sources.toMap()
     val builtCanvas =
-      runBlocking {
-        canvas {
-          sources.forEach { (key, value) ->
-            @Suppress("UNCHECKED_CAST")
-            single(key as CanvasKey<Any>) { value }
-          }
+      canvas {
+        canvasSources.forEach { (key, value) ->
+          @Suppress("UNCHECKED_CAST")
+          instance(key as CanvasKey<Any>, value)
         }
       }
-    return TestMosaic(builtCanvas, mockTileCache, mockMultiTileCache, dispatcher)
+    return builtCanvas.use {
+      SubstitutingMosaic(it, currentCoroutineContext(), tiles, multiTiles).execute {
+        block(TestMosaic(this))
+      }
+    }
   }
 }
 
-fun TestScope.mosaicBuilder() = TestMosaicBuilder(this)
+/** Configures substitutions and borrowed Canvas sources for scoped test executions. */
+fun mosaicBuilder() = TestMosaicBuilder()

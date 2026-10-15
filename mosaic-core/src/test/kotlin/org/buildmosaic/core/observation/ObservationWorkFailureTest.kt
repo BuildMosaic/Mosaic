@@ -92,40 +92,53 @@ class ObservationWorkFailureTest {
 
   @Test fun laterKeyFailurePreservesEarlierReservations() =
     runTest {
-      val observer = RecordingObserver()
-      val mosaic = MosaicImpl(canvas { installExecutionObserver { observer } }, StandardTestDispatcher(testScheduler))
-      val calls = mutableListOf<Set<Int>>()
-      val tile =
-        multiTile<Key, Int> { keys ->
-          calls += keys.map { it.number }.toSet()
-          keys.associateWith { it.number }
-        }
-      val first = Key(1)
-      assertFailsWith<IllegalStateException> { mosaic.composeAsync(tile, listOf(first, Key(2, true))) }
-      testScheduler.runCurrent()
-      assertEquals(1, mosaic.compose(tile, first))
-      assertEquals(listOf(setOf(1)), calls)
-      assertEquals(1, observer.executions.single().start.batchSize)
+      for (observed in listOf(false, true)) {
+        val observer = RecordingObserver()
+        val mosaic =
+          MosaicImpl(
+            canvas { if (observed) installExecutionObserver { observer } },
+            StandardTestDispatcher(testScheduler),
+          )
+        val calls = mutableListOf<Set<Int>>()
+        val tile =
+          multiTile<Key, Int> { keys ->
+            calls += keys.map { it.number }.toSet()
+            keys.associateWith { it.number }
+          }
+        val first = Key(1)
+        assertFailsWith<IllegalStateException> { mosaic.composeAsync(tile, listOf(first, Key(2, true))) }
+        testScheduler.runCurrent()
+        assertEquals(listOf(setOf(1)), calls)
+        assertEquals(1, mosaic.compose(tile, first))
+        assertEquals(listOf(setOf(1)), calls)
+        if (observed) assertEquals(1, observer.executions.single().start.batchSize)
+      }
     }
 
   @Test fun failingResultLookupKeepsPriorSuccessfulValue() =
     runTest {
-      val observer = RecordingObserver()
-      val mosaic = MosaicImpl(canvas { installExecutionObserver { observer } }, StandardTestDispatcher(testScheduler))
-      val tile =
-        multiTile<Int, Int> { _: Set<Int> ->
-          object : AbstractMap<Int, Int>() {
-            override val entries: Set<Map.Entry<Int, Int>> = emptySet()
+      for (observed in listOf(false, true)) {
+        val observer = RecordingObserver()
+        val mosaic =
+          MosaicImpl(
+            canvas { if (observed) installExecutionObserver { observer } },
+            StandardTestDispatcher(testScheduler),
+          )
+        val tile =
+          multiTile<Int, Int> { _: Set<Int> ->
+            object : AbstractMap<Int, Int>() {
+              override val entries: Set<Map.Entry<Int, Int>> = emptySet()
 
-            override fun get(key: Int): Int = if (key == 2) error("private lookup") else key
+              override fun get(key: Int): Int = if (key == 2) error("private lookup") else key
+            }
           }
-        }
-      val results = mosaic.composeAsync(tile, listOf(1, 2, 3))
-      testScheduler.runCurrent()
-      assertTrue(results.values.all { it.isCompleted })
-      assertEquals(1, results.getValue(1).await())
-      assertFailsWith<IllegalStateException> { results.getValue(2).await() }
-      assertFailsWith<IllegalStateException> { results.getValue(3).await() }
-      assertEquals(ExecutionOutcome.FAILURE, observer.executions.single().completion?.outcome)
+        val results = mosaic.composeAsync(tile, listOf(1, 2, 3))
+        testScheduler.runCurrent()
+        assertTrue(results.values.all { it.isCompleted })
+        assertEquals(1, results.getValue(1).await())
+        assertEquals("private lookup", assertFailsWith<IllegalStateException> { results.getValue(2).await() }.message)
+        assertEquals("private lookup", assertFailsWith<IllegalStateException> { results.getValue(3).await() }.message)
+        if (observed) assertEquals(ExecutionOutcome.FAILURE, observer.executions.single().completion?.outcome)
+      }
     }
 }

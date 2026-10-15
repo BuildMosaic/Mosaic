@@ -5,7 +5,7 @@ import org.buildmosaic.library.model.Address
 import org.buildmosaic.library.model.Logistics
 import org.buildmosaic.library.model.Quote
 import org.buildmosaic.library.service.CarrierService
-import org.buildmosaic.test.TestMosaicBuilder
+import org.buildmosaic.test.mosaicBuilder
 import kotlin.test.Test
 
 class LogisticsTileTest {
@@ -20,25 +20,27 @@ class LogisticsTileTest {
           "DHL" to Quote("DHL", 6.49),
         )
       val expected = Logistics(address, quotes)
-      val testMosaic =
-        TestMosaicBuilder(this)
-          .withCanvasSource(CarrierService())
-          .withMockTile(AddressTile, address)
-          .withMockTile(CarrierQuotesTile, quotes)
-          .build()
-      testMosaic.assertEquals(LogisticsTile, expected)
+
+      mosaicBuilder()
+        .withCanvasSource(CarrierService())
+        .withMockTile(AddressTile, address)
+        .withMockTile(CarrierQuotesTile, quotes)
+        .withMosaic {
+          assertEquals(LogisticsTile, expected)
+        }
     }
 
   @Test
   fun `logistics tile fails when quotes tile fails`() =
     runTest {
       val address = Address("123 Main St", "Springfield")
-      val testMosaic =
-        TestMosaicBuilder(this)
-          .withCanvasSource(CarrierService())
-          .withMockTile(AddressTile, address)
-          .withFailedTile(CarrierQuotesTile, RuntimeException("boom"))
-          .build()
-      testMosaic.assertThrows(LogisticsTile, RuntimeException::class)
+
+      mosaicBuilder()
+        .withCanvasSource(CarrierService())
+        .withMockTile(AddressTile, address)
+        .withFailedTile(CarrierQuotesTile, RuntimeException("boom"))
+        .withMosaic {
+          assertThrows(LogisticsTile, RuntimeException::class)
+        }
     }
 }

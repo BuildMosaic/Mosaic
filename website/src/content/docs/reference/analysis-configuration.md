@@ -5,39 +5,6 @@ description: 'Complete reference for the Mosaic analysis Gradle DSL, rules, supp
 
 Use this reference to configure the optional `org.buildmosaic.analysis` plugin. For a first walkthrough, start with [Analyze architecture](/guides/analysis/). Runtime libraries remain independent of the analysis tooling.
 
-## Plugin setup
-
-Analysis supports exactly Kotlin compiler and Kotlin Gradle plugin **2.4.20**, for pure Kotlin/JVM `main` sources. See the [supported project boundary](#supported-project-boundary) before applying it.
-
-```kotlin title="settings.gradle.kts"
-pluginManagement {
-  repositories { gradlePluginPortal(); mavenCentral() }
-}
-```
-
-```kotlin title="build.gradle.kts"
-import org.buildmosaic.analysis.MosaicRuleSeverity
-import org.buildmosaic.gradle.MosaicAnalysisEnforcement
-import org.buildmosaic.gradle.MosaicAnalysisRole
-
-plugins {
-  kotlin("jvm") version "2.4.20"
-  id("org.buildmosaic.analysis") version "0.7.0"
-}
-
-repositories { mavenCentral() }
-
-mosaicAnalysis {
-  role = MosaicAnalysisRole.APPLICATION
-  enforcement = MosaicAnalysisEnforcement.STANDARD
-  rules {
-    severity("MOSAIC_RECURSIVE_MULTITILE", MosaicRuleSeverity.WARNING)
-  }
-}
-```
-
-Add Mosaic runtime dependencies separately. The plugin neither applies Kotlin nor installs the application runtime. It resolves the matching compiler plugin through Kotlin's normal compiler-subplugin integration. The analysis components are bundled with the compiler and Gradle plugins, so no separate analysis dependency is needed; analysis tooling is outside the runtime BOM.
-
 ## Gradle DSL
 
 The extension is `org.buildmosaic.gradle.MosaicAnalysisExtension`. These are its public configuration options:
@@ -52,6 +19,10 @@ The extension is `org.buildmosaic.gradle.MosaicAnalysisExtension`. These are its
 Use typed settings and ordinary Gradle properties:
 
 ```kotlin
+import org.buildmosaic.analysis.MosaicRuleSeverity
+import org.buildmosaic.gradle.MosaicAnalysisEnforcement
+import org.buildmosaic.gradle.MosaicAnalysisRole
+
 mosaicAnalysis {
   role = MosaicAnalysisRole.APPLICATION
   enforcement = MosaicAnalysisEnforcement.STRICT
@@ -124,7 +95,7 @@ val B: Tile<Int> by singleTile { compose(A) }
 suspend fun entry() = canvas {}.withMosaic { compose(A) }
 ```
 
-The reported path is `A -> B -> A`. Sharing a Canvas does not mean sharing a Mosaic cache: `withMosaic` and deprecated `create()` each create a fresh standard Mosaic. Analysis distinguishes those instances from the Mosaic executing the current Tile and preserves established immutable aliases. Unknown receivers, unsupported execution steps, fresh Tile allocation identities, opaque execution alternatives, and keyed recursion do not establish this proof.
+The reported path is `A -> B -> A`. Sharing a Canvas does not mean sharing a Mosaic cache: each `withMosaic` invocation creates a fresh standard Mosaic. Analysis distinguishes those instances from the Mosaic executing the current Tile and preserves established immutable aliases. Unknown receivers, unsupported execution steps, fresh Tile allocation identities, opaque execution alternatives, and keyed recursion do not establish this proof.
 
 An async launcher does not imply waiting. If A starts B asynchronously and B/C synchronously require each other, the independent witness is `B -> C -> B`; it does not claim A waits. Arbitrary `Deferred.await()` relationships are outside the proof boundary. The finding is called a cyclic Tile dependency, not a thread deadlock.
 
@@ -133,7 +104,7 @@ An async launcher does not imply waiting. If A starts B asynchronously and B/C s
 Reports a stable Tile declaration that requests itself, directly or through other Tiles or MultiTiles, when the stronger cyclic-result proof is unavailable. Examples include async edges, unknown Mosaic identity, separate Mosaics, and mixed Tile/MultiTile recursion. The diagnostic explicitly says the same-Mosaic cyclic result dependency was **not proven**.
 
 ```kotlin
-val A: Tile<Int> by singleTile { canvas.create().compose(A) }
+val A: Tile<Int> by singleTile { canvas.withMosaic { compose(A) } }
 ```
 
 This constructs separate Mosaic caches. The recursion is still rejected by default. Unsupported helper/capture/control-flow boundaries are not filled in to invent a recursive edge.
@@ -146,7 +117,7 @@ mosaicAnalysis {
 
 ```kotlin
 @Suppress("MOSAIC_RECURSIVE_TILE")
-val A: Tile<Int> by singleTile { canvas.create().compose(A) }
+val A: Tile<Int> by singleTile { canvas.withMosaic { compose(A) } }
 ```
 
 ### MOSAIC_RECURSIVE_MULTITILE
@@ -185,7 +156,7 @@ package app.categories
 
 ```kotlin
 @Suppress("MOSAIC_RECURSIVE_TILE", "MOSAIC_RECURSIVE_MULTITILE")
-val RecursiveTile: Tile<Int> by singleTile { canvas.create().compose(RecursiveTile) }
+val RecursiveTile: Tile<Int> by singleTile { canvas.withMosaic { compose(RecursiveTile) } }
 ```
 
 Supported scopes are Tile declarations/properties, file annotations, and inherited containing class/object scopes on Tile templates that extraction can establish. Local immutable value annotations are retained on their extracted templates. These scopes do not expand supported Tile identity: stable exported Tile properties remain top-level immutable declarations. Arbitrary member-dependent/computed Tiles remain unknown, even with a containing-class annotation.
@@ -204,9 +175,11 @@ MOSAIC_RECURSIVE_MULTITILE: Recursive MultiTile dependency: SUPPRESSED
 
 ## Extraction semantics and unknown boundaries
 
-Supported direct `withMosaic` evaluates its Canvas receiver before invocation, establishes one fresh standard Mosaic, binds the direct lambda receiver, and analyzes the block once in source order. `compose`, `composeAsync`, `source`, `sourceOr`, and immutable receiver aliases use that same Mosaic and Canvas. An escaping receiver, indirect block value/reference, arbitrary Mosaic helper parameter transfer, or capability-bearing deferred capture is an explicit unknown boundary. Arbitrary higher-order functions are not interpreted.
+Supported direct `withMosaic` evaluates its Canvas receiver before invocation, establishes one fresh standard Mosaic, binds the direct lambda receiver, and analyzes the block once in source order. `compose`, `composeAsync`, `source`, `sourceOrNull`, and immutable receiver aliases use that same Mosaic and Canvas. An escaping receiver, indirect block value/reference, arbitrary Mosaic helper parameter transfer, or capability-bearing deferred capture is an explicit unknown boundary. Arbitrary higher-order functions are not interpreted.
 
-`CanvasBuilder.instance(value)`, `instance<Service>("primary", value)`, and `instance(key, value)` evaluate their supplied expressions at registration time. They register the same normalized type/qualifier keys as `single`; they have no deferred constructor effects. Immutable aliases and supported child layers retain ordinary local-first lookup. Duplicate local keys remain invalid; dynamic keys/qualifiers and unsupported registrations remain conservative. Closing and ownership are runtime concerns outside availability contracts.
+`CanvasBuilder.provide` registers bindings before eager construction. Its constructor uses required `CanvasFactory.source` lookup, resolving local bindings before parent fallback; Canvas/Mosaic `source` and `sourceOrNull` remain required and optional lookup respectively.
+
+`CanvasBuilder.instance(value)`, `instance<Service>("primary", value)`, and `instance(key, value)` evaluate their supplied expressions at registration time. They register the same normalized type/qualifier keys as `provide`; they have no deferred constructor effects. Immutable aliases and supported child layers retain ordinary local-first lookup. Duplicate local keys remain invalid; dynamic keys/qualifiers and unsupported registrations remain conservative. Closing and ownership are runtime concerns outside availability contracts.
 
 Unsupported control flow, general callbacks, arbitrary virtual dispatch, mutable capability aliases, computed/member-dependent Tiles, missing dependency contracts, arbitrary Mosaic helper transfer, and general Deferred state/await linkage remain `UNVERIFIED`. Analysis neither executes the application nor implements runtime cycle detection or general termination/deadlock analysis.
 
@@ -224,11 +197,11 @@ Unsupported control flow, general callbacks, arbitrary virtual dispatch, mutable
 
 Reports show selected roots and receivers, statuses, closed witnesses and source locations, rule severity, suppressed sites, Canvas obligations, and uncertainty. Graph and verification reports use the same analysis findings; a loop in the diagram alone does not prove a cyclic result dependency. The graph represents possible static structure, not runtime timing, call counts, cache occupancy, or exact key batches.
 
-Dependency summary changes can rerun verification without recompiling unchanged application sources. Clean, incremental, and cache-restored paths preserve summary and verification results. Summary compatibility is determined by the header, not the `v1` resource directory: the reader accepts **format 4 / `analysis-contract-3`**, complete `main` summaries, and matching Kotlin 2.4.20. Incompatible Canvas-only summaries are rejected because they cannot distinguish separate Mosaics sharing one Canvas. Regenerate dependency summaries with the matching Mosaic analysis version.
+Dependency summary changes can rerun verification without recompiling unchanged application sources. A missing dependency summary leaves reached behavior unknown; a present but incompatible or malformed summary fails explicitly. Regenerate incompatible dependency summaries with compatible Analysis tooling. Compiler and Analysis producer versions identify provenance; matching version numbers alone do not prove interoperability.
 
 ## Supported project boundary
 
-Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. The plugin requires Kotlin compiler and Kotlin Gradle plugin **2.4.20**, and validates the Java toolchain against Kotlin's toolchain. The repository build and examples use JDK 21 and Gradle 8.14.4; these analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
+Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibility](/reference/compatibility/). The plugin validates the Java toolchain against Kotlin's toolchain. These analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
 
 The plugin rejects:
 
@@ -239,4 +212,4 @@ The plugin rejects:
 
 Applying analysis without Kotlin/JVM fails configuration. Android, multiplatform, test sources, framework lifecycle inference, and arbitrary virtual dispatch are unsupported. A represented virtual call with an unresolved receiver is `UNVERIFIED`. External inline capability helpers and unavailable binary default expressions retain unknown boundaries. Ordinary Kotlin source resolution and incremental compilation remain Kotlin's responsibility.
 
-The optional plugin is `org.buildmosaic.analysis`. No Detekt/ktlint integration or extra analysis module is required. Its DSL, metadata, and reports are pre-1.0 tooling surfaces; runtime/JVM APIs remain separate.
+The optional plugin is `org.buildmosaic.analysis`. No Detekt/ktlint integration or extra analysis module is required. Its DSL, metadata, and reports remain provisional in Analysis 1.0; Runtime API compatibility is separate.

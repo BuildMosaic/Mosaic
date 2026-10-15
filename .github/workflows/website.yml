@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
     paths:
       - 'website/**'
+      - 'compatibility/registry.*'
       - 'assets/**'
       - '.impeccable/BRAND.md'
       - '.github/images/order-architecture.png'
@@ -21,6 +22,7 @@ on:
     branches: [main]
     paths:
       - 'website/**'
+      - 'compatibility/registry.*'
       - 'assets/**'
       - '.impeccable/BRAND.md'
       - '.github/images/order-architecture.png'

@@ -3,7 +3,7 @@ title: 'Installation'
 description: 'Add Mosaic to a Kotlin/JVM application and align optional runtime modules.'
 ---
 
-Use a Kotlin/JVM project with Maven Central. Runtime artifacts require Java 17 or later and a Kotlin 2.3.0 or later consumer. See the [compatibility reference](/reference/compatibility/) for tested versions.
+Mosaic Runtime 1.0.0 supports Kotlin/JVM on Java 17 or later. Use Maven Central and a [supported Kotlin version](/reference/compatibility/).
 
 Add core to your Gradle Kotlin DSL build:
 
@@ -13,7 +13,7 @@ repositories {
 }
 
 dependencies {
-  implementation("org.buildmosaic:mosaic-core:0.7.0")
+  implementation("org.buildmosaic:mosaic-core:1.0.0")
 }
 ```
 
@@ -25,12 +25,12 @@ Use the BOM when adding testing or tracing:
 
 ```kotlin title="build.gradle.kts"
 dependencies {
-  implementation(platform("org.buildmosaic:mosaic-bom:0.7.0"))
+  implementation(platform("org.buildmosaic:mosaic-bom:1.0.0"))
   implementation("org.buildmosaic:mosaic-core")
   // Optional execution tracing:
   implementation("org.buildmosaic:mosaic-opentelemetry")
 
-  testImplementation(platform("org.buildmosaic:mosaic-bom:0.7.0"))
+  testImplementation(platform("org.buildmosaic:mosaic-bom:1.0.0"))
   testImplementation("org.buildmosaic:mosaic-test")
   testImplementation(kotlin("test"))
 }

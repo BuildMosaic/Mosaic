@@ -7,7 +7,7 @@
 
 [![Tests](https://github.com/BuildMosaic/Mosaic/workflows/Test%20Badge/badge.svg)](https://github.com/BuildMosaic/Mosaic/actions?query=workflow%3A%22Test+Badge%22)
 [![Build](https://github.com/BuildMosaic/Mosaic/workflows/Build%20Badge/badge.svg)](https://github.com/BuildMosaic/Mosaic/actions?query=workflow%3A%22Build+Badge%22)
-[![Kotlin](https://img.shields.io/badge/kotlin-2.4.20-blue.svg)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/kotlin-JVM-blue.svg)](https://kotlinlang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 **Think from the response up, not the database down.**
@@ -18,9 +18,8 @@ Mosaic is a Kotlin library for building backends one response at a time. A **Til
 reusable piece of work that can read request or application data and compose other
 Tiles. A request-scoped Mosaic shares repeated Tile work automatically.
 
-The public stable release is **[0.7.0](https://github.com/BuildMosaic/Mosaic/releases/tag/0.7.0)**.
-For released examples, use the [0.7.0 README](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/README.md);
-`develop` is the integration branch for subsequent unreleased work.
+**Runtime 1.0.0 · Analysis 1.0.0**. For upgrades from 0.7.0, read the
+[Runtime migration notes](docs/releases/runtime-1.0.0.md).
 
 ## 🚀 **Why Mosaic?**
 
@@ -111,7 +110,7 @@ Add Mosaic to a Kotlin/JVM project:
 
 ```kotlin
 dependencies {
-  implementation("org.buildmosaic:mosaic-core:0.7.0")
+  implementation("org.buildmosaic:mosaic-core:1.0.0")
 }
 ```
 
@@ -158,6 +157,13 @@ leaving the block cancels unfinished work and waits for cleanup.
 The [complete quick start](https://BuildMosaic.org/start/quick-start/)
 covers application setup, resource ownership, and runtime requirements.
 
+## 🔗 **Compatibility**
+
+Mosaic follows semantic versioning for stable Runtime APIs.
+Runtime and optional Analysis are independently versioned. Find the supported
+Java and Kotlin versions, Runtime/Analysis combinations, and guarantees in the
+[compatibility reference](https://BuildMosaic.org/reference/compatibility/).
+
 ## 🗺️ **Your Code, Your Architecture**
 
 Your Tile graph is already an architecture model. The optional analysis plugin
@@ -177,8 +183,9 @@ can discover application entry points when safe and follow Tile dependencies
 across modules.
 
 It checks Canvas bindings and distinguishes **confirmed missing dependencies**
-from paths it can't verify. Analysis supports **Kotlin/JVM 2.4.20 only**. Runtime composition
-doesn't depend on it. The graph shows static relationships, not runtime traces.
+from paths it can't verify. Analysis selects the appropriate compiler integration
+automatically for its [supported Kotlin versions](https://BuildMosaic.org/reference/compatibility/).
+Runtime composition doesn't depend on it. The graph shows static relationships, not runtime traces.
 
 [Set up architecture reports and verification →](https://BuildMosaic.org/guides/analysis/)
 
@@ -209,12 +216,12 @@ Tests can swap out dependency Tiles while leaving the page's composition untouch
 ```kotlin
 @Test
 fun `order page combines summary and logistics`() = runTest {
-  val testMosaic = mosaicBuilder()
+  mosaicBuilder()
     .withMockTile(OrderSummaryTile, mockSummary)
     .withMockTile(LogisticsTile, mockLogistics)
-    .build()
-
-  testMosaic.assertEquals(OrderPageTile, OrderPage(mockSummary, mockLogistics))
+    .withMosaic {
+      assertEquals(OrderPageTile, OrderPage(mockSummary, mockLogistics))
+    }
 }
 ```
 

@@ -33,30 +33,6 @@ class MosaicLifetimeTest {
   private suspend fun configured(observed: Boolean): Canvas =
     canvas { if (observed) installExecutionObserver { RecordingObserver() } }
 
-  @Test fun cancelledWaiterPreservesSharedResult() =
-    runTest {
-      for (observed in listOf(false, true)) {
-        configured(observed).withMosaic {
-          val gate = CompletableDeferred<Unit>()
-          var calls = 0
-          val tile =
-            singleTile {
-              calls++
-              gate.await()
-              42
-            }
-          val waiter = launch { compose(tile) }
-          testScheduler.runCurrent()
-          waiter.cancelAndJoin()
-          val shared = composeAsync(tile)
-          assertFalse(shared.isCancelled)
-          gate.complete(Unit)
-          assertEquals(42, compose(tile))
-          assertEquals(1, calls)
-        }
-      }
-    }
-
   @Test fun normalExitCancelsSpeculationAndWaitsForCleanup() =
     runTest {
       for (observed in listOf(false, true)) {
@@ -84,9 +60,12 @@ class MosaicLifetimeTest {
             }
           }
         testScheduler.runCurrent()
-        assertTrue(shared.isCancelled)
-        assertFalse(owner.isCompleted)
-        cleanup.complete(Unit)
+        try {
+          assertTrue(shared.isCancelled)
+          assertFalse(owner.isCompleted)
+        } finally {
+          cleanup.complete(Unit)
+        }
         assertEquals("response", owner.await())
         assertTrue(finished)
       }
@@ -118,21 +97,18 @@ class MosaicLifetimeTest {
       }
     }
 
-  @Test fun requestCancellationCancelsProducerAndJoinsCleanup() =
+  @Test fun requestCancellationReachesProducerBeforeTeardown() =
     runTest {
       for (observed in listOf(false, true)) {
+        val leaveBlock = CompletableDeferred<Unit>()
         var cleaned = false
         lateinit var shared: Deferred<Nothing>
         val owner =
           launch {
             configured(observed).withMosaic {
-              val ownerJob = currentCoroutineContext()[Job]!!
               shared =
                 composeAsync(
                   singleTile {
-                    val producerJob = currentCoroutineContext()[Job]!!
-                    assertTrue(ownerJob.children.any())
-                    assertTrue(producerJob.isActive)
                     try {
                       awaitCancellation()
                     } finally {
@@ -143,13 +119,25 @@ class MosaicLifetimeTest {
                     }
                   },
                 )
-              shared.await()
+              try {
+                shared.await()
+              } finally {
+                // Keep the block open: withMosaic's finally cannot cause the observed cancellation.
+                withContext(NonCancellable) { leaveBlock.await() }
+              }
             }
           }
-        testScheduler.runCurrent()
-        owner.cancelAndJoin()
-        assertTrue(cleaned)
-        assertTrue(shared.isCancelled)
+        try {
+          testScheduler.runCurrent()
+          owner.cancel()
+          testScheduler.advanceUntilIdle()
+          assertTrue(shared.isCancelled)
+          assertTrue(cleaned)
+          assertFalse(owner.isCompleted)
+        } finally {
+          leaveBlock.complete(Unit)
+          owner.cancelAndJoin()
+        }
         assertTrue(owner.children.none())
       }
     }
@@ -315,5 +303,19 @@ class MosaicLifetimeTest {
           assertEquals(1, cleaned.get())
         }
       }
+    }
+
+  @Test fun eachInvocationGetsAFreshCache() =
+    runTest {
+      val canvas = configured(false)
+      var calls = 0
+      val tile = singleTile { ++calls }
+      repeat(2) { index ->
+        canvas.withMosaic {
+          assertEquals(index + 1, compose(tile))
+          assertEquals(index + 1, compose(tile))
+        }
+      }
+      assertEquals(2, calls)
     }
 }

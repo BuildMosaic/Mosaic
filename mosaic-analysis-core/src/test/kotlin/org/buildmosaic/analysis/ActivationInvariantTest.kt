@@ -18,9 +18,15 @@ class ActivationInvariantTest {
   @Test
   fun `A6 result wrappers respect blocked empty successful and unknown prefixes`() {
     val aborted =
-      layer("abort", listOf(binding(service, effects = listOf(lookup("abort-paint", metrics, LookupKind.PAINT)))))
+      layer(
+        "abort",
+        listOf(binding(service, effects = listOf(lookup("abort-construction", metrics, LookupKind.CONSTRUCTION)))),
+      )
     val result =
-      layer("result", listOf(binding(service, effects = listOf(lookup("result-paint", platform, LookupKind.PAINT)))))
+      layer(
+        "result",
+        listOf(binding(service, effects = listOf(lookup("result-construction", platform, LookupKind.CONSTRUCTION)))),
+      )
     val prefixes =
       listOf(
         emptyList(),
@@ -44,7 +50,10 @@ class ActivationInvariantTest {
       for (boundary in listOf("missing", "conflict", "limit")) {
         val parameter = ContractParameter("helper", "canvas", ParameterKind.CANVAS)
         val broken =
-          layer("broken", listOf(binding(service, effects = listOf(lookup("paint", metrics, LookupKind.PAINT)))))
+          layer(
+            "broken",
+            listOf(binding(service, effects = listOf(lookup("construction", metrics, LookupKind.CONSTRUCTION)))),
+          )
         val arguments = CallArguments(mapOf(parameter to ArgumentExpression.Canvas(broken)))
         val effect = call(factory, arguments)
         val helper = CallableContract("helper", listOf(parameter), emptyList(), site("helper"))
@@ -79,7 +88,10 @@ class ActivationInvariantTest {
       val constructed =
         layer(
           "constructed",
-          listOf(binding(metrics), binding(service, effects = listOf(lookup("init", metrics, LookupKind.PAINT)))),
+          listOf(
+            binding(metrics),
+            binding(service, effects = listOf(lookup("init", metrics, LookupKind.CONSTRUCTION))),
+          ),
         )
       val result =
         report(
@@ -160,9 +172,16 @@ class ActivationInvariantTest {
     val good =
       layer(
         "good",
-        listOf(binding(metrics), binding(service, effects = listOf(lookup("first-init", metrics, LookupKind.PAINT)))),
+        listOf(
+          binding(metrics),
+          binding(service, effects = listOf(lookup("first-init", metrics, LookupKind.CONSTRUCTION))),
+        ),
       )
-    val bad = layer("bad", listOf(binding(service, effects = listOf(lookup("second-init", metrics, LookupKind.PAINT)))))
+    val bad =
+      layer(
+        "bad",
+        listOf(binding(service, effects = listOf(lookup("second-init", metrics, LookupKind.CONSTRUCTION)))),
+      )
     for (reverse in listOf(false, true)) {
       val pairs = listOf(first to ArgumentExpression.Canvas(good), second to ArgumentExpression.Canvas(bad))
       val arguments = CallArguments((if (reverse) pairs.reversed() else pairs).toMap())

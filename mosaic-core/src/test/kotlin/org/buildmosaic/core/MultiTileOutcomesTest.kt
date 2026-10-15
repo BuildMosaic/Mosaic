@@ -2,12 +2,14 @@ package org.buildmosaic.core
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.buildmosaic.core.injection.canvas
 import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.core.observation.RecordingObserver
@@ -137,10 +139,11 @@ class MultiTileOutcomesTest {
       }
     }
 
-  @Test fun requestCancellationCleansUpKeysAndChunks() =
+  @Test fun requestCancellationCleansKeysAndChunksBeforeExit() =
     runTest {
       for (observed in listOf(false, true)) {
         for (chunked in listOf(false, true)) {
+          val leaveBlock = CompletableDeferred<Unit>()
           var started = 0
           var cleaned = 0
           val owner =
@@ -166,13 +169,24 @@ class MultiTileOutcomesTest {
                       }
                     }
                   }
-                compose(tile, listOf(1, 2, 3))
+                try {
+                  compose(tile, listOf(1, 2, 3))
+                } finally {
+                  withContext(NonCancellable) { leaveBlock.await() }
+                }
               }
             }
-          testScheduler.runCurrent()
-          assertEquals(3, started)
-          owner.cancelAndJoin()
-          assertEquals(3, cleaned)
+          try {
+            testScheduler.runCurrent()
+            assertEquals(3, started)
+            owner.cancel()
+            testScheduler.runCurrent()
+            assertEquals(3, cleaned)
+            assertFalse(owner.isCompleted)
+          } finally {
+            leaveBlock.complete(Unit)
+            owner.cancelAndJoin()
+          }
         }
       }
     }

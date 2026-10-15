@@ -41,7 +41,7 @@ class PublicApiCoverageTest {
               name,
               "publicapi.${if (name.startsWith("dynamicType")) {
                 "dynamicType(kotlin.reflect.KClass)"
-              } else if (name in setOf("dynamicKey", "dynamicOptionalKey", "dynamicRegistrationKey", "dynamicPaintKey", "dynamicKeyCapture")) {
+              } else if (name in setOf("dynamicKey", "dynamicOptionalKey", "dynamicRegistrationKey", "dynamicConstructionKey", "dynamicKeyCapture")) {
                 "$name(org.buildmosaic.core.injection.CanvasKey)"
               } else if (name.startsWith("dynamicQualifier") || name.startsWith("dynamicRegistration") || name == "dynamicConstructedKeyCapture") {
                 "$name(kotlin.String)"
@@ -100,6 +100,7 @@ class PublicApiCoverageTest {
 
   @Test fun `lookup forms share exact key identity`() {
     listOf(
+      "qualifiedReifiedMissing",
       "kclassMissing",
       "kclassAliasMissing",
       "keyMissing",
@@ -109,7 +110,7 @@ class PublicApiCoverageTest {
       "nullDistinct",
       "mosaicKey",
     ).forEach(::missing)
-    listOf("optionalKclass", "optionalKey", "optionalReified", "qualifiedReified", "qualifiedExplicit", "keyReuse", "emptyMatched", "nullMatched", "mosaicOptionalKey").forEach(
+    listOf("optionalKclass", "optionalKey", "optionalReified", "qualifiedOptionalReified", "qualifiedReified", "qualifiedExplicit", "keyReuse", "emptyMatched", "nullMatched", "mosaicOptionalKey").forEach(
       ::verified,
     )
   }
@@ -124,8 +125,8 @@ class PublicApiCoverageTest {
     listOf(
       "mosaicPropertySupplied",
       "currentMosaicSupplied",
-      "paintExplicit",
-      "paintReified",
+      "constructionExplicit",
+      "constructionReified",
       "parentNamed",
       "parentPositional",
       "layerFallback",
@@ -150,7 +151,7 @@ class PublicApiCoverageTest {
       "dynamicQualifier",
       "dynamicRegistration",
       "dynamicRegistrationKey",
-      "dynamicPaintKey",
+      "dynamicConstructionKey",
       "dynamicKeyCapture",
       "dynamicConstructedKeyCapture",
     ).forEach(::unknown)
@@ -212,12 +213,12 @@ class BinaryCanvasKeyExportTest {
       import org.buildmosaic.core.injection.*
       suspend fun entry() {
         val c = canvas {
-          single(SharedKey) { Metrics() }
-          single<String> { paint(SharedKey); "ok" }
+          provide(SharedKey) { Metrics() }
+          provide<String> { source(SharedKey); "ok" }
         }
         c.source(SharedKey)
         val tile = singleTile { source(SharedKey); "ok" }
-        c.create().compose(tile)
+        c.withMosaic { compose(tile) }
       }
       """.trimIndent(),
     )

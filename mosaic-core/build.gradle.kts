@@ -7,6 +7,10 @@ plugins {
   id("library.convention")
 }
 
+tasks.jar {
+  manifest.attributes("Mosaic-Core-Analysis-Revision" to "1")
+}
+
 dependencies {
   api(libs.kotlinx.coroutines.core)
   testImplementation(libs.kotlinx.coroutines.test)

@@ -207,7 +207,9 @@ sealed interface TileReference {
 enum class LookupKind {
   REQUIRED,
   OPTIONAL,
-  PAINT,
+
+  /** Required lookup while a Canvas provider is being constructed. */
+  CONSTRUCTION,
 }
 
 enum class DiscoveryKind {

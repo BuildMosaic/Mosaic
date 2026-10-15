@@ -231,29 +231,21 @@ suite is not part of normal PR validation.
 
 ### Fixture boundaries
 
-Suspending benchmarks batch 32 actual operations inside one outer `runBlocking`
-and use JMH `@OperationsPerInvocation(32)`. JMH therefore reports per-operation
-time rather than per-batch time, while the entry bridge is amortized. The helper
-does not supply a Mosaic request or coroutine scope; each benchmark decides when
-to create those. Synchronous creation and lookup methods call the runtime
-directly. The completed `composeAsync()` cache-hit benchmark directly returns the
-cached `Deferred` without awaiting it. The direct and suspending controls reveal
-some of the harness cost.
+Suspending benchmarks batch 32 operations inside one outer `runBlocking` and use
+JMH `@OperationsPerInvocation(32)`. Each request executes through `withMosaic`,
+including teardown. Execution inherits the caller dispatcher; the coalescing
+diagnostic explicitly selects `Dispatchers.Default` or its serial dispatcher.
 
-MultiTile `cold` and `halfCached` prepare fresh requests in JMH invocation setup
-so misses cannot become hits in subsequent invocations. JMH's GC profiler can
-include that setup in normalized allocation; those figures are workload-level
-diagnostics rather than isolated `compose` allocation costs.
+SingleTile completed-cache measurements prewarm one scoped cache, perform 32
+reads, then leave the scope. Async reads await the already-completed Deferred.
+Creation, prewarming, and teardown are amortized across those reads. MultiTile
+measurements create and optionally prewarm a fresh scoped request for each
+operation; `cold`, `halfCached`, and `fullyCached` include this work in timing and
+allocation. A one-key request cannot be half cached, so that variant starts at
+16 keys. No benchmark retains an unowned Mosaic between invocations.
 
-`fullyCached` prewarms 32 distinct Mosaic caches once per trial and reuses their
-completed results. It measures repeated cache reads, excluding request creation
-and prewarming from each invocation. The coroutine bridge, result-map assembly,
-and sum remain part of the measured operation. Its timing and allocation need a
-new baseline against earlier fixtures that prewarmed fresh requests per invocation.
-
-Cold SingleTile and graph benchmarks include request creation, while MultiTile
-`cold`, `halfCached`, and `fullyCached` exclude it from timing. A one-key request
-cannot be half cached, so the half-cached variant begins at 16 keys.
+These fixture boundaries require a new baseline. Earlier results below describe
+their recorded revision and must not be compared directly to the scoped fixtures.
 
 Compare runs only on the same hardware, JDK, JVM options, and benchmark settings.
 Hosted CI variance makes small percentage movements unsuitable as regression
@@ -266,7 +258,7 @@ coalescing consumers with the same fixtures. Each operation uses `Canvas.withMos
 to create a fresh Mosaic owned by the calling coroutine, inheriting its dispatcher.
 After composing the root, block exit cancels unfinished work and waits for cleanup.
 These measurements include request creation and cleanup after result publication;
-compare them separately from the ordinary result-latency benchmarks. Fixture tests
+the ordinary graph benchmarks now include the same scoped teardown boundary. Fixture tests
 verify cancellation and attached-child cleanup, and fresh caches across requests.
 
 These scoped timings and allocations are not directly comparable with earlier

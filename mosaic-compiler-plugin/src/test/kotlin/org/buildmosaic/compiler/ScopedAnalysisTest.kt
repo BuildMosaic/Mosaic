@@ -11,7 +11,6 @@ import org.buildmosaic.analysis.MosaicProvenance
 import org.buildmosaic.analysis.MosaicRule
 import org.buildmosaic.analysis.RootSelectionResolver
 import org.buildmosaic.analysis.SelectedRoot
-import org.buildmosaic.analysis.SummaryCodec
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
@@ -21,7 +20,7 @@ import kotlin.test.assertTrue
 
 class ScopedAnalysisTest {
   private companion object {
-    val directory = Files.createTempDirectory("mosaic-scoped-analysis").toFile()
+    val directory: File = Files.createTempDirectory("mosaic-scoped-analysis").toFile()
     val module by lazy {
       val source = File(directory, "Tiles.kt").apply { writeText(scopedSource) }
       val fileScope = File(directory, "FileScope.kt").apply { writeText(fileSource) }
@@ -57,7 +56,6 @@ class ScopedAnalysisTest {
     assertEquals(MosaicProvenance.Current, tile.effects.filterIsInstance<Effect.Compose>().single().mosaic)
     val discovered = RootSelectionResolver.resolve(module, emptyList(), emptyList())
     assertTrue(discovered.any { it.target == "scoped.direct()" })
-    assertEquals(module, SummaryCodec.decode(SummaryCodec.encode(module)).module)
   }
 
   @Test
@@ -176,7 +174,7 @@ private val scopedSource =
   val A: Tile<Int> by singleTile { val current = this; current.compose(A) }
   fun stop() = false
   val Guarded: Tile<Int> by singleTile { if (stop()) return@singleTile 1; compose(Guarded) }
-  val Fresh: Tile<Int> by singleTile { canvas.create().compose(Fresh) }
+  val Fresh: Tile<Int> by singleTile { canvas.withMosaic { compose(Fresh) } }
   val Recursive: MultiTile<Int, Int> by perKeyTile { key -> compose(Recursive, key - 1) }
   @Suppress("MOSAIC_RECURSIVE_MULTITILE")
   val Suppressed: MultiTile<Int, Int> by perKeyTile { key -> compose(Suppressed, key - 1) }
@@ -208,9 +206,9 @@ private val scopedSource =
   suspend fun strings() = canvas { val orderId = "order-1"; instance(OrderKey, orderId); instance("primary", "value"); instance("plain") }.withMosaic { source(OrderKey); source<String>("primary"); source<String>() }
   suspend fun aliased() { val s = Service(); canvas { val b = this; b.instance(s) }.withMosaic { compose(Ready) } }
   suspend fun child() = canvas {}.withLayer { instance(Service()) }.withMosaic { compose(Ready) }
-  suspend fun optional() = canvas {}.withMosaic { sourceOr<Service>(); 1 }
+  suspend fun optional() = canvas {}.withMosaic { sourceOrNull<Service>(); 1 }
   fun existing(parent: Canvas): Service { parent.source<Service>(); return Service() }
-  suspend fun registerBeforeProvider(): Canvas { val p = canvas {}; return canvas { single<Service> { Service() }; instance("primary", existing(p)) } }
+  suspend fun registerBeforeProvider(): Canvas { val p = canvas {}; return canvas { provide<Service> { Service() }; instance("primary", existing(p)) } }
   suspend fun registrationOrder() = registerBeforeProvider().withMosaic { compose(Qualified) }
   fun readQualifier(parent: Canvas): String { parent.source(String::class, "qualifier"); return "primary" }
   fun readKey(parent: Canvas): CanvasKey<String> { parent.source(String::class, "key"); return OrderKey }

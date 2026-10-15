@@ -1,7 +1,7 @@
 package org.buildmosaic.benchmarks
 
 import kotlinx.coroutines.runBlocking
-import org.buildmosaic.core.injection.create
+import org.buildmosaic.core.injection.withMosaic
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -15,7 +15,7 @@ class CoalescingFixturesTest {
           val graph = CoalescingFixtures.graph(fanOut, depth, suspension) { batches.add(it.toSet()) }
           repeat(2) {
             batches.clear()
-            assertEquals(CoalescingFixtures.expected(fanOut), emptyCanvas.create().compose(graph))
+            assertEquals(CoalescingFixtures.expected(fanOut), emptyCanvas.withMosaic { compose(graph) })
             assertEquals(CoalescingFixtures.keys(fanOut).flatten().distinct().sorted(),
               batches.flatMap { it }.sorted())
           }

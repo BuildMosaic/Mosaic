@@ -17,9 +17,7 @@
 package org.buildmosaic.test
 
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.test.TestDispatcher
 import org.buildmosaic.core.Mosaic
-import org.buildmosaic.core.MosaicImpl
 import org.buildmosaic.core.MultiTile
 import org.buildmosaic.core.Tile
 import org.buildmosaic.core.injection.Canvas
@@ -28,27 +26,20 @@ import kotlin.test.assertEquals as testAssertEquals
 import kotlin.test.assertFailsWith as testAssertFailsWith
 
 /**
- * A test wrapper around [Mosaic] that provides assertion methods for testing [Tile] implementations.
- *
- * This class is the main entry point for writing tests with Mosaic. It extends the standard [Mosaic]
- * functionality with testing-specific methods and assertions.
- *
- * This class should be built using [TestMosaicBuilder] for advanced usage.
- *
- * ```kotlin
- * val testMosaic = TestMosaicBuilder(testScope)
- *   .withMockTile(DependencyTile, expectedDependency)
- *   .build()
- * testMosaic.assertEquals(ResponseTile, expectedResponse)
- * ```
- *
+ * Assertions and ordinary [Mosaic] composition within [TestMosaicBuilder.withMosaic].
+ * This receiver delegates to the scoped runtime and owns no coroutine engine.
+ * Do not retain it after the execution block returns.
  */
-class TestMosaic internal constructor(
-  canvas: Canvas,
-  private val mockTileCache: Map<Tile<*>, Tile<*>>,
-  private val mockMultiTileCache: Map<MultiTile<*, *>, MultiTile<*, *>>,
-  dispatcher: TestDispatcher,
-) : MosaicImpl(canvas, dispatcher) {
+class TestMosaic internal constructor(private val mosaic: Mosaic) : Mosaic {
+  override val canvas: Canvas get() = mosaic.canvas
+
+  override fun <V> composeAsync(tile: Tile<V>): Deferred<V> = mosaic.composeAsync(tile)
+
+  override fun <K : Any, V> composeAsync(
+    tile: MultiTile<K, V>,
+    keys: Collection<K>,
+  ): Map<K, Deferred<V>> = mosaic.composeAsync(tile, keys)
+
   /**
    * Asserts that a [Tile] returns the expected value.
    *
@@ -58,7 +49,9 @@ class TestMosaic internal constructor(
    * @throws AssertionError if the actual value doesn't match the expected value
    *
    * ```kotlin
-   * testMosaic.assertEquals(MyTile, "expected value")
+   * mosaicBuilder().withMosaic {
+   *   assertEquals(MyTile, "expected value")
+   * }
    * ```
    */
   suspend fun <V> assertEquals(
@@ -76,11 +69,13 @@ class TestMosaic internal constructor(
    * @throws AssertionError if the actual value doesn't match the expected value
    *
    * ```kotlin
-   * testMosaic.assertEquals(
-   *   tile = MyTile,
-   *   expected = "expected value",
-   *   message = "The tile did not return the expected value"
-   * )
+   * mosaicBuilder().withMosaic {
+   *   assertEquals(
+   *     tile = MyTile,
+   *     expected = "expected value",
+   *     message = "The tile did not return the expected value"
+   *   )
+   * }
    * ```
    */
   suspend fun <V> assertEquals(
@@ -100,11 +95,13 @@ class TestMosaic internal constructor(
    * @throws AssertionError if the actual values don't match the expected values
    *
    * ```kotlin
-   * testMosaic.assertEquals(
-   *   tile = UserTile,
-   *   keys = listOf("user1", "user2"),
-   *   expected = mapOf("user1" to User("user1"), "user2" to User("user2"))
-   * )
+   * mosaicBuilder().withMosaic {
+   *   assertEquals(
+   *     tile = UserTile,
+   *     keys = listOf("user1", "user2"),
+   *     expected = mapOf("user1" to User("user1"), "user2" to User("user2"))
+   *   )
+   * }
    * ```
    */
   suspend fun <K : Any, V> assertEquals(
@@ -125,12 +122,14 @@ class TestMosaic internal constructor(
    * @throws AssertionError if the actual values don't match the expected values
    *
    * ```kotlin
-   * testMosaic.assertEquals(
-   *   tile = UserTile,
-   *   keys = listOf("user1", "user2"),
-   *   expected = mapOf("user1" to User("user1"), "user2" to User("user2")),
-   *   message = "User data does not match expected values"
-   * )
+   * mosaicBuilder().withMosaic {
+   *   assertEquals(
+   *     tile = UserTile,
+   *     keys = listOf("user1", "user2"),
+   *     expected = mapOf("user1" to User("user1"), "user2" to User("user2")),
+   *     message = "User data does not match expected values"
+   *   )
+   * }
    * ```
    */
   suspend fun <K : Any, V> assertEquals(
@@ -148,10 +147,12 @@ class TestMosaic internal constructor(
    * @throws AssertionError if the tile does not throw the expected exception
    *
    * ```kotlin
-   * testMosaic.assertThrows(
-   *   tile = FailingTile,
-   *   expectedException = IllegalStateException::class
-   * )
+   * mosaicBuilder().withMosaic {
+   *   assertThrows(
+   *     tile = FailingTile,
+   *     expectedException = IllegalStateException::class
+   *   )
+   * }
    * ```
    */
   suspend fun assertThrows(
@@ -168,11 +169,13 @@ class TestMosaic internal constructor(
    * @throws AssertionError if the tile does not throw the expected exception
    *
    * ```kotlin
-   * testMosaic.assertThrows(
-   *   tile = FailingTile,
-   *   expectedException = IllegalStateException::class,
-   *   message = "Expected IllegalStateException but got a different exception"
-   * )
+   * mosaicBuilder().withMosaic {
+   *   assertThrows(
+   *     tile = FailingTile,
+   *     expectedException = IllegalStateException::class,
+   *     message = "Expected IllegalStateException but got a different exception"
+   *   )
+   * }
    * ```
    */
   suspend fun assertThrows(
@@ -191,11 +194,13 @@ class TestMosaic internal constructor(
    * @throws AssertionError if the tile does not throw the expected exception
    *
    * ```kotlin
-   * testMosaic.assertThrows(
-   *   tile = FailingUserTile,
-   *   keys = listOf("user1", "user2"),
-   *   expectedException = IllegalStateException::class
-   * )
+   * mosaicBuilder().withMosaic {
+   *   assertThrows(
+   *     tile = FailingUserTile,
+   *     keys = listOf("user1", "user2"),
+   *     expectedException = IllegalStateException::class
+   *   )
+   * }
    * ```
    */
   suspend fun <K : Any> assertThrows(
@@ -203,23 +208,4 @@ class TestMosaic internal constructor(
     keys: List<K>,
     expectedException: KClass<out Throwable>,
   ) = testAssertFailsWith(expectedException) { compose(tile, keys) }
-
-  // Mosaic interface passthroughs
-  @Suppress("UNCHECKED_CAST")
-  override suspend fun <V> compose(tile: Tile<V>): V {
-    return super.compose(cacheOrTile(tile))
-  }
-
-  override fun <V> composeAsync(tile: Tile<V>): Deferred<V> = super.composeAsync(cacheOrTile(tile))
-
-  override fun <K : Any, V> composeAsync(
-    tile: MultiTile<K, V>,
-    keys: Collection<K>,
-  ): Map<K, Deferred<V>> = super.composeAsync(cacheOrTile(tile), keys)
-
-  @Suppress("UNCHECKED_CAST")
-  private fun <V> cacheOrTile(tile: Tile<V>): Tile<V> = mockTileCache[tile] as Tile<V>? ?: tile
-
-  @Suppress("UNCHECKED_CAST")
-  private fun <K : Any, V> cacheOrTile(tile: MultiTile<K, V>) = mockMultiTileCache[tile] as MultiTile<K, V>? ?: tile
 }

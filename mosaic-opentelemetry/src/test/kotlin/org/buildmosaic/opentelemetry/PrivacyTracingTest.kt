@@ -2,12 +2,12 @@ package org.buildmosaic.opentelemetry
 
 import io.opentelemetry.api.trace.StatusCode
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.buildmosaic.core.MosaicImpl
+import kotlinx.coroutines.withContext
 import org.buildmosaic.core.injection.canvas
+import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.core.multiTile
 import org.buildmosaic.core.singleTile
 import org.buildmosaic.core.source
@@ -21,35 +21,32 @@ class PrivacyTracingTest {
     runTest {
       TelemetryFixture().use { otel ->
         val payload = "private result request user canvas key message stack cause"
-        val mosaic =
-          MosaicImpl(
-            canvas {
-              tracing { otel.telemetry }
-              single<String> { payload }
-            },
-            StandardTestDispatcher(testScheduler),
-          )
-        try {
-          val multi = multiTile<String, String> { it.associateWith { source<String>() } }
-          val values = mosaic.composeAsync(multi, payload)
-          val failed =
-            mosaic.composeAsync(
-              singleTile {
-                throw IllegalStateException(payload, IllegalArgumentException(payload)).also {
-                  it.addSuppressed(IllegalArgumentException(payload))
-                }
-              },
-            )
-          testScheduler.runCurrent()
-          assertEquals(payload, values.await())
-          assertFailsWith<IllegalStateException> { failed.await() }
-          val span = otel.spans.single { it.status.statusCode == StatusCode.ERROR }
-          assertEquals("java.lang.IllegalStateException", span.attribute("error.type"))
-          assertEquals("", span.status.description)
-          assertTrue(otel.spans.all { it.events.isEmpty() })
-          assertTrue(otel.spans.none { it.toString().contains(payload) })
-        } finally {
-          mosaic.coroutineContext[Job]!!.cancel()
+        withContext(StandardTestDispatcher(testScheduler)) {
+          canvas {
+            tracing { otel.telemetry }
+            provide<String> { payload }
+          }.withMosaic {
+            val mosaic = this
+
+            val multi = multiTile<String, String> { it.associateWith { source<String>() } }
+            val values = mosaic.composeAsync(multi, payload)
+            val failed =
+              mosaic.composeAsync(
+                singleTile {
+                  throw IllegalStateException(payload, IllegalArgumentException(payload)).also {
+                    it.addSuppressed(IllegalArgumentException(payload))
+                  }
+                },
+              )
+            testScheduler.runCurrent()
+            assertEquals(payload, values.await())
+            assertFailsWith<IllegalStateException> { failed.await() }
+            val span = otel.spans.single { it.status.statusCode == StatusCode.ERROR }
+            assertEquals("java.lang.IllegalStateException", span.attribute("error.type"))
+            assertEquals("", span.status.description)
+            assertTrue(otel.spans.all { it.events.isEmpty() })
+            assertTrue(otel.spans.none { it.toString().contains(payload) })
+          }
         }
       }
     }
@@ -57,18 +54,17 @@ class PrivacyTracingTest {
   @Test fun cancellationIsStructuralAndNotAnApplicationError() =
     runTest {
       TelemetryFixture().use { otel ->
-        val mosaic = otel.mosaic(StandardTestDispatcher(testScheduler))
-        val gate = CompletableDeferred<Unit>()
-        val result =
-          mosaic.composeAsync(
-            singleTile {
-              gate.await()
-              1
-            },
-          )
+        lateinit var result: kotlinx.coroutines.Deferred<Int>
+        val request =
+          launch {
+            otel.withMosaic(StandardTestDispatcher(testScheduler)) {
+              result = composeAsync(singleTile<Int> { kotlinx.coroutines.awaitCancellation() })
+              kotlinx.coroutines.awaitCancellation()
+            }
+          }
         testScheduler.runCurrent()
-        mosaic.coroutineContext[Job]!!.cancel(CancellationException("private cancellation"))
-        testScheduler.runCurrent()
+        request.cancel(CancellationException("private cancellation"))
+        request.join()
         assertFailsWith<CancellationException> { result.await() }
         val span = otel.spans.single()
         assertEquals(StatusCode.UNSET, span.status.statusCode)

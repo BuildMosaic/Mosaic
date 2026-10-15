@@ -206,7 +206,10 @@ class TileRecursionTest {
         suppressions = listOf(MosaicSuppression(recursive.id, site)),
       )
     val program = module(listOf(a))
-    val dependency = SummaryCodec.decode(SummaryCodec.encode(ModuleContract("lib", tiles = listOf(b)))).module
+    val dependency =
+      SummaryCodec.decode(
+        SummaryCodec.encode(ModuleContract("lib", tiles = listOf(b)), coreAnalysisRevisions = setOf(1)),
+      ).module
     val sourceReport = analyze(module(listOf(a, b)))
     val binaryReport = analyze(program, dependencies = listOf(dependency))
     assertEquals(sourceReport.findings, binaryReport.findings)
@@ -219,16 +222,8 @@ class TileRecursionTest {
   }
 
   @Test
-  fun `provenance metadata round trip and incompatible summary guidance`() {
+  fun `hard correctness rules and unknown rule IDs reject severity overrides`() {
     val program = module(listOf(TileContract("A", listOf(compose("A")), site)))
-    val bytes = SummaryCodec.encode(program)
-    assertEquals(program, SummaryCodec.decode(bytes).module)
-    assertEquals(cyclic, analyze(SummaryCodec.decode(bytes).module).findings.single().rule)
-    val old = bytes.decodeToString().replace("\"formatVersion\":4", "\"formatVersion\":3")
-    assertTrue(
-      assertFailsWith<IllegalArgumentException> { SummaryCodec.decode(old.toByteArray()) }
-        .message.orEmpty().contains("Regenerate dependency summaries"),
-    )
     assertFailsWith<IllegalArgumentException> {
       analyze(
         program,

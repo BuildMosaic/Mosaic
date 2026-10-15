@@ -5,6 +5,7 @@ import org.buildmosaic.core.Mosaic
 import org.buildmosaic.core.MosaicImpl
 import org.buildmosaic.core.MosaicRuntimeConfig
 import org.buildmosaic.core.exception.MosaicMissingKeyException
+import org.buildmosaic.core.withMosaicExecution
 import kotlin.reflect.KClass
 
 /**
@@ -34,6 +35,9 @@ class Canvas internal constructor(
   private val parent: Canvas? = null,
   internal val runtimeConfig: MosaicRuntimeConfig = MosaicRuntimeConfig.EMPTY,
 ) : AutoCloseable {
+  private val closeLock = Any()
+  private var closed = false
+
   /**
    * Retrieves an instance of the registered object of the specified type and qualifier
    *
@@ -55,7 +59,7 @@ class Canvas internal constructor(
    * @return The registered object
    * @throws [MosaicMissingKeyException] if no instance is registered for the type
    */
-  fun <T : Any> source(key: CanvasKey<T>): T = sourceOr(key) ?: throw MosaicMissingKeyException(key)
+  fun <T : Any> source(key: CanvasKey<T>): T = sourceOrNull(key) ?: throw MosaicMissingKeyException(key)
 
   /**
    * Retrieves an instance of the registered object
@@ -66,10 +70,10 @@ class Canvas internal constructor(
    * @param qualifier an optional qualifier for the type
    * @return The registered object
    */
-  fun <T : Any> sourceOr(
+  fun <T : Any> sourceOrNull(
     type: KClass<T>,
     qualifier: String? = null,
-  ): T? = sourceOr(CanvasKey(type, qualifier))
+  ): T? = sourceOrNull(CanvasKey(type, qualifier))
 
   /**
    * Retrieves an instance of the registered object under the [CanvasKey]
@@ -80,13 +84,17 @@ class Canvas internal constructor(
    * @return The registered object
    */
   @Suppress("UNCHECKED_CAST")
-  fun <T : Any> sourceOr(key: CanvasKey<T>): T? = instances[key] as T? ?: parent?.sourceOr(key)
+  fun <T : Any> sourceOrNull(key: CanvasKey<T>): T? = instances[key] as T? ?: parent?.sourceOrNull(key)
+
+  // Include shadowed ancestors: lookup visibility does not change resource ownership.
+  internal fun containsInstance(instance: Any): Boolean =
+    instances.values.any { it === instance } || parent?.containsInstance(instance) == true
 
   /**
    * A DSL method to create another layer on your [Canvas]
    * The returned object will be a new [Canvas] depending on the sources of the parent
    * This does not modify the parent in any way. Child bindings are constructed eagerly;
-   * a child constructor can use [CanvasFactory.paint] to resolve local bindings first and
+   * a child constructor can use [CanvasFactory.source] to resolve local bindings first and
    * then fall back to the parent. Child overrides do not rewire services already created
    * by the parent.
    *
@@ -95,14 +103,36 @@ class Canvas internal constructor(
   suspend fun withLayer(build: CanvasBuilder.() -> Unit): Canvas = canvas(this, build)
 
   /**
-   * Closes locally constructed [AutoCloseable] resources in reverse creation order,
-   * continuing after failures. Parent resources and externally owned [CanvasBuilder.instance]
-   * bindings are unaffected. Finish scoped Mosaic work before closing its Canvas.
+   * Closes locally owned [AutoCloseable] resources once in reverse successful creation order.
+   * Closing is synchronous, idempotent, and safe under concurrent callers. One caller performs
+   * cleanup; other callers wait for it to finish and return without repeating cleanup or failures.
+   * Reentrant calls from a resource's close hook return without repeating cleanup.
+   *
+   * All close hooks are attempted. The first cleanup failure is thrown to the caller performing
+   * cleanup, with later failures suppressed in attempt order, excluding the primary failure itself.
+   * Resources are not retried after failure. Parent resources and borrowed [CanvasBuilder.instance]
+   * bindings are unaffected. Finish scoped Mosaic work before closing its Canvas; retaining or
+   * using the Canvas afterward is unsupported.
    */
+  @Suppress("TooGenericExceptionCaught") // Every resource failure must allow remaining cleanup.
   override fun close() {
-    closeables.asReversed().forEach { closeable ->
-      runCatching { closeable.close() }
-        .onFailure { failure -> System.err.println("Close hook failed: ${failure.message}") }
+    synchronized(closeLock) {
+      if (closed) return
+      closed = true
+
+      var primary: Throwable? = null
+      closeables.asReversed().forEach { resource ->
+        try {
+          resource.close()
+        } catch (failure: Throwable) {
+          if (primary == null) {
+            primary = failure
+          } else if (failure !== primary) {
+            primary.addSuppressed(failure)
+          }
+        }
+      }
+      primary?.let { throw it }
     }
   }
 }
@@ -111,19 +141,21 @@ class Canvas internal constructor(
  * Inline extension function to retrieve a dependency using reified type parameters.
  *
  * @param T The type of the dependency to retrieve
+ * @param qualifier An optional name distinguishing bindings of the same type
  * @return An instance of the requested type
  * @throws [MosaicMissingKeyException] if no instance is registered for the type
  */
-inline fun <reified T : Any> Canvas.source(): T = source(T::class)
+inline fun <reified T : Any> Canvas.source(qualifier: String? = null): T = source(T::class, qualifier)
 
 /**
  * Inline extension function to retrieve a dependency using reified type parameters.
  * Returns null if the source is not found.
  *
  * @param T The type of the dependency to retrieve
+ * @param qualifier An optional name distinguishing bindings of the same type
  * @return An instance of the requested type
  */
-inline fun <reified T : Any> Canvas.sourceOr(): T? = sourceOr(T::class)
+inline fun <reified T : Any> Canvas.sourceOrNull(qualifier: String? = null): T? = sourceOrNull(T::class, qualifier)
 
 /**
  * Executes [block] with a request-owned [Mosaic], inheriting the calling coroutine's context.
@@ -140,22 +172,5 @@ inline fun <reified T : Any> Canvas.sourceOr(): T? = sourceOr(T::class)
  * }
  * ```
  */
-suspend fun <R> Canvas.withMosaic(block: suspend Mosaic.() -> R): R {
-  val mosaic = MosaicImpl(this, currentCoroutineContext())
-  try {
-    return block(mosaic)
-  } finally {
-    mosaic.shutdown()
-  }
-}
-
-/**
- * Creates an unscoped [Mosaic], without attaching producer work to the calling coroutine.
- * Prefer [withMosaic] and move the complete handler invocation into its block to give
- * work a request lifetime and await cleanup. This function does not close this Canvas.
- */
-@Deprecated(
-  "Use scoped Canvas.withMosaic { ... } to own Mosaic work within the calling coroutine",
-  level = DeprecationLevel.WARNING,
-)
-fun Canvas.create(): Mosaic = MosaicImpl(this)
+suspend fun <R> Canvas.withMosaic(block: suspend Mosaic.() -> R): R =
+  MosaicImpl(this, currentCoroutineContext()).withMosaicExecution(block)

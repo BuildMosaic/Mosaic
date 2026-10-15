@@ -10,7 +10,7 @@ K names refer to analysis-core tests; C/B to compiler tests; G to TestKit.
 [public API matrix](PUBLIC_API_MATRIX.md) fixes support decisions and interactions.
 
 Current production guarantee: reified, KClass, and CanvasKey forms share exact
-runtime key identity for lookup, registration, and paint. Immutable top-level
+runtime key identity for lookup, registration, and construction-time lookup. Immutable top-level
 CanvasKey values export explicit facts; unavailable binary exports and dynamic
 key components stay named unknown. Mosaic.canvas carries its current Canvas.
 Canvas layering, Tile creation, and compose/composeAsync retain evaluation order
@@ -20,8 +20,8 @@ identities; unsupported capability captures remain named unknown.
 
 | Row | Existing assertion/family; missing interaction added in EC |
 |---|---|
-| A1 | IrShape: argument work retained; EC ignored ordinary argument M/V |
-| A2 | IrShape: named arguments, Canvas actual once; ActivationInvariant: actual order; EC receiver/named/vararg/spread |
+| A1 | EC ignored ordinary argument M/V |
+| A2 | IrShape: Canvas actual once; ActivationInvariant: actual order; EC receiver/named/vararg/spread |
 | A3 | ActivationInvariant: missing/conflicting/limited callees, unknown callees; IrShape missing metadata M/U |
 | A4 | DefaultBoundary: used/explicit local and binary defaults; EC literal defaults V |
 | A5 | MosaicReceiverBoundary; inline binary accessor experiment; EC inline getter ordinary/Canvas U |
@@ -41,7 +41,7 @@ identities; unsupported capability captures remain named unknown.
 | D3 | LayerSemantics unused eager, future child, duplicate, failed local |
 | D4 | EC registration argument M, foreign builder/factory U; LayerSemantics eager providers |
 | D5 | KeyAndOptionalSemantics qualifier/unknown/optional; EC optional argument M |
-| D6 | IrShape mutable collections and arrays; KeyAndOptionalSemantics erasure |
+| D6 | IrShape mutable collections and arrays; KeyAndOptionalSemantics exact class identity |
 | D7 | UnknownBoundary local over unknown parent, unknown registrations |
 | E1 | InitializationBoundary stored/backing fields and binary constructors M/U/V |
 | E2 | StoredFieldBoundary; InitializationBoundary domain V; EC object/delegate/super U |
@@ -57,10 +57,10 @@ identities; unsupported capability captures remain named unknown.
 | G2 | ActivationInvariant unknown input required/optional; CorrectnessRegression optional assumption |
 | G3 | UnknownBoundary coexistence; ReportingAndPolicy strict/default/scoped assumptions |
 | G4 | ReportingAndPolicy paths; ActivationInvariant provider capture; EC root reachability guard |
-| H1 | IrShape DSL symbols/overloads/suspend; MosaicReceiverBoundary extension identities; override slots |
+| H1 | IrShape DSL lookup/overload/suspend fidelity; MosaicReceiverBoundary extension identities; override slots |
 | H2 | ReferenceOwnership unchanged adapter; G platform removal/restoration |
 | H3 | SummaryMetadata invalid/absent required headers and incompatible compiler records; UnknownBoundary conflicts/missing; G metadata loss/corruption |
-| H4 | SummaryMetadata round trip and receiver fields; ReportingAndPolicy registry determinism |
+| H4 | SummaryMetadata ordered effects/actuals; SummaryWireCorpus receiver provenance; ReportingAndPolicy registry determinism |
 | I1 | G fresh extraction: unchanged second source, rename, final-source removal |
 | I2 | G rejected extraction removes previous output; packaging task dependencies |
 | I3 | G separate binary artifacts body-only invalidation/restoration with adapter unchanged |

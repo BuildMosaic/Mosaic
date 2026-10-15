@@ -3,7 +3,42 @@
 Significant user-facing changes to Mosaic are documented here. Earlier versions
 predate this maintained changelog; their release history is not reconstructed here.
 
-## [Unreleased]
+## [runtime-1.0.0] - 2026-10-15
+
+### Changed
+
+- Runtime and Analysis release independently. The BOM aligns core, test, and
+  OpenTelemetry only. Stable Runtime APIs follow semantic versioning from 1.0.
+- Runtime uses Kotlin language/API level 2.2 and library baseline 2.2.21; Java 17
+  remains required. Kotlin support follows the rolling 18-month policy.
+- Canvas registration is `provide`, construction lookup is `source`, and optional
+  lookup is `sourceOrNull`. Replace `single`, `paint`, and `sourceOr`.
+- Scoped `withMosaic` replaces `Canvas.create()`, public `MosaicImpl` construction,
+  and `TestMosaicBuilder.build()`. Builders no longer take a TestScope.
+- Reified Canvas lookups accept optional qualifiers.
+- These changes break source and binary compatibility with 0.7.0; migrate and
+  recompile consumers.
+
+### Fixed
+
+- Canvas closes owned resources once, in reverse creation order, even with
+  repeated or concurrent close calls. Cleanup continues after a hook fails.
+- Resource aliases do not duplicate cleanup or transfer borrowed/parent ownership.
+- Test Canvas sources remain caller-owned. Each scoped test gets a fresh cache
+  and a snapshot of substitutions and sources.
+
+## [analysis-1.0.0] - 2026-10-15
+
+### Changed
+
+- Analysis has independent versioning and provisional tooling APIs. Compiler
+  integration is selected automatically for compatible Kotlin versions.
+- Metadata uses **contract version 6**; regenerate older dependency summaries.
+  Analysis understands Core semantic revision 1 and rejects unsupported revisions.
+- Extraction supports scoped `withMosaic` and the `provide`, `instance`, `source`,
+  and `sourceOrNull` vocabulary. Construction lookup uses `CONSTRUCTION`.
+- Conservative verification is unchanged: missing metadata remains `UNVERIFIED`,
+  incompatible metadata fails, and unsupported Runtime semantics never become `VERIFIED`.
 
 ## [0.7.0] - 2026-10-05
 

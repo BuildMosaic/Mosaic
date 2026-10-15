@@ -7,7 +7,7 @@ Turn composition into a dependency report, then use verification to find missing
 
 ## Install the plugin
 
-Add Maven Central to plugin and dependency repositories. For a supported Kotlin/JVM application:
+Install Analysis 1.0.0 separately from Runtime. The plugin selects the compiler integration automatically; use matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions from the [compatibility reference](/reference/compatibility/).
 
 ```kotlin title="build.gradle.kts"
 import org.buildmosaic.gradle.MosaicAnalysisEnforcement
@@ -15,10 +15,12 @@ import org.buildmosaic.gradle.MosaicAnalysisRole
 
 plugins {
   kotlin("jvm") version "2.4.20"
-  id("org.buildmosaic.analysis") version "0.7.0"
+  id("org.buildmosaic.analysis") version "1.0.0"
 }
 
 repositories { mavenCentral() }
+
+dependencies { implementation("org.buildmosaic:mosaic-core:1.0.0") }
 
 mosaicAnalysis {
   role = MosaicAnalysisRole.APPLICATION
@@ -26,7 +28,7 @@ mosaicAnalysis {
 }
 ```
 
-In `settings.gradle.kts`, include `mavenCentral()` in `pluginManagement.repositories` alongside `gradlePluginPortal()`. Add runtime dependencies separately; the analysis plugin does not install Mosaic core or apply Kotlin for you.
+In `settings.gradle.kts`, include `mavenCentral()` in `pluginManagement.repositories` alongside `gradlePluginPortal()`.
 
 ## Generate the graph
 
@@ -94,10 +96,8 @@ mosaicAnalysis {
 
 Libraries omit roots. A library with configured roots fails configuration.
 
-## What runs during the build
+## Build behavior
 
-Analysis runs during normal `main` Kotlin compilation without another compiler process. For incremental builds, the compiler stores source-relative internal shards; `extractMosaicMain` assembles current-source shards into one complete summary. With no Kotlin sources, it produces an explicit empty complete summary. The JAR packages that summary at `META-INF/mosaic-analysis/v1/summary.json`.
+Analysis runs during normal `main` Kotlin compilation. Your JAR carries the resulting complete contract summary, so consuming applications can inspect selected dependency contracts without running your code. Verification can refresh when dependency metadata changes even if your application sources do not recompile.
 
-Dependency summary changes can rerun verification independently of unchanged source compilation. Incremental, clean, and cache-restored builds must yield the same summary and verification result.
-
-Use the [analysis configuration reference](/reference/analysis-configuration/) for configuration and troubleshooting, including [tasks and reports](/reference/analysis-configuration/#tasks-and-reports). For implementation details, the [compiler guide](https://github.com/BuildMosaic/Mosaic/blob/main/mosaic-compiler-plugin/README.md) describes extraction fidelity, and the [analysis-core guide](https://github.com/BuildMosaic/Mosaic/blob/main/mosaic-analysis-core/README.md) describes evaluation and metadata semantics. These provisional build-tooling interfaces are separate from the runtime API and BOM.
+Use the [configuration reference](/reference/analysis-configuration/) for supported boundaries and troubleshooting, including [tasks and reports](/reference/analysis-configuration/#tasks-and-reports).

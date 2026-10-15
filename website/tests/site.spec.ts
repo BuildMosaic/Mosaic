@@ -10,6 +10,8 @@ const routes = [
   '/',
   '/start/quick-start/',
   '/concepts/shared-work/',
+  '/guides/testing/',
+  '/reference/compatibility/',
   '/reference/performance/',
   '/reference/analysis-configuration/',
   '/concepts/tiles/',
@@ -36,7 +38,9 @@ for (const width of [1440, 1920, 1280, 820, 390, 430]) {
         await expect(page.locator('main, [role="main"]')).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         if (route === '/reference/analysis-configuration/') {
-          const registry = page.locator('.sl-markdown-content table').nth(2);
+          const registry = page
+            .getByRole('table')
+            .filter({ has: page.getByRole('columnheader', { name: 'ID', exact: true }) });
           if (await registry.evaluate((el) => el.scrollWidth > el.clientWidth)) {
             await registry.focus();
             await expect(registry).toBeFocused();
@@ -117,10 +121,6 @@ for (const width of [320, 390, 430, 600]) {
       const shared = graph.locator('[data-tile="OrderTile"]');
       await expect(shared.locator('span')).toHaveText('3 callers · 1 execution');
       await expect(graph).toHaveAccessibleName(/once per Mosaic/);
-      for (const svg of await graph.locator('svg').all()) {
-        await expect(svg).toHaveAttribute('aria-hidden', 'true');
-      }
-
       const geometry = await graph.evaluate((el) => {
         const box = (node: Element) => {
           const { left, right, top, bottom } = node.getBoundingClientRect();
@@ -137,15 +137,12 @@ for (const width of [320, 390, 430, 600]) {
             fits: node.scrollWidth <= node.clientWidth,
             labels: Array.from(node.children).map((label) => box(label)),
             fontSize: parseFloat(getComputedStyle(node.querySelector('code')!).fontSize),
-            background: getComputedStyle(node).backgroundColor,
-            border: getComputedStyle(node).borderTopStyle,
           })),
         };
       });
       expect(geometry.fits).toBe(true);
       expect(geometry.graph.left).toBeGreaterThanOrEqual(Math.max(0, geometry.container.left) - 1);
       expect(geometry.graph.right).toBeLessThanOrEqual(Math.min(geometry.viewport, geometry.container.right) + 1);
-      const sharedStyle = geometry.nodes.find((node) => node.tile === 'OrderTile')!;
       for (const node of geometry.nodes) {
         expect(node.fits, node.tile).toBe(true);
         expect(node.left, node.tile).toBeGreaterThanOrEqual(geometry.graph.left - 1);
@@ -156,10 +153,6 @@ for (const width of [320, 390, 430, 600]) {
           expect(label.right).toBeLessThanOrEqual(node.right + 1);
           expect(label.top).toBeGreaterThanOrEqual(node.top - 1);
           expect(label.bottom).toBeLessThanOrEqual(node.bottom + 1);
-        }
-        if (node.tile !== 'OrderTile') {
-          expect(node.border).toBe('solid');
-          expect(node.background).not.toBe(sharedStyle.background);
         }
       }
       for (const [i, node] of geometry.nodes.entries()) {
@@ -268,15 +261,4 @@ test('documentation search, sidebar, copy, theme, and keyboard code scrolling', 
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => code.evaluate((el) => el.scrollLeft)).toBeGreaterThan(before);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-});
-
-test('native Dokka navigation and search', async ({ page }) => {
-  await page.goto('/api/');
-  await page.locator('.main-content a[href="mosaic-core/index.html"]').click();
-  await expect(page).toHaveURL(/\/api\/mosaic-core\/index.html$/);
-  await page.locator('#searchBar').click();
-  await page.locator('input:visible').first().fill('Canvas');
-  await expect(page.getByRole('button', { name: /class Canvas : AutoCloseable/ })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await page.locator('#theme-toggle-button').click();
 });

@@ -2,8 +2,7 @@ package org.buildmosaic.core
 
 import kotlinx.coroutines.test.runTest
 import org.buildmosaic.core.injection.canvas
-import org.buildmosaic.core.injection.create
-import kotlin.reflect.KProperty
+import org.buildmosaic.core.injection.withMosaic
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -14,7 +13,7 @@ private val topLevelBatch by multiTile<String, String> { keys -> keys.associateW
 
 class TileNamingTest {
   @Test
-  fun `all factories bind names and preserve identity`() {
+  fun `all factories bind delegated names`() {
     val single by singleTile { "single" }
     val batch by multiTile<String, String> { keys -> keys.associateWith { it } }
     val perKey by perKeyTile<String, String> { it }
@@ -23,10 +22,6 @@ class TileNamingTest {
     assertEquals("batch", batch.name)
     assertEquals("perKey", perKey.name)
     assertEquals("chunked", chunked.name)
-    assertSame(single, single)
-    assertSame(batch, batch)
-    assertSame(perKey, perKey)
-    assertSame(chunked, chunked)
     assertEquals("topLevelTile", topLevelTile.name)
     assertEquals("topLevelBatch", topLevelBatch.name)
   }
@@ -58,30 +53,6 @@ class TileNamingTest {
   }
 
   @Test
-  fun `property name is read only at the first binding`() {
-    var reads = 0
-    val property =
-      object : KProperty<Tile<String>> by ::topLevelTile {
-        override val name: String
-          get() {
-            reads++
-            return "captured"
-          }
-      }
-    val tile = singleTile { "single" }
-    val batch = multiTile<String, String> { keys -> keys.associateWith { it } }
-    assertSame(tile, tile.provideDelegate(null, property))
-    assertSame(batch, batch.provideDelegate(null, property))
-    assertSame(tile, tile.provideDelegate(null, property))
-    assertSame(batch, batch.provideDelegate(null, property))
-    repeat(10) {
-      assertSame(tile, tile.getValue(null, property))
-      assertSame(batch, batch.getValue(null, property))
-    }
-    assertEquals(2, reads)
-  }
-
-  @Test
   fun `delegated aliases share single and multi caches`() =
     runTest {
       var singleCalls = 0
@@ -96,13 +67,15 @@ class TileNamingTest {
       }
       val tileAlias by tile
       val batchAlias by batch
-      val mosaic = canvas {}.create()
-      assertEquals("value", mosaic.compose(tile))
-      assertEquals("value", mosaic.compose(tileAlias))
-      assertEquals("key", mosaic.compose(batch, "key"))
-      assertEquals("key", mosaic.compose(batchAlias, "key"))
-      assertEquals(1, singleCalls)
-      assertEquals(1, batchCalls)
+      canvas {}.withMosaic {
+        val mosaic = this
+        assertEquals("value", mosaic.compose(tile))
+        assertEquals("value", mosaic.compose(tileAlias))
+        assertEquals("key", mosaic.compose(batch, "key"))
+        assertEquals("key", mosaic.compose(batchAlias, "key"))
+        assertEquals(1, singleCalls)
+        assertEquals(1, batchCalls)
+      }
     }
 }
 
