@@ -24,13 +24,12 @@ overrides the selected train's version.
    deployment. Record Runtime before releasing dependent Analysis. Prereleases
    do not establish registry records.
 
-Release certification covers all discovered stable compilers from Kotlin 2.2.0,
-including historical families. This broader release gate is intentional regression
-coverage; it does not extend the official support period. Routine maintenance
-rechecks every stable compiler in the supported window, including backports
-published inside a recorded range. The optional `counterparts`
-input selects published releases of the other train to verify; blank selects
-the latest recorded release. Only exercised relationships are recorded.
+Release certification covers all discovered stable compilers from Kotlin 2.2.0;
+routine maintenance rechecks the rolling 18-month support window, including backports.
+The optional `counterparts` input selects published releases of the other train;
+blank selects the latest. Runtime selections include every intervening published
+release. Certification extends only the bounds it verifies and preserves historical
+ranges.
 
 Publication is not atomic. If a release fails, inspect Maven Central, the Plugin
 Portal, and GitHub before retrying. Never move a release tag or republish released
@@ -71,22 +70,11 @@ A passing retry closes its issue. An exact retry beyond a recorded boundary also
 checks intervening discovered compilers before extending the range. Implementation
 fixes require normal review and, when needed, a new release.
 
-The registry stores inclusive `minKotlin` and `maxKotlin` bounds for each Runtime
-and each certified Analysis–Runtime pair. Analysis coverage comes from those
-pairings; one pairing never establishes another. Historical bounds are retained.
-Daily maintenance extends a relationship only if its entire required sweep passes;
-a failure, unavailable artifact, or open failure issue holds its bounds. Other
-relationships may still advance. Open issues suppress automatic retries until an
-explicit dispatch; failures inside a range require a fix, not an exclusion.
-
-Rechecking the supported window costs more CI time but discovers late backports
-without a second evidence database or version inventory. Certification reports
-remain Actions diagnostics. A backport inside a range is covered by the continuous
-compatibility guarantee even before the next daily check verifies it.
-
-Before merging a registry change, fetch the latest `main` and convert its latest
-certified bounds, preserving any bot updates since the branch was created. Do not
-resolve registry conflicts by restoring an older snapshot.
+A failed, unavailable, or issue-blocked compiler holds that release's Kotlin bounds.
+Failed Analysis batches remain failed even if isolated diagnostic retries pass.
+Open issues suppress automatic retries until an explicit dispatch; failures inside
+a claimed range require a fix. Fetch the latest `main` before merging registry
+changes to preserve concurrent bot updates.
 
 For local checks without GitHub updates, use `compatibility/certify.py --help` or
 `./gradlew tasks --group compatibility`. Supply both JDK 17 and the repository

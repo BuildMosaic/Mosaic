@@ -202,15 +202,22 @@ def certify(versions, scope, java_installations='', release=None, counterparts=N
     data = registry.load()
     opposite = 'analysis' if scope == 'runtime' else 'runtime'
     if release is not None:
-        registry.version(release.split('-')[0])
+        base = release.split('-')[0]
+        registry.version(base)
         if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?', release):
             raise ValueError('Invalid release version')
-        # A release records only relationships it actually exercises. Extra counterparts are opt-in.
         counterparts = sorted(set(counterparts), key=registry.version) if counterparts is not None else sorted(data[opposite], key=registry.version)[-1:]
         if scope == 'analysis' and not counterparts:
             raise ValueError('Release a Runtime first; Analysis certification requires a published Runtime')
         if any(v not in data[opposite] for v in counterparts):
             raise ValueError('Counterparts must be recorded published releases')
+        if scope == 'analysis':
+            # Selecting endpoints also selects every published Runtime between them.
+            counterparts = [r for r in data['runtime']
+                            if registry.version(counterparts[0]) <= registry.version(r) <= registry.version(counterparts[-1])]
+        else:
+            counterparts = sorted(set(counterparts) | {a for a, interval in data['analysis'].items()
+                                  if registry.within(interval, base, 'Runtime')}, key=registry.version)
     certification = Certification(java_installations)
     candidate = release or f'0.0.0-compat-{certification.directory.name}'
     certification.build(scope, candidate)
@@ -218,23 +225,30 @@ def certify(versions, scope, java_installations='', release=None, counterparts=N
         certification.runtime(versions, candidate)
     if release is None and scope == 'all':
         certification.analysis(versions, candidate, candidate)
-    relationships = {}
-    for counterpart in counterparts or []:
-        runtime, analysis = (counterpart, release) if scope == 'analysis' else (release, counterpart)
-        common = versions
-        if scope == 'runtime':
-            resolved = certification.resolve(versions[0], runtime, analysis)
-            _, bounds = compiler_profiles(resolved['extractor'][0]['file'])
-            common = [v for v in versions if any(lower <= registry.version(v) < upper for lower, upper in bounds.values())]
-        if not common:
-            raise ValueError(f'No common Kotlin versions with {opposite} {counterpart}')
-        if common != [v for v in versions if registry.version(common[0]) <= registry.version(v) <= registry.version(common[-1])]:
-            raise ValueError('Compiler ABI coverage must be continuous')
-        if scope == 'analysis':
-            certification.runtime(common, runtime)
-        certification.analysis(common, runtime, analysis)
-        relationships[counterpart] = common
-    result = {'train': scope, 'version': release, 'kotlin': versions, 'counterparts': relationships,
+    records = []
+    if release is not None and scope == 'runtime':
+        records.append({'result': 'pass', 'train': 'runtime', 'version': release, 'kotlin': versions})
+        runtimes = set(data['runtime']) | {base}
+        for analysis in counterparts:
+            interval = data['analysis'][analysis]
+            lower = min(base, interval['minRuntime'], key=registry.version)
+            upper = max(base, interval['maxRuntime'], key=registry.version)
+            common = [v for v in versions if registry.within(interval, v)]
+            required = sorted([r for r in runtimes if registry.version(lower) <= registry.version(r) <= registry.version(upper)
+                        and (r == base or not registry.within(interval, r, 'Runtime'))], key=registry.version)
+            for runtime in required:
+                if not common:
+                    raise ValueError(f'No common Kotlin versions for Runtime {runtime} and Analysis {analysis}')
+                certification.analysis(common, candidate if runtime == base else runtime, analysis)
+            records.append({'result': 'pass', 'train': 'analysis', 'version': analysis,
+                            'runtime': required, 'kotlin': common})
+    elif release is not None:
+        for runtime in counterparts:
+            certification.runtime(versions, runtime)
+            certification.analysis(versions, runtime, candidate)
+        records.append({'result': 'pass', 'train': 'analysis', 'version': release,
+                        'kotlin': versions, 'runtime': sorted(counterparts, key=registry.version)})
+    result = {'train': scope, 'version': release, 'records': records,
               'revision': certification.revision, 'result': 'pass'}
     path = certification.directory / 'result.json'
     path.write_text(json.dumps(result, indent=2) + '\n')
@@ -250,7 +264,7 @@ if __name__ == '__main__':
     parser.add_argument('--scope', choices=('all', 'runtime', 'analysis'), default='all')
     parser.add_argument('--java-installations', default='')
     parser.add_argument('--release', help='Certify this actual release version before publication')
-    parser.add_argument('--counterparts', help='Comma-separated published counterparts; default: latest recorded release')
+    parser.add_argument('--counterparts', help='Comma-separated published counterparts; includes intervening Runtime releases; default: latest')
     parser.add_argument('--runtime', help='Verify this unchanged published Runtime; requires --kotlin')
     parser.add_argument('--analysis', help='Also verify this unchanged published Analysis with --runtime')
     args = parser.parse_args()

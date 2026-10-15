@@ -11,7 +11,7 @@ on:
           - runtime
           - analysis
       counterparts:
-        description: Published versions of the other train to check (comma-separated; blank uses latest recorded)
+        description: Published counterpart versions (comma-separated; blank uses latest; includes intervening Runtime releases)
         required: false
         type: string
       version:

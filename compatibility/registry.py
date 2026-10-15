@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Inclusive Kotlin compatibility ranges. Unrecorded release pairings are unknown."""
+"""Independent, inclusive Runtime and Analysis compatibility ranges."""
 
 import argparse
+from copy import deepcopy
 import json
 from pathlib import Path
 import re
@@ -21,32 +22,32 @@ def versions(values):
     return values
 
 
-def bounds(interval):
-    if set(interval) != {'minKotlin', 'maxKotlin'}:
-        raise ValueError('Expected inclusive minKotlin and maxKotlin')
-    lower, upper = version(interval['minKotlin']), version(interval['maxKotlin'])
+def bounds(interval, kind='Kotlin'):
+    lower, upper = version(interval[f'min{kind}']), version(interval[f'max{kind}'])
     if lower > upper:
-        raise ValueError('Kotlin range is reversed')
+        raise ValueError(f'{kind} range is reversed')
     return lower, upper
+
+
+def within(interval, value, kind='Kotlin'):
+    lower, upper = bounds(interval, kind)
+    return lower <= version(value) <= upper
 
 
 def validate(data):
     if set(data) != {'runtime', 'analysis'}:
         raise ValueError('Expected runtime and analysis release maps')
-    for release, interval in data['runtime'].items():
-        version(release)
-        bounds(interval)
-    for release, pairings in data['analysis'].items():
-        version(release)
-        if not pairings:
-            raise ValueError('Analysis requires a tested Runtime relationship')
-        for runtime, interval in pairings.items():
-            if runtime not in data['runtime']:
-                raise ValueError(f'Unknown Runtime release: {runtime}')
-            lower, upper = bounds(interval)
-            rlower, rupper = bounds(data['runtime'][runtime])
-            if not rlower <= lower <= upper <= rupper:
-                raise ValueError(f'Unverified Kotlin range for Analysis {release} and Runtime {runtime}')
+    for train, releases in data.items():
+        fields = {'minKotlin', 'maxKotlin'} | ({'minRuntime', 'maxRuntime'} if train == 'analysis' else set())
+        for release, interval in releases.items():
+            version(release)
+            if not isinstance(interval, dict) or set(interval) != fields:
+                raise ValueError(f'Expected {train} range fields: {sorted(fields)}')
+            bounds(interval)
+            if train == 'analysis':
+                bounds(interval, 'Runtime')
+                if any(interval[key] not in data['runtime'] for key in ('minRuntime', 'maxRuntime')):
+                    raise ValueError('Analysis Runtime endpoints must be published')
     return data
 
 
@@ -55,42 +56,56 @@ def load():
 
 
 def compatible(data, runtime, kotlin, analysis=None):
-    releases = data['runtime'] if analysis is None else data['analysis'].get(analysis, {})
-    interval = releases.get(runtime)
-    return interval is not None and version(interval['minKotlin']) <= version(kotlin) <= version(interval['maxKotlin'])
+    r = data['runtime'].get(runtime)
+    a = data['analysis'].get(analysis)
+    return (r is not None and within(r, kotlin) and
+            (analysis is None or (a is not None and within(a, runtime, 'Runtime') and within(a, kotlin))))
 
 
-def apply_evidence(data, evidence):
-    if 'records' in evidence:
-        records = evidence['records']
-        for result in records:
-            if result['result'] != 'pass' or result['runtime'] not in data['runtime'] or (result['analysis'] and
-                    result['runtime'] not in data['analysis'].get(result['analysis'], {})):
-                raise ValueError('Daily certification requires passing, established published relationships')
-        pairs = [(r['runtime'], r['analysis'], versions(r['kotlin'])) for r in records]
-    else:
-        train, release = evidence['train'], evidence['version']
-        if evidence['result'] != 'pass' or train not in ('runtime', 'analysis'):
-            raise ValueError('Expected a passing release certification')
+def apply_evidence(data, evidence, published_kotlin):
+    if evidence.get('result', 'pass') != 'pass':
+        raise ValueError('Failed certification cannot update ranges')
+    updated = deepcopy(data)
+    for record in evidence['records']:
+        train, release = record['train'], record['version']
         version(release)
-        kotlin = versions(evidence['kotlin'])
-        if train == 'analysis' and not evidence['counterparts']:
-            raise ValueError('Analysis requires a tested published Runtime')
-        opposite = 'analysis' if train == 'runtime' else 'runtime'
-        pairs = [(release, None, kotlin)] if train == 'runtime' else []
-        for counterpart, compilers in evidence['counterparts'].items():
-            if counterpart not in data[opposite] or not set(versions(compilers)) <= set(kotlin):
-                raise ValueError('Expected a published counterpart and verified compilers')
-            runtime, analysis = (release, counterpart) if train == 'runtime' else (counterpart, release)
-            pairs.append((runtime, analysis, compilers))
-    # Merge only after all evidence is checked. Retries never replace certified bounds.
-    for runtime, analysis, kotlin in pairs:
-        releases = [data['runtime']]
-        if analysis:
-            releases.append(data['analysis'].setdefault(analysis, {}))
-        for entries in releases:
-            endpoints = kotlin + list(entries.get(runtime, {}).values())
-            entries[runtime] = {'minKotlin': min(endpoints, key=version), 'maxKotlin': max(endpoints, key=version)}
+        if record['result'] != 'pass' or train not in ('runtime', 'analysis'):
+            raise ValueError('Expected passing Runtime or Analysis certification')
+        if release not in updated[train] and (evidence.get('train'), evidence.get('version')) != (train, release):
+            raise ValueError('New releases require matching release certification')
+        entry = updated[train].setdefault(release, {})
+        previous = entry.copy()
+        kinds = ['Kotlin'] if train == 'runtime' else ['Runtime', 'Kotlin']
+        if not any(kind.lower() in record for kind in kinds):
+            raise ValueError('Certification must verify a range')
+        for kind in kinds:
+            if kind.lower() not in record:
+                continue
+            verified = versions(record[kind.lower()])
+            published = published_kotlin if kind == 'Kotlin' else updated['runtime']
+            if not set(verified) <= set(published):
+                raise ValueError(f'Expected published {kind} versions')
+            old = {key: entry[key] for key in (f'min{kind}', f'max{kind}') if key in entry}
+            endpoints = verified + list(old.values())
+            lower, upper = min(endpoints, key=version), max(endpoints, key=version)
+            required = {v for v in published if version(lower) <= version(v) <= version(upper)
+                        and (not old or not within(old, v, kind))}
+            if not required <= set(verified):
+                raise ValueError(f'Unverified intermediate {kind} releases: {sorted(required - set(verified), key=version)}')
+            entry.update({f'min{kind}': lower, f'max{kind}': upper})
+        validate(updated)
+        if train == 'analysis':
+            # Extending either dimension must cover the other dimension in full.
+            # Recheck against the latest registry, including concurrent extensions.
+            for kind, other, published in [('Runtime', 'Kotlin', published_kotlin),
+                                            ('Kotlin', 'Runtime', updated['runtime'])]:
+                if any(key not in previous or previous[key] != entry[key]
+                       for key in (f'min{kind}', f'max{kind}')):
+                    required = {v for v in published if within(entry, v, other)}
+                    if not required <= set(record.get(other.lower(), [])):
+                        raise ValueError(f'Analysis {kind} extension requires verified {other} coverage')
+    data.clear()
+    data.update(updated)
     return data
 
 

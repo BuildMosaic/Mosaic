@@ -53,7 +53,7 @@ jobs:
           app-id: ${{ vars.KOTLIN_COMPATIBILITY_APP_ID }}
           private-key: ${{ secrets.KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY }}
           permission-contents: write
-      - name: Record passing combinations on main and deploy the website
+      - name: Record verified ranges on main and deploy the website
         if: ${{ !cancelled() && steps.writer.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ steps.writer.outputs.token }}

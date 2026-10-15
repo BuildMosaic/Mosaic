@@ -5,6 +5,7 @@ import argparse
 import base64
 import calendar
 from datetime import date, datetime, timezone
+from functools import cache
 import json
 import os
 from pathlib import Path
@@ -56,6 +57,7 @@ def report_failure(kotlin, runtime, analysis, failure, issues):
     print(json.loads(result)['html_url'])
 
 
+@cache
 def available(version):
     for artifact in ('kotlin-compiler-embeddable', 'kotlin-gradle-plugin'):
         for extension in ('pom', 'jar'):
@@ -82,72 +84,71 @@ def supported_versions(versions):
     return [v for v in versions if v.rsplit('.', 1)[0] in supported]
 
 
+def verify_analysis(check, compilers, runtime, analysis):
+    try:
+        check.analysis(compilers, runtime, analysis)
+    except Exception:
+        # Isolated retries diagnose the failed batch; they cannot certify it.
+        if len(compilers) > 1:
+            for compiler in compilers:
+                try:
+                    check.analysis([compiler], runtime, analysis)
+                    print(f'Isolated diagnostic passed: {compiler} / {runtime} / {analysis}', flush=True)
+                except Exception as diagnostic:
+                    print(f'Isolated diagnostic failed: {compiler} / {runtime} / {analysis}: {diagnostic}',
+                          file=sys.stderr, flush=True)
+        raise
+
+
 def scan(kotlin, java_installations):
     data = registry.load()
     issues = open_issues()
     if kotlin and registry.version(kotlin) < (2, 2, 0):
         raise ValueError('Compatibility discovery starts at Kotlin 2.2.0')
-    discovered = certify.central_versions() if data['runtime'] else []
-    versions = [kotlin] if kotlin else supported_versions(discovered)
-    failures, passed_issues = [], []
+    discovered = certify.central_versions()
+    targets = [kotlin] if kotlin else supported_versions(discovered)
+    failures, passed_issues, records = [], set(), []
     check = certify.Certification(java_installations)
-    cases = [(r, None) for r in data['runtime']] + [
-        (r, a) for a, pairings in data['analysis'].items() for r in pairings]
-    required, passed = {}, {case: [] for case in cases}
-    for runtime, analysis in cases:
-        interval = data['runtime'][runtime] if analysis is None else data['analysis'][analysis][runtime]
-        endpoints = versions + list(interval.values())
-        # Check intervening releases too when an exact retry extends a boundary,
-        # or maintenance resumes after a family's support window has expired.
-        lower, upper = registry.version(min(endpoints, key=registry.version)), registry.version(max(endpoints, key=registry.version))
-        required[runtime, analysis] = set(versions) | {v for v in discovered
-            if lower <= registry.version(v) <= upper
-            and not registry.compatible(data, runtime, v, analysis)}
-    versions = sorted(set().union(*required.values()), key=registry.version)
-    for compiler in versions:
-        pending = [(r, a) for r, a in cases if compiler in required[r, a]
-                   and (kotlin or (issue_title(compiler, r, a) not in issues
-                                   and issue_title(compiler, r, None) not in issues))]
-        if not pending or not available(compiler):
-            continue
-        for runtime in data['runtime']:
-            analyses = [a for r, a in pending if r == runtime]
-            if not analyses:
-                continue
-            try:
-                check.runtime([compiler], runtime)
-            except Exception as failure:
-                failures.extend((compiler, runtime, a, failure) for a in analyses)
-                continue
-            for analysis in analyses:
-                passed[runtime, analysis].append(compiler)
-    for (runtime, analysis), compilers in passed.items():
-        if analysis and compilers:
-            try:
-                check.analysis(compilers, runtime, analysis)
-            except Exception as failure:
-                if len(compilers) == 1:
-                    failures.append((compilers.pop(), runtime, analysis, failure))
-                    continue
-                # A successful sweep shares setup and installation across versions.
-                # Only a failed batch needs individual retries for exact failure issues.
-                for compiler in compilers[:]:
+    for train, releases in data.items():
+        for release, interval in releases.items():
+            endpoints = targets + [interval['minKotlin'], interval['maxKotlin']]
+            lower, upper = min(endpoints, key=registry.version), max(endpoints, key=registry.version)
+            compilers = sorted(set(targets) | {v for v in discovered
+                if registry.version(lower) <= registry.version(v) <= registry.version(upper)
+                and not registry.within(interval, v)}, key=registry.version)
+            runtimes = [release] if train == 'runtime' else [
+                r for r in data['runtime'] if registry.within(interval, r, 'Runtime')]
+            analysis = release if train == 'analysis' else None
+            complete = bool(compilers)
+            for runtime in runtimes:
+                pending = [v for v in compilers if (kotlin or issue_title(v, runtime, analysis) not in issues)
+                           and available(v)]
+                complete &= pending == compilers
+                if analysis and pending:
                     try:
-                        check.analysis([compiler], runtime, analysis)
+                        verify_analysis(check, pending, runtime, analysis)
                     except Exception as failure:
-                        compilers.remove(compiler)
-                        failures.append((compiler, runtime, analysis, failure))
-        for compiler in compilers:
-            title = issue_title(compiler, runtime, analysis)
-            if title in issues:
-                passed_issues.append(issues[title]['number'])
-    # A failed, unavailable, or issue-blocked compiler holds this relationship's
-    # boundaries. Other relationships can still advance; historical ranges stay.
-    records = [{'result': 'pass', 'runtime': r, 'analysis': a, 'kotlin': compilers, 'revision': check.revision}
-               for (r, a), compilers in passed.items() if compilers and set(compilers) == required[r, a]
-               and any(not registry.compatible(data, r, v, a) for v in compilers)]
+                        failures.extend((v, runtime, analysis, f'Batch {",".join(pending)} failed: {failure}')
+                                        for v in pending)
+                        complete = False
+                        continue
+                else:
+                    passed = []
+                    for compiler in pending:
+                        try:
+                            check.runtime([compiler], runtime)
+                            passed.append(compiler)
+                        except Exception as failure:
+                            failures.append((compiler, runtime, None, failure))
+                            complete = False
+                    pending = passed
+                passed_issues.update(issues[issue_title(v, runtime, analysis)]['number'] for v in pending
+                                     if issue_title(v, runtime, analysis) in issues)
+            if complete and any(not registry.within(interval, v) for v in compilers):
+                records.append({'result': 'pass', 'train': train, 'version': release, 'kotlin': compilers,
+                                **({'runtime': sorted(runtimes, key=registry.version)} if analysis else {})})
     certify.REPORTS.mkdir(parents=True, exist_ok=True)
-    evidence = {'records': records}
+    evidence = {'records': records, 'revision': check.revision}
     (certify.REPORTS / 'published.json').write_text(json.dumps(evidence, indent=2) + '\n')
     print(json.dumps(evidence), flush=True)
     if os.environ.get('GITHUB_OUTPUT'):
@@ -169,7 +170,7 @@ def publish(evidence):
         file = json.loads(gh('api', f'repos/{repository}/contents/compatibility/registry.json?ref={head}'))
         original = base64.b64decode(file['content']).decode()
         data = registry.validate(json.loads(original))
-        content = json.dumps(registry.apply_evidence(data, evidence), indent=2) + '\n'
+        content = json.dumps(registry.apply_evidence(data, evidence, certify.central_versions()), indent=2) + '\n'
         registry.validate(json.loads(content))
         if content == original:
             print('Verified compatibility facts are already recorded')
