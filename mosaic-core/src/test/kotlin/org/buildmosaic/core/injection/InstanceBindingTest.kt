@@ -81,11 +81,16 @@ class InstanceBindingTest {
       val key = CanvasKey(Resource::class, "keyed")
       val owned = Resource()
       canvas {
+        provide<Service> { source<Resource>() }
+        provide("keyed alias") { keyed }
         instance(borrowed)
         instance("primary", qualified)
         instance(key, keyed)
         provide("owned") { owned }
-      }.close()
+      }.use {
+        assertSame(borrowed, it.source<Service>())
+        assertSame(keyed, it.source<Resource>("keyed alias"))
+      }
       assertEquals(listOf(0, 0, 0), listOf(borrowed.closes, qualified.closes, keyed.closes))
       assertEquals(1, owned.closes)
     }
@@ -99,11 +104,13 @@ class InstanceBindingTest {
       val owned = Resource()
       assertFailsWith<IllegalStateException> {
         canvas {
+          provide<Service> { source<Resource>() }
+          provide("keyed alias") { keyed }
+          provide("owned") { owned }
+          provide<String> { error("construction failed") }
           instance(borrowed)
           instance("primary", qualified)
           instance(key, keyed)
-          provide("owned") { owned }
-          provide<String> { error("construction failed") }
         }
       }
       assertEquals(listOf(0, 0, 0), listOf(borrowed.closes, qualified.closes, keyed.closes))
@@ -152,8 +159,10 @@ class InstanceBindingTest {
       val child =
         parent.withLayer {
           instance(override)
+          provide<Service> { source<Resource>("parent") }
           provide<List<Resource>> { listOf(source(), source("parent")) }
         }
+      assertSame(parentOnly, child.source<Service>())
       assertSame(override, child.source<Resource>())
       assertSame(inherited, parent.source<Resource>())
       assertSame(parentOnly, child.source(Resource::class, "parent"))

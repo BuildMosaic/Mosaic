@@ -230,8 +230,9 @@ class CanvasConstructionTest {
   fun `should close resources in reverse creation order`() =
     runTest {
       val events = mutableListOf<String>()
+      val ancestor = canvas { provide { Resource { events.add("ancestor") } } }
       val parentResource = Resource { events.add("parent") }
-      val parent = canvas { provide { parentResource } }
+      val parent = ancestor.withLayer { provide { parentResource } }
       parent.withLayer {
         provide<Resource>("first") {
           events.add("create first")
@@ -243,11 +244,17 @@ class CanvasConstructionTest {
           events.add("create consumer")
           Resource { events.add("close consumer") }
         }
+        provide<AutoCloseable>("first alias") { source<Resource>("first") }
+        provide<AutoCloseable>("parent alias") { source<Resource>() }
+        provide<AutoCloseable>("ancestor alias") { ancestor.source<Resource>() }
         provide<Resource>("dependency") {
           events.add("create dependency")
           Resource { events.add("close dependency") }
         }
       }.use {
+        assertSame(it.source<Resource>("first"), it.source<AutoCloseable>("first alias"))
+        assertSame(parentResource, it.source<AutoCloseable>("parent alias"))
+        assertSame(ancestor.source<Resource>(), it.source<AutoCloseable>("ancestor alias"))
         assertEquals(listOf("create first", "create dependency", "create consumer"), events)
       }
       assertEquals(
@@ -265,6 +272,8 @@ class CanvasConstructionTest {
       parent.close()
       assertEquals(1, events.count { it == "parent" })
       assertEquals("parent", events.last())
+      ancestor.close()
+      assertEquals("ancestor", events.last())
     }
 
   @Test
@@ -294,6 +303,8 @@ class CanvasConstructionTest {
                 throw failure
               }
             }
+            provide<AutoCloseable>("first alias") { source<Resource>("first") }
+            provide<AutoCloseable>("parent alias") { source<Resource>() }
             provide<String> { throw failure }
             provide<Resource>("dependency") {
               dependencyCount++
@@ -328,6 +339,7 @@ class CanvasConstructionTest {
           try {
             canvas {
               provide<Resource>("first") { Resource { closed.add("first") } }
+              provide<AutoCloseable>("first alias") { source<Resource>("first") }
               provide<String> {
                 source<Resource>("dependency")
                 entered.complete(Unit)
