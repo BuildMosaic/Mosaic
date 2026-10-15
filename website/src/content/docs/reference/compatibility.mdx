@@ -45,33 +45,22 @@ Applications supply their OpenTelemetry SDK or agent. Runtime use needs no analy
 **Effective starting with 1.0.0.** The released 1.0.0 artifacts define the Runtime compatibility baseline for 1.x.
 Historical 0.x releases are not compatibility baselines.
 
-Runtime preserves **Kotlin source compatibility** for supported public APIs on certified compilers, **JVM binary
-linkage** for already-compiled supported Kotlin/JVM consumers with compatible runtime dependencies, and **documented
-observable behavior**. The [Kotlin API reference](/api/) covers usable public declarations, including Tile/MultiTile
-constructors, provider-visible `CanvasFactory.source`, generated `CanvasKey` methods, delegation, composition overloads,
-and conforming third-party interface implementations. Named/default arguments, inline/reified targets, suspend
-signatures, overloads/JVM names, and interface implementation compatibility are covered. Inlined code retains its
-compiled body.
+Mosaic follows semantic versioning for stable Runtime APIs in `mosaic-core`, `mosaic-test`, and `mosaic-opentelemetry`.
+Supported Kotlin source and JVM binary compatibility are part of this policy. Minor releases may add compatible
+capabilities; patches provide compatible fixes. Breaking changes to supported APIs or documented behavior normally
+belong in major releases. Deprecations provide migration guidance, with timing appropriate to the change rather than a
+universal waiting period.
 
-| Surface                                                               | Guarantee                                                                                                                         |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `mosaic-core`                                                         | Public Canvas, Tile, MultiTile, and Mosaic APIs and documented semantics.                                                         |
-| `mosaic-test`                                                         | Public builders, scoped execution, source substitution, mocks, and assertions.                                                    |
-| [Observation SPI](/api/mosaic-core/org.buildmosaic.core.observation/) | Public callbacks, tokens/references, metadata, relationships, concurrency, lifecycle, noninterference, and privacy.               |
-| [OpenTelemetry tracing](/guides/tracing/)                             | Both installation overloads and documented execution, context, relationship, completion, failure-isolation, and privacy behavior. |
+The Runtime ABI validator protects existing JVM signatures by comparing the implementation with checked-in API
+references. It flags every snapshot difference, including compatible additions, for review; it does not classify
+compatibility or prove Kotlin source compatibility, inline-body compatibility, dependency compatibility, or behavior.
+Kotlin compiler certification is a separate check of specific artifact/toolchain combinations.
 
-Behavior includes [scoped cancellation/cleanup and identity-based sharing](/concepts/shared-work/), equal-key outcome
-retention, [bulk/per-key/chunk failure boundaries](/concepts/batching/),
-[eager Canvas construction, lookup, and layering](/concepts/canvas/),
-[resource ownership and documented `Canvas.close` guarantees](/guides/resources/), and
-[testing semantics](/guides/testing/). Automatic observation excludes application keys, values, Canvas contents, request
-identifiers, and raw exception contents. Integrations own their tokens; applications own telemetry SDKs, sampling,
-export, and shutdown.
-
-Runtime minors add compatible capabilities; patches make compatible fixes; breaking supported APIs or semantics require
-a major release. Dependency upgrades preserve supported consumption and behavior. Exact batches, scheduling, internal
-implementation structure, fixed performance measurements, noncontractual exception-message formatting, arbitrary Java
-source compatibility, and multiplatform support are excluded. Reflection does not expand the supported API.
+Supported behavior includes [scoped cancellation and shared work](/concepts/shared-work/),
+[MultiTile failure boundaries](/concepts/batching/), [Canvas ownership and cleanup](/guides/resources/), and
+[isolated testing](/guides/testing/). Observation and [tracing](/guides/tracing/) isolate callback failures from Tile
+results and exclude application keys, values, request identifiers, and raw exception contents from automatic telemetry.
+Exact scheduling and batch partitions are not guaranteed.
 
 ## Release trains and module alignment
 

@@ -80,6 +80,36 @@ fun main() = runBlocking {
 
 The result is `WelcomeResponse(greeting=Hello, user-123!, help=Your account is ready.)`. Both branches start before you await their values. Neither needs to know how the other works. If two branches ask for `GreetingTile`, they share its work within this Mosaic.
 
+## Preview Runtime 1.0.0
+
+Runtime 1.0.0 is not published yet. With source-built 1.0.0 artifacts available to your build, the same complete programs above run unchanged with `implementation("org.buildmosaic:mosaic-core:1.0.0")`. Keep the 0.7.0 dependency for Maven Central installation until publication is confirmed on the [releases page](/reference/releases/).
+
+The 1.0 Canvas vocabulary uses `provide` for eager owned construction, `instance` for borrowed values, `source` for required lookup, and `sourceOrNull` for optional lookup. For example, replace the first program's Canvas setup with this version; it still prints `Hello, user-123!`:
+
+```kotlin
+class GreetingService {
+  fun greet(name: String) = "Hello, $name!"
+}
+
+val GreetingTile by singleTile {
+  source<GreetingService>().greet(source(UserIdKey))
+}
+
+fun main() = runBlocking {
+  val applicationCanvas = canvas { provide { GreetingService() } }
+  try {
+    val greeting = applicationCanvas.withLayer {
+      instance(UserIdKey, "user-123")
+    }.withMosaic { compose(GreetingTile) }
+    println(greeting)
+  } finally {
+    applicationCanvas.close()
+  }
+}
+```
+
+Keep the original imports and `UserIdKey`, and replace the original `GreetingTile` and `main`. See [migration from 0.7.0](/reference/releases/#scoped-execution-migration) for removed APIs and test changes.
+
 ## Put it behind an endpoint
 
 At the request boundary, add input to your application Canvas, use `withMosaic` for one request Mosaic, and compose the response Tile from your suspending handler. Routing and HTTP errors remain in your framework. [Run the Spring Boot, Ktor, or Micronaut order example](/guides/frameworks/) to see a deeper graph in an application.

@@ -3,6 +3,9 @@
 See actual Tile executions, shared producers, and MultiTile batch callers in your
 application's existing OpenTelemetry traces.
 
+This checkout previews Runtime 1.0. For the published 0.7.0 API, use the
+[released tracing guide](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/mosaic-opentelemetry/README.md).
+
 ## Installation and setup
 
 ```kotlin

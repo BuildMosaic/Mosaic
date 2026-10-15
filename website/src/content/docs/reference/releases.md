@@ -13,6 +13,16 @@ Mosaic **0.7.0** is the public stable release. It adds request execution through
 
 The [changelog](https://github.com/BuildMosaic/Mosaic/blob/main/CHANGELOG.md) owns release history. For current requirements use [compatibility](/reference/compatibility/); for installation use the [installation guide](/start/installation/).
 
+## Upcoming 1.0 releases
+
+Runtime 1.0.0 and Analysis 1.0.0 are release candidates, not published artifacts. They release independently; the Runtime BOM aligns core, test, and tracing only. Analysis installation and compiler certification are separate.
+
+- [Runtime 1.0.0 candidate notes](https://github.com/BuildMosaic/Mosaic/blob/develop/docs/releases/runtime-1.0.0.md): migration from 0.7.0 and stable Runtime compatibility.
+- [Analysis 1.0.0 candidate notes](https://github.com/BuildMosaic/Mosaic/blob/develop/docs/releases/analysis-1.0.0.md): contract version 6, Core semantic admission, and provisional tooling compatibility.
+- [Executable Runtime 1.0 preview](/start/quick-start/#preview-runtime-100).
+
+Use published coordinates until the releases are available. The [compatibility tables](/reference/compatibility/) show only verified published combinations; candidate builds do not establish records.
+
 ## Upgrading within 0.x
 
 The 0.x release history includes source and binary compatibility changes. For example, [0.6.0 changed Canvas construction and requires consumers to recompile](https://github.com/BuildMosaic/Mosaic/blob/0.6.0/docs/releases/0.6.0.md#compatibility-and-migration). Review the release notes for each intervening version, check [runtime and optional analysis requirements](/reference/compatibility/), and test your application before upgrading.
@@ -29,20 +39,6 @@ The [native Kotlin API reference](/api/) is generated from KDoc on canonical mai
 
 ## Scoped execution migration
 
-The 1.0 API removes `Canvas.create()`, public `MosaicImpl` construction/subclassing, and `TestMosaicBuilder.build()`. These are intentional Kotlin source and JVM binary changes from 0.x; recompile consumers. The public `Mosaic` interface remains the abstraction passed to library code.
+When upgrading from 0.7.0 to Runtime 1.0, replace `Canvas.create()`, public `MosaicImpl` construction, and `TestMosaicBuilder.build()` with scoped `withMosaic { ... }` calls. Replace Canvas `single` with `provide`, constructor `paint` with `source`, and optional `sourceOr` with `sourceOrNull`. Recompile consumers after migrating.
 
-Move the complete request handler into `canvas.withMosaic { handler(this) }`. Tests mirror that boundary:
-
-```kotlin
-mosaicBuilder()
-  .withMockTile(NameTile, "Jane")
-  .withMosaic {
-    assertEquals(GreetingTile, "Hello, Jane!")
-  }
-```
-
-Use `mosaicBuilder()` or `TestMosaicBuilder()` without a stored TestScope. Execution inherits the coroutine context at the `withMosaic` call, including the enclosing `runTest` Job and scheduler. For a particular dispatcher, wrap the scoped call in `withContext(dispatcher)`. Every execution gets a fresh cache and a configuration snapshot, cancels unfinished work on exit, and waits for cleanup. Test Canvas sources are borrowed and remain caller-owned.
-
-The 1.0 Canvas vocabulary changes Kotlin source and JVM binary compatibility from 0.x: replace `single` with `provide`, constructor `paint` with `source`, and optional `sourceOr` with `sourceOrNull`; recompile consumers. Register externally owned values with `instance(...)`; use `provide { ... }` for eager Canvas-owned construction and required `source` within constructors. Returned Deferreds remain shared and Mosaic-owned: cancel your own wait rather than the Deferred.
-
-For historical requirements and migration details, read the [0.7.0 compatibility notes](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/docs/releases/0.7.0.md#compatibility), the [0.6.0 Canvas migration](https://github.com/BuildMosaic/Mosaic/blob/0.6.0/docs/releases/0.6.0.md#compatibility-and-migration), and the [release history](/reference/releases/). Those releases do not establish 1.x compatibility baselines.
+The [Runtime candidate notes](https://github.com/BuildMosaic/Mosaic/blob/develop/docs/releases/runtime-1.0.0.md) cover the complete migration and ownership rules. See the [testing guide](/guides/testing/) for scoped test examples and the [Analysis candidate notes](https://github.com/BuildMosaic/Mosaic/blob/develop/docs/releases/analysis-1.0.0.md) for contract regeneration. Historical [0.7.0 requirements](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/docs/releases/0.7.0.md#compatibility) and the [0.6.0 Canvas migration](https://github.com/BuildMosaic/Mosaic/blob/0.6.0/docs/releases/0.6.0.md#compatibility-and-migration) remain available; neither establishes the 1.x compatibility baseline.

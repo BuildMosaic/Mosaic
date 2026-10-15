@@ -3,6 +3,10 @@
 The Mosaic BOM aligns `mosaic-core`, `mosaic-test`, and optional
 `mosaic-opentelemetry` to the BOM version.
 
+The coordinates below install published 0.7.0. Runtime 1.0.0 is not yet published;
+see the [release notes](../docs/releases/runtime-1.0.0.md) for the upcoming migration.
+The BOM version is independent of Analysis and does not select its compiler integration.
+
 ## Usage
 
 Import the BOM and omit versions on Mosaic runtime dependencies. Add only the

@@ -9,7 +9,7 @@ export const collections = {
       extend: z.object({
         banner: z.object({ content: z.string() }).default({
           content:
-            'These docs preview Mosaic 1.0; Installation, Quick Start, and the framework examples use published 0.7.0. See the <a href="https://github.com/BuildMosaic/Mosaic/tree/0.7.0">released 0.7.0 guides and examples</a>.',
+            'These docs preview Runtime 1.0 and Analysis 1.0, neither published yet. Installation and the main Quick Start use 0.7.0; the Quick Start also includes a 1.0 preview. See the <a href="https://github.com/BuildMosaic/Mosaic/tree/0.7.0">released 0.7.0 guides and examples</a>.',
         }),
       }),
     }),

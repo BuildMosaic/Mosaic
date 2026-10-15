@@ -30,6 +30,8 @@ mosaicAnalysis {
 
 In `settings.gradle.kts`, include `mavenCentral()` in `pluginManagement.repositories` alongside `gradlePluginPortal()`. Add runtime dependencies separately; the analysis plugin does not install Mosaic core or apply Kotlin for you.
 
+The plugin selects a compatible compiler integration automatically from bounded ABI ranges; you do not select or install a compiler-profile artifact yourself. Use matching Kotlin compiler and KGP versions. Admission of a compiler patch is separate from certification: choose the exact Runtime/Analysis/Kotlin combination from the compatibility table, rather than assuming that every admitted patch is verified. The Runtime BOM does not set the Analysis version.
+
 ## Generate the graph
 
 ```bash

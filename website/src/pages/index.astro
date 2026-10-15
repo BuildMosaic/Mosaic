@@ -4,7 +4,7 @@ import orderPage from '../../../examples/tile-library/src/main/kotlin/org/buildm
 import orderSummary from '../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/OrderSummaryTile.kt?raw';
 import orderTotal from '../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/OrderTotalTile.kt?raw';
 import products from '../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/ProductsByIdTile.kt?raw';
-import properties from '../../../gradle.properties?raw';
+import releases from '../../../compatibility/registry.json';
 import HomeHeader from '../components/HomeHeader.astro';
 import Arrow from '../components/Arrow.astro';
 import CompositionGraph from '../components/CompositionGraph.astro';
@@ -25,7 +25,9 @@ const example = (name: string) =>
     .split(/\n(?=val )/)
     .at(-1)!
     .trim();
-const version = properties.match(/^mosaic.version=(.+)$/m)![1];
+const runtimeVersion = Object.keys(releases.runtime).sort((a, b) =>
+  b.localeCompare(a, undefined, { numeric: true }),
+)[0];
 const title = 'Mosaic — Composable backend orchestration for Kotlin';
 const description =
   'Think from the response up. Compose backend application logic with Kotlin Tiles, request-scoped shared work, and natural batching.';
@@ -97,7 +99,9 @@ const description =
                 ></a
               ><a class="button secondary" href="https://github.com/BuildMosaic/Mosaic">GitHub</a>
             </div>
-            <a class="release-link" href="/reference/releases/">Mosaic {version} <span>· Apache 2.0</span></a>
+            <a class="release-link" href="/reference/releases/"
+              >{runtimeVersion ? `Runtime ${runtimeVersion}` : 'Mosaic 0.7.0'} <span>· Apache 2.0</span></a
+            >
           </div>
           <div class="hero-composition">
             <Code code={example('OrderPageTile')} lang="kotlin" title="OrderPageTile.kt" />

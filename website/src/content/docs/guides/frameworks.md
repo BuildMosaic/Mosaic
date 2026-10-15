@@ -24,6 +24,8 @@ curl http://localhost:8080/orders/order-1/total
 
 The services are in-memory example implementations. Inspect the [models and services](https://github.com/BuildMosaic/Mosaic/tree/0.7.0/examples/tile-library/src/main/kotlin/org/buildmosaic/library) for sample data and response shape.
 
+The examples on `develop` preview 1.0 and build the repository Runtime sources through the composite build. Use that branch to try the upcoming API; the links and tag above retain the published 0.7.0 examples.
+
 ## Keep the request boundary small
 
 Inside a suspending handler:
