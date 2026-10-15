@@ -1,12 +1,10 @@
-import com.vanniktech.maven.publish.tasks.WorkaroundSignatureType
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
-import org.gradle.plugins.signing.Sign
-import org.gradle.plugins.signing.type.pgp.ArmoredSignatureType
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.gradle.process.CommandLineArgumentProvider
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
@@ -110,25 +108,28 @@ compilerProfiles.stringPropertyNames().filter { it != "default" && it != default
       dependsOn(tasks.processResources)
     }
   afterEvaluate {
+    val sharedArchives =
+      listOf(tasks.named<AbstractArchiveTask>("sourcesJar"), tasks.named<AbstractArchiveTask>("dokkaJavadocJar"))
+    // Each publication signs its own copies of the shared sources and documentation.
+    val publicationArchives =
+      tasks.register<Copy>("copyIntrospectorArchives$suffix") {
+        from(sharedArchives)
+        into(layout.buildDirectory.dir("introspector-publications/$compilerApi"))
+      }
     publishing.publications.create<MavenPublication>("introspector$suffix") {
       artifactId = "mosaic-compiler-plugin-kotlin-$compilerApi"
       artifact(jar) { classifier = null }
-      artifact(tasks.named("sourcesJar"))
-      artifact(tasks.named("dokkaJavadocJar"))
+      sharedArchives.forEach { archive ->
+        artifact(publicationArchives.map { it.destinationDir.resolve(archive.get().archiveFileName.get()) }) {
+          classifier = archive.get().archiveClassifier.get()
+          builtBy(publicationArchives)
+        }
+      }
     }
   }
   introspectorJars.configure { dependsOn(jar) }
 }
 tasks.assemble { dependsOn(introspectorJars) }
-
-// Publications share sources and Javadoc, but each signing task must own its outputs.
-tasks.withType<Sign>().configureEach {
-  signatureType =
-    WorkaroundSignatureType(
-      signatureType ?: ArmoredSignatureType(),
-      layout.buildDirectory.dir("signatures/$name"),
-    )
-}
 
 tasks.test {
   useJUnitPlatform()

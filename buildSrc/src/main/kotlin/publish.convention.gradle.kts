@@ -56,7 +56,6 @@ signing {
   } else {
     useGpgCmd()
   }
-  if (installTestRepository == null) sign(publishing.publications)
 }
 
 tasks.withType<Sign>().configureEach {
