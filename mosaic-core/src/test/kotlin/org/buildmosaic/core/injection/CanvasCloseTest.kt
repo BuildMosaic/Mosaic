@@ -31,6 +31,27 @@ class CanvasCloseTest {
     }
 
   @Test
+  fun `distinct resources that compare equal are each closed`() =
+    runTest {
+      data class EqualResource(val value: Int) : AutoCloseable {
+        var closes = 0
+
+        override fun close() {
+          closes++
+        }
+      }
+      val first = EqualResource(1)
+      val second = EqualResource(1)
+      assertEquals(first, second)
+      canvas {
+        provide("first") { first }
+        provide("second") { second }
+        provide<AutoCloseable>("alias") { source<EqualResource>("first") }
+      }.close()
+      assertEquals(listOf(1, 1), listOf(first.closes, second.closes))
+    }
+
+  @Test
   fun `concurrent close cleans up once and only the cleanup caller receives failure`() =
     runTest {
       val callers = 16

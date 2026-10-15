@@ -128,7 +128,17 @@ class CanvasFactory internal constructor(
     ConstructingBinding(binding, constructionKey)
 
   internal fun created(instance: Any) {
-    if (instance is AutoCloseable) synchronized(closeables) { closeables.add(instance) }
+    if (instance !is AutoCloseable) return
+    synchronized(closeables) {
+      // Borrowed bindings are initialized before construction, regardless of registration order.
+      if (closeables.any { it === instance } ||
+        bindings.values.any { it.instanceOrNull() === instance } ||
+        parent?.containsInstance(instance) == true
+      ) {
+        return
+      }
+      closeables.add(instance)
+    }
   }
 
   private fun createdResources(): List<AutoCloseable> = synchronized(closeables) { closeables.toList() }

@@ -86,6 +86,10 @@ class Canvas internal constructor(
   @Suppress("UNCHECKED_CAST")
   fun <T : Any> sourceOrNull(key: CanvasKey<T>): T? = instances[key] as T? ?: parent?.sourceOrNull(key)
 
+  // Include shadowed ancestors: lookup visibility does not change resource ownership.
+  internal fun containsInstance(instance: Any): Boolean =
+    instances.values.any { it === instance } || parent?.containsInstance(instance) == true
+
   /**
    * A DSL method to create another layer on your [Canvas]
    * The returned object will be a new [Canvas] depending on the sources of the parent
