@@ -3,46 +3,42 @@
 Significant user-facing changes to Mosaic are documented here. Earlier versions
 predate this maintained changelog; their release history is not reconstructed here.
 
-## [Unreleased]
+## [runtime-1.0.0] - 2026-10-15
 
 ### Changed
 
-- `Canvas.close()` is idempotent and concurrency-safe. Owned resources close once
-  in reverse creation order; all hooks are attempted and cleanup failures are
-  propagated with later failures suppressed. Borrowed values and parent resources
-  remain unaffected.
-- Canvas-owned registration is `provide`, construction-time required lookup is
-  `source`, and optional Canvas/Mosaic lookup is `sourceOrNull`. The former
-  `single`, `paint`, and `sourceOr` names are removed without compatibility aliases.
-  This intentionally breaks Kotlin source and JVM binary compatibility before 1.0;
-  recompile consumers. Eager construction and resource ownership are unchanged.
-- Reified Canvas `source<T>(qualifier)` and `sourceOrNull<T>(qualifier)` accept
-  an optional qualifier, matching Mosaic lookup. Explicit CanvasKey and KClass
-  lookups remain supported.
-- Scoped execution is the sole supported lifecycle: remove `Canvas.create()` and
-  public `MosaicImpl` construction/subclassing. Move handler calls inside
-  `canvas.withMosaic { handler(this) }`; put dispatcher selection around that call.
-- Replace `TestMosaicBuilder.build()` with suspending `withMosaic { ... }`.
-  Use `mosaicBuilder()` or `TestMosaicBuilder()` without a stored TestScope.
-  Test assertions and composition delegate to the production runtime, inheriting
-  the caller's Job, dispatcher, scheduler, and other context elements. Every exit
-  cancels unfinished producers and joins producer/attached-child cleanup.
-- These removals intentionally break Kotlin source and JVM binary compatibility
-  before 1.0. Recompile consumers. The public `Mosaic` interface remains supported.
-- Compiler source extraction recognizes `withMosaic` as the execution boundary;
-  serialized provenance semantics are unchanged.
-- Construction-time lookup uses `LookupKind.CONSTRUCTION` and the serialized
-  `CONSTRUCTION` tag. Analysis metadata moves to format 5; older dependency
-  summaries are rejected with regeneration guidance. Analyzer semantics remain
-  `analysis-contract-3`.
+- Runtime and Analysis release independently. The BOM aligns core, test, and
+  OpenTelemetry only. Stable Runtime APIs follow semantic versioning from 1.0.
+- Runtime uses Kotlin language/API level 2.2 and library baseline 2.2.21; Java 17
+  remains required. Kotlin support follows the rolling 18-month policy.
+- Canvas registration is `provide`, construction lookup is `source`, and optional
+  lookup is `sourceOrNull`. Replace `single`, `paint`, and `sourceOr`.
+- Scoped `withMosaic` replaces `Canvas.create()`, public `MosaicImpl` construction,
+  and `TestMosaicBuilder.build()`. Builders no longer take a TestScope.
+- Reified Canvas lookups accept optional qualifiers.
+- These changes break source and binary compatibility with 0.7.0; migrate and
+  recompile consumers.
 
 ### Fixed
 
-- Test Canvas sources use borrowed `instance` bindings and are never closed by
-  Canvas. Callers retain ownership, including on failure.
-- Test executions snapshot Tile substitutions, MultiTile substitutions, and Canvas
-  sources before execution, with a fresh cache per invocation. Later builder
-  changes affect only later executions, including nested custom substitutions.
+- Canvas closes owned resources once, in reverse creation order, even with
+  repeated or concurrent close calls. Cleanup continues after a hook fails.
+- Resource aliases do not duplicate cleanup or transfer borrowed/parent ownership.
+- Test Canvas sources remain caller-owned. Each scoped test gets a fresh cache
+  and a snapshot of substitutions and sources.
+
+## [analysis-1.0.0] - 2026-10-15
+
+### Changed
+
+- Analysis has independent versioning and provisional tooling APIs. Compiler
+  integration is selected automatically for compatible Kotlin versions.
+- Metadata uses **contract version 6**; regenerate older dependency summaries.
+  Analysis understands Core semantic revision 1 and rejects unsupported revisions.
+- Extraction supports scoped `withMosaic` and the `provide`, `instance`, `source`,
+  and `sourceOrNull` vocabulary. Construction lookup uses `CONSTRUCTION`.
+- Conservative verification is unchanged: missing metadata remains `UNVERIFIED`,
+  incompatible metadata fails, and unsupported Runtime semantics never become `VERIFIED`.
 
 ## [0.7.0] - 2026-10-05
 

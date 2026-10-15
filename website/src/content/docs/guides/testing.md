@@ -5,7 +5,7 @@ description: 'Replace dependency Tiles with values, failures, and virtual-time d
 
 Test real response logic by replacing its dependency Tiles. `mosaic-test` uses the same runtime as production, with selected substitutions inside a scoped execution. `withMosaic` inherits the calling coroutine context, including the enclosing `runTest` Job, dispatcher, and virtual-time scheduler. Use Canvas sources for request input and service fakes.
 
-Add `mosaic-test` at the same Runtime version as `mosaic-core`; the module exposes core and coroutine test APIs. Use the [installation guide](/start/installation/) for released dependencies and BOM alignment. The scoped examples below require the upcoming 1.0 API. For 0.7.0, use the [released test guide](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/mosaic-test/README.md); see [migration guidance](/reference/releases/#scoped-execution-migration) when upgrading.
+Add `mosaic-test` at the same Runtime version as `mosaic-core`; the module exposes core and coroutine test APIs. Use the [installation guide](/start/installation/) for dependencies and BOM alignment.
 
 ## Your first Tile test
 
@@ -79,7 +79,7 @@ fun `total sums mocked prices for requested SKUs`() = runTest {
 }
 ```
 
-This verifies composition with mocked prices, not batching efficiency. To verify a Tile's batching behavior, leave that MultiTile real, provide a recording service fake through Canvas, and assert which keys reach the service. See the checked-in [ProductsByIdTile tests](https://github.com/BuildMosaic/Mosaic/blob/develop/examples/tile-library/src/test/kotlin/org/buildmosaic/library/tile/ProductsByIdTileTest.kt) for examples of exercising the real MultiTile.
+This verifies composition with mocked prices, not batching efficiency. To verify a Tile's batching behavior, leave that MultiTile real, provide a recording service fake through Canvas, and assert which keys reach the service. See the checked-in [ProductsByIdTile tests](https://github.com/BuildMosaic/Mosaic/blob/runtime-1.0.0/examples/tile-library/src/test/kotlin/org/buildmosaic/library/tile/ProductsByIdTileTest.kt) for examples of exercising the real MultiTile.
 
 ## Verify exception propagation
 
@@ -143,4 +143,4 @@ A custom provider can use `source` and compose dependencies. For a MultiTile, re
 | `assertThrows(tile, ExceptionType::class)`                   | Tile throws the expected exception type          |
 | `assertThrows(multiTile, listOf(key), ExceptionType::class)` | MultiTile throws for the requested keys          |
 
-Inside `withMosaic`, use `compose(...)`, `composeAsync(...)`, and `canvas` with ordinary Kotlin test assertions for custom checks. Producer work belongs to this execution: cancelling one waiter preserves shared work, while enclosing coroutine cancellation cancels unfinished producers. Normal or exceptional block exit cancels speculative work and waits for producer and attached-child cleanup. No explicit shutdown is needed. See the runnable [order example tests](https://github.com/BuildMosaic/Mosaic/tree/develop/examples/tile-library/src/test/kotlin/org/buildmosaic/library/tile) for response composition, request inputs, and real Tile behavior.
+Inside `withMosaic`, use `compose(...)`, `composeAsync(...)`, and `canvas` with ordinary Kotlin test assertions for custom checks. Producer work belongs to this execution: cancelling one waiter preserves shared work, while enclosing coroutine cancellation cancels unfinished producers. Normal or exceptional block exit cancels speculative work and waits for producer and attached-child cleanup. No explicit shutdown is needed. See the runnable [order example tests](https://github.com/BuildMosaic/Mosaic/tree/runtime-1.0.0/examples/tile-library/src/test/kotlin/org/buildmosaic/library/tile) for response composition, request inputs, and real Tile behavior.

@@ -212,4 +212,4 @@ The plugin rejects:
 
 Applying analysis without Kotlin/JVM fails configuration. Android, multiplatform, test sources, framework lifecycle inference, and arbitrary virtual dispatch are unsupported. A represented virtual call with an unresolved receiver is `UNVERIFIED`. External inline capability helpers and unavailable binary default expressions retain unknown boundaries. Ordinary Kotlin source resolution and incremental compilation remain Kotlin's responsibility.
 
-The optional plugin is `org.buildmosaic.analysis`. No Detekt/ktlint integration or extra analysis module is required. Its DSL, metadata, and reports are pre-1.0 tooling surfaces; runtime/JVM APIs remain separate.
+The optional plugin is `org.buildmosaic.analysis`. No Detekt/ktlint integration or extra analysis module is required. Its DSL, metadata, and reports remain provisional in Analysis 1.0; Runtime API compatibility is separate.

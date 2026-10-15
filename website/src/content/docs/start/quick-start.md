@@ -3,11 +3,11 @@ title: 'Quick Start'
 description: 'Create a Tile, bind request input, and compose a response in a runnable Kotlin program.'
 ---
 
-Build a small response from request input, then compose it with another Tile. This runnable tutorial uses published Mosaic 0.7.0, Kotlin/JVM, JDK 21, and Gradle. You do not need an HTTP server. If you already have a Kotlin project, add the [core dependency](/start/installation/) and start at the program below.
+Build a small response from request input, then compose it with another Tile. This runnable tutorial uses Mosaic Runtime 1.0.0, Kotlin/JVM, JDK 21, and Gradle. You do not need an HTTP server. If you already have a Kotlin project, add the [core dependency](/start/installation/) and start at the program below.
 
 ## Create the project
 
-Add `settings.gradle.kts` with `rootProject.name = "mosaic-hello"`, then create this build file. This Kotlin version supports the published dependency below.
+Add `settings.gradle.kts` with `rootProject.name = "mosaic-hello"`, then create this build file.
 
 ```kotlin title="build.gradle.kts"
 plugins {
@@ -18,7 +18,7 @@ plugins {
 repositories { mavenCentral() }
 
 dependencies {
-  implementation("org.buildmosaic:mosaic-core:0.7.0")
+  implementation("org.buildmosaic:mosaic-core:1.0.0")
 }
 
 kotlin { jvmToolchain(21) }

@@ -7,7 +7,7 @@ application's existing OpenTelemetry traces.
 
 ```kotlin
 dependencies {
-  implementation("org.buildmosaic:mosaic-opentelemetry:0.7.0")
+  implementation("org.buildmosaic:mosaic-opentelemetry:1.0.0")
 }
 ```
 

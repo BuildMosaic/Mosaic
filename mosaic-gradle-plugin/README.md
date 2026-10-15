@@ -5,8 +5,6 @@ and architecture graphs into Kotlin/JVM builds. It does not apply Kotlin or add
 Mosaic runtime dependencies. Runtime and Analysis versions are independent;
 compiler artifacts match the Analysis plugin version and remain outside the BOM.
 
-This checkout describes the upcoming 1.0 tooling. For published 0.7.0 installation
-and behavior, use the [released guide](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/mosaic-gradle-plugin/README.md).
 Use the [consumer analysis guide](https://BuildMosaic.org/guides/analysis/) for
 installation and a walkthrough. The [configuration reference](https://BuildMosaic.org/reference/analysis-configuration/)
 owns the DSL, roots, rules, suppressions, task/report paths, and supported project

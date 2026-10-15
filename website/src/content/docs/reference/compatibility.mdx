@@ -5,107 +5,41 @@ description: 'Runtime, test, tracing, and optional analysis requirements.'
 
 import CompatibilityTables from '../../../components/CompatibilityTables.astro';
 
-Mosaic Runtime and optional Analysis release independently. Choose a Runtime release for your application; add a
-compatible Analysis release when you want architecture reports and dependency verification.
+Runtime 1.0.0 supports Kotlin/JVM on **Java 17+**, using Kotlin language/API level 2.2. Optional Analysis 1.0.0 requires
+matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions within its
+[supported project boundary](/reference/analysis-configuration/#supported-project-boundary).
 
-## Released 0.7.0
+## Supported Kotlin versions
 
-[0.7.0](https://github.com/BuildMosaic/Mosaic/releases/tag/0.7.0) is the published stable release. Its Runtime requires
-Java 17+ and Kotlin 2.3.0+; its optional Analysis requires Kotlin compiler and KGP **2.4.20**. Use the
-[released guides and examples](https://github.com/BuildMosaic/Mosaic/tree/0.7.0) for that API. The independent release
-trains and 1.x guarantees below apply starting with the upcoming 1.0 releases.
+Mosaic supports each Kotlin minor family for **18 months after its first stable release**, including stable patches. New
+versions become supported after verification; prereleases are excluded.
 
-## Supported versions
-
-Mosaic officially supports each Kotlin minor family for **18 months after its first stable release**, including stable
-patches in that family. New compiler versions become supported after verification. Prereleases are outside this policy.
-
-Aging out of this window does not automatically disable a verified Kotlin version or remove its compatibility records.
-Older combinations may continue to work, but fall outside official support.
+The tables list exact verified combinations. Official support requires a listed combination within the 18-month window.
+Unlisted combinations are uncertified. Historical results remain available after official support ends. Kotlin compiler
+certification is separate from Mosaic's own binary compatibility.
 
 <CompatibilityTables />
 
-These tables describe published, verified combinations, including historical results outside the support window.
-Guaranteed compatibility requires both a listed combination and a Kotlin family within the 18-month window. Unlisted
-versions or relationships are **not yet certified**; a newer entry does not imply support for unlisted versions below
-it. For Analysis, use matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions.
+## Runtime compatibility
 
-Published Analysis plugins can accept later stable Kotlin patches within their compatible compiler families without an
-Analysis upgrade. A patch can work before certification; the tables gain that version only after the unchanged published
-artifacts and their combination pass verification. New compiler families and incompatible compiler APIs require
-compatible Analysis tooling.
+Mosaic follows semantic versioning for stable Runtime APIs, covering Kotlin source compatibility, JVM binary
+compatibility, and documented behavior. Minor releases may add compatible capabilities; breaking changes normally belong
+in major releases. Deprecations provide migration guidance with timing appropriate to the change. The Runtime ABI
+validator protects existing JVM signatures.
 
-## Runtime libraries
-
-Runtime supports Kotlin/JVM consumers on **Java 17 or later**. Choose a compiler from the supported versions above.
-Applications supply their OpenTelemetry SDK or agent. Runtime use needs no analysis plugin or registration processor.
-
-## 1.x compatibility guarantees
-
-**Effective starting with 1.0.0.** The released 1.0.0 artifacts define the Runtime compatibility baseline for 1.x.
-Historical 0.x releases are not compatibility baselines.
-
-Runtime preserves **Kotlin source compatibility** for supported public APIs on certified compilers, **JVM binary
-linkage** for already-compiled supported Kotlin/JVM consumers with compatible runtime dependencies, and **documented
-observable behavior**. The [Kotlin API reference](/api/) covers usable public declarations, including Tile/MultiTile
-constructors, provider-visible `CanvasFactory.source`, generated `CanvasKey` methods, delegation, composition overloads,
-and conforming third-party interface implementations. Named/default arguments, inline/reified targets, suspend
-signatures, overloads/JVM names, and interface implementation compatibility are covered. Inlined code retains its
-compiled body.
-
-| Surface                                                               | Guarantee                                                                                                                         |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `mosaic-core`                                                         | Public Canvas, Tile, MultiTile, and Mosaic APIs and documented semantics.                                                         |
-| `mosaic-test`                                                         | Public builders, scoped execution, source substitution, mocks, and assertions.                                                    |
-| [Observation SPI](/api/mosaic-core/org.buildmosaic.core.observation/) | Public callbacks, tokens/references, metadata, relationships, concurrency, lifecycle, noninterference, and privacy.               |
-| [OpenTelemetry tracing](/guides/tracing/)                             | Both installation overloads and documented execution, context, relationship, completion, failure-isolation, and privacy behavior. |
-
-Behavior includes [scoped cancellation/cleanup and identity-based sharing](/concepts/shared-work/), equal-key outcome
-retention, [bulk/per-key/chunk failure boundaries](/concepts/batching/),
-[eager Canvas construction, lookup, and layering](/concepts/canvas/),
-[resource ownership and documented `Canvas.close` guarantees](/guides/resources/), and
-[testing semantics](/guides/testing/). Automatic observation excludes application keys, values, Canvas contents, request
-identifiers, and raw exception contents. Integrations own their tokens; applications own telemetry SDKs, sampling,
-export, and shutdown.
-
-Runtime minors add compatible capabilities; patches make compatible fixes; breaking supported APIs or semantics require
-a major release. Dependency upgrades preserve supported consumption and behavior. Exact batches, scheduling, internal
-implementation structure, fixed performance measurements, noncontractual exception-message formatting, arbitrary Java
-source compatibility, and multiplatform support are excluded. Reflection does not expand the supported API.
-
-## Release trains and module alignment
-
-**Runtime** comprises `mosaic-core`, `mosaic-test`, `mosaic-opentelemetry`, and `mosaic-bom`. Their `org.buildmosaic`
-coordinates are preserved, and their Runtime versions align. The BOM aligns Runtime modules only; arbitrary mixed
-Runtime module versions are unsupported.
-
-**Analysis**, including the optional `org.buildmosaic.analysis` Gradle plugin, has its own version and release cadence,
-independent of Runtime.
-
-Runtime and Analysis versions need not match. An older Analysis release remains supported with newer Runtime releases
-when the combination is certified compatible. New Runtime releases do not automatically require Analysis upgrades.
-Upgrades are necessary only when compiler compatibility, runtime analysis semantics, or metadata compatibility require
-them. Certification determines support, not version ordering; a compatible older plugin is not rejected merely because a
-newer plugin exists.
+Keep `mosaic-core`, `mosaic-test`, and `mosaic-opentelemetry` at the same Runtime version; the BOM aligns these modules.
+Analysis releases independently and is outside the BOM. Runtime and Analysis versions need not match when their
+combination is certified compatible.
 
 ## Optional analysis
 
-Analysis supports certified Kotlin compiler/KGP combinations within its pure Kotlin/JVM `main` source boundary.
-Plugin/artifact identities and documented soundness guarantees are retained; configuration DSL, compiler integration,
-metadata formats, diagnostic IDs, and report formats remain provisional rather than sharing Runtime's 1.x public API
-guarantees. Breaking tooling changes carry migration/regeneration guidance without weakening `VERIFIED`, `MISSING`, or
-`UNVERIFIED` distinctions.
+Analysis APIs, configuration, metadata, diagnostics, and reports remain provisional, with migration guidance for
+breaking changes. The plugin selects its compiler integration automatically; use a verified combination above.
 
-Missing dependency metadata retains conservative `UNVERIFIED` behavior. Present but incompatible metadata produces an
-explicit compatibility failure. Unsupported Runtime semantics never silently produce `VERIFIED`. Compatibility
-diagnostics identify the offending dependency, relevant installed/producer versions, the incompatibility, and actionable
-remediation. Regenerate incompatible summaries with compatible Analysis tooling.
-
-[Configure analysis](/guides/analysis/) and consult the authoritative
-[supported project boundary](/reference/analysis-configuration/#supported-project-boundary) for source layouts, compiler
-options, plugins, and platforms. Unknown paths remain visible; a STANDARD warning pass does not prove every lookup safe.
+Missing dependency metadata and unsupported paths remain `UNVERIFIED`. Present but incompatible metadata fails, and
+unsupported Runtime semantics never silently become `VERIFIED`. Regenerate incompatible summaries with compatible
+tooling. A STANDARD pass with warnings does not prove every lookup safe; STRICT also fails uncertainty.
 
 <p id="scoped-execution-migration">
-  For upgrade instructions, see the{' '}
-  <a href="/reference/releases/#scoped-execution-migration">release notes and migration guidance</a>.
+  See the <a href="/reference/releases/#scoped-execution-migration">1.0 migration notes</a> when upgrading from 0.7.0.
 </p>

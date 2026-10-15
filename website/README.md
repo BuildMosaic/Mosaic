@@ -21,7 +21,7 @@ pnpm check:links
 pnpm format:check
 ```
 
-`pnpm api` generates Dokka and copies its output. `prepare:assets` copies the canonical logo SVGs from `assets/` and the architecture graphic. Edit their sources; generated API, assets, and `dist` stay uncommitted. The homepage imports runnable Kotlin examples; its displayed release version comes from `gradle.properties`.
+`pnpm api` generates Dokka and copies its output. `prepare:assets` copies the canonical logo SVGs from `assets/` and the architecture graphic. Edit their sources; generated API, assets, and `dist` stay uncommitted. The homepage imports runnable Kotlin examples.
 
 Teaching belongs in `src/content/docs/`; API contracts belong in KDoc. Keep maintainer procedures out of both. Root and module READMEs provide GitHub orientation rather than duplicating the teaching guides.
 
