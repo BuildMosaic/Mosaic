@@ -40,7 +40,11 @@ If publication succeeded but registry recording failed, recover the compact JSON
 from the certification step's Actions log into a local file. After confirming the
 matching GitHub Release is published, retry **only** recording from its tagged
 checkout, with `GH_TOKEN` set to the registry App installation token and
-`GH_WORKFLOW_TOKEN` set to a token authorized to dispatch the website:
+`GH_WORKFLOW_TOKEN` set to a token authorized to dispatch the website.
+
+Also set `GITHUB_REPOSITORY=BuildMosaic/Mosaic`,
+`GITHUB_SERVER_URL=https://github.com`, and `GITHUB_RUN_ID` to the failed workflow
+run's numeric ID. The recovery commit uses this context to link to its evidence.
 
 ```bash
 python3 compatibility/maintain.py record --evidence /path/to/result.json \
