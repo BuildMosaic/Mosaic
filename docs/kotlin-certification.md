@@ -51,10 +51,26 @@ GitHub App:
 2. Add the App to the `main` ruleset's bypass list with **Always allow** so it can
    append certification without a PR or required PR checks. Keep the existing
    review requirements for implementation changes.
-3. Store its numeric App ID in repository variable `KOTLIN_COMPATIBILITY_APP_ID`
-   and its generated PEM private key in secret `KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY`.
-   Both workflows mint a short-lived installation token only after certification.
-4. Merge the workflows to `main`, then dispatch Kotlin compatibility maintenance
+3. Create the `compatibility-writer` Actions environment and restrict deployment
+   branches to exactly `main` (branch, not tag), with no required reviewers or
+   approval gates. Restrict the existing `release` environment to the same branch,
+   preserving its other settings, secrets, and protections. The maintenance job
+   uses `compatibility-writer`; the release job uses `release`.
+4. Keep the numeric App ID in repository variable `KOTLIN_COMPATIBILITY_APP_ID`.
+   Store the generated PEM private key as environment secret
+   `KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY` in both environments. Import the file
+   directly, without printing its contents:
+
+   ```bash
+   gh secret set KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY --repo BuildMosaic/Mosaic --env compatibility-writer < /path/to/app.pem
+   gh secret set KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY --repo BuildMosaic/Mosaic --env release < /path/to/app.pem
+   ```
+
+   Verify both environment secrets exist through GitHub's API before removing
+   any repository-level copy. If either import or verification fails, retain the
+   repository secret. Both workflows mint a short-lived installation token only
+   after certification.
+5. Merge the workflows to `main`, then dispatch Kotlin compatibility maintenance
    to verify provisioning. An empty registry does no artifact certification; the
    independent release workflows seed it after successful publication.
 
@@ -104,6 +120,11 @@ Runtime maps each release to exact tested Kotlin versions; Analysis records its
 exact Kotlin versions and a map from each tested Runtime release to the exact
 Kotlin versions verified for that pair. Missing versions or relationships are
 unknown. The website renders these records directly.
+
+The release workflow accepts dispatches only from `main`. Before executing
+repository code, it fetches the requested release tag and the complete `main`
+history, verifies the tag's commit is reachable from protected `main`, and checks
+out that verified commit. Tags pointing only to an unmerged branch are rejected.
 
 The release workflow certifies every discovered stable compiler from 2.2.0 and
 exercises the latest recorded release of the other train. Analysis needs a
