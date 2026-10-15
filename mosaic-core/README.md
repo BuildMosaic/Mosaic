@@ -11,11 +11,7 @@ For published 0.7.0 usage, use the [released core guide](https://github.com/Buil
 
 ## Installation
 
-```kotlin
-dependencies {
-  implementation("org.buildmosaic:mosaic-core:0.7.0")
-}
-```
+Use the [installation guide](https://BuildMosaic.org/start/installation/) for published dependencies and optional module alignment.
 
 Runtime use needs no registration plugin or processor. Java 17 or later is required.
 Choose a Kotlin version supported by your Runtime release; see [compatibility](https://BuildMosaic.org/reference/compatibility/) and the

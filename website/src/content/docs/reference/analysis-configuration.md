@@ -5,39 +5,6 @@ description: 'Complete reference for the Mosaic analysis Gradle DSL, rules, supp
 
 Use this reference to configure the optional `org.buildmosaic.analysis` plugin. For a first walkthrough, start with [Analyze architecture](/guides/analysis/). Runtime libraries remain independent of the analysis tooling.
 
-## Plugin setup
-
-Analysis supports pure Kotlin/JVM `main` sources with the compiler/KGP versions listed for your release in [compatibility](/reference/compatibility/). See the [supported project boundary](#supported-project-boundary) before applying it.
-
-```kotlin title="settings.gradle.kts"
-pluginManagement {
-  repositories { gradlePluginPortal(); mavenCentral() }
-}
-```
-
-```kotlin title="build.gradle.kts"
-import org.buildmosaic.analysis.MosaicRuleSeverity
-import org.buildmosaic.gradle.MosaicAnalysisEnforcement
-import org.buildmosaic.gradle.MosaicAnalysisRole
-
-plugins {
-  kotlin("jvm") version "2.4.20"
-  id("org.buildmosaic.analysis") version "0.7.0"
-}
-
-repositories { mavenCentral() }
-
-mosaicAnalysis {
-  role = MosaicAnalysisRole.APPLICATION
-  enforcement = MosaicAnalysisEnforcement.STANDARD
-  rules {
-    severity("MOSAIC_RECURSIVE_MULTITILE", MosaicRuleSeverity.WARNING)
-  }
-}
-```
-
-Add Mosaic runtime dependencies separately. The plugin neither applies Kotlin nor installs the application runtime. It resolves the matching compiler plugin through Kotlin's normal compiler-subplugin integration. The analysis components are bundled with the compiler and Gradle plugins, so no separate analysis dependency is needed; analysis tooling is outside the runtime BOM.
-
 ## Gradle DSL
 
 The extension is `org.buildmosaic.gradle.MosaicAnalysisExtension`. These are its public configuration options:
@@ -52,6 +19,10 @@ The extension is `org.buildmosaic.gradle.MosaicAnalysisExtension`. These are its
 Use typed settings and ordinary Gradle properties:
 
 ```kotlin
+import org.buildmosaic.analysis.MosaicRuleSeverity
+import org.buildmosaic.gradle.MosaicAnalysisEnforcement
+import org.buildmosaic.gradle.MosaicAnalysisRole
+
 mosaicAnalysis {
   role = MosaicAnalysisRole.APPLICATION
   enforcement = MosaicAnalysisEnforcement.STRICT
