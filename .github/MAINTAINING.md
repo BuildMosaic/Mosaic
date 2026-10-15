@@ -11,11 +11,7 @@ through review. Keep the development default in `gradle.properties`; the workflo
 overrides the selected train's version.
 
 1. Add a dated `CHANGELOG.md` entry and public notes at
-   `docs/releases/TRAIN-VERSION.md` on the release commit. For the prepared 1.0
-   candidates, change `## [runtime-1.0.0] - Unreleased` to
-   `## [runtime-1.0.0] - YYYY-MM-DD` using the actual release date, and finalize
-   its candidate status in the notes before tagging. Do the same for Analysis
-   only when that train is ready to release.
+   `docs/releases/TRAIN-VERSION.md` on the release commit.
 2. Validate the commit and create its immutable `runtime-VERSION` or
    `analysis-VERSION` tag. The tagged commit must be reachable from `main`.
 3. Dispatch **Release** from `main`, selecting the train and version:
@@ -58,17 +54,6 @@ python3 compatibility/maintain.py record --evidence /path/to/result.json \
 The evidence must match the train, version, and source commit. Do not substitute
 results from another checkout or edit the registry to manufacture success. An
 idempotent recording retry also requests website deployment.
-
-## Cut over 1.0 documentation
-
-After both releases are externally verified, make a reviewed documentation change:
-update the README, module installation snippets, website installation/BOM and
-Quick Start dependencies, Analysis plugin version, and framework release links.
-Remove the 1.0 preview banner in `website/src/content.config.ts` and candidate
-warnings/examples that have become redundant. Keep historical 0.7.0 links.
-The homepage reads the latest Runtime from the compatibility registry, independently
-of `gradle.properties`; never add records to make a release appear published.
-Confirm rendered compatibility tables, deployed links, and real consumer installation.
 
 ## Retry compatibility failures
 

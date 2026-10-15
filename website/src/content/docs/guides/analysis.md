@@ -7,9 +7,7 @@ Turn composition into a dependency report, then use verification to find missing
 
 ## Install the plugin
 
-Independent Analysis releases are not yet published. For 0.7.0, use the [released analysis guide](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/mosaic-gradle-plugin/README.md). For the 1.0 API described here, select an Analysis version from the [compatibility table](/reference/compatibility/) once available; `<analysis-version>` below is a placeholder, not a published coordinate.
-
-Add Maven Central to plugin and dependency repositories. For a supported Kotlin/JVM application:
+Install Analysis 1.0.0 separately from Runtime. The plugin selects the compiler integration automatically; use matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions from the [compatibility reference](/reference/compatibility/).
 
 ```kotlin title="build.gradle.kts"
 import org.buildmosaic.gradle.MosaicAnalysisEnforcement
@@ -17,10 +15,12 @@ import org.buildmosaic.gradle.MosaicAnalysisRole
 
 plugins {
   kotlin("jvm") version "2.4.20"
-  id("org.buildmosaic.analysis") version "<analysis-version>"
+  id("org.buildmosaic.analysis") version "1.0.0"
 }
 
 repositories { mavenCentral() }
+
+dependencies { implementation("org.buildmosaic:mosaic-core:1.0.0") }
 
 mosaicAnalysis {
   role = MosaicAnalysisRole.APPLICATION
@@ -28,9 +28,7 @@ mosaicAnalysis {
 }
 ```
 
-In `settings.gradle.kts`, include `mavenCentral()` in `pluginManagement.repositories` alongside `gradlePluginPortal()`. Add runtime dependencies separately; the analysis plugin does not install Mosaic core or apply Kotlin for you.
-
-The plugin selects a compatible compiler integration automatically from bounded ABI ranges; you do not select or install a compiler-profile artifact yourself. Use matching Kotlin compiler and KGP versions. Admission of a compiler patch is separate from certification: choose the exact Runtime/Analysis/Kotlin combination from the compatibility table, rather than assuming that every admitted patch is verified. The Runtime BOM does not set the Analysis version.
+In `settings.gradle.kts`, include `mavenCentral()` in `pluginManagement.repositories` alongside `gradlePluginPortal()`.
 
 ## Generate the graph
 

@@ -3,67 +3,42 @@
 Significant user-facing changes to Mosaic are documented here. Earlier versions
 predate this maintained changelog; their release history is not reconstructed here.
 
-## [Unreleased]
-
-## [runtime-1.0.0] - Unreleased
+## [runtime-1.0.0] - 2026-10-15
 
 ### Changed
 
-- Runtime (`mosaic-core`, `mosaic-test`, `mosaic-opentelemetry`, and `mosaic-bom`)
-  releases independently of Analysis. The BOM aligns Runtime modules only.
-- Stable Runtime APIs follow semantic versioning from 1.0.0. JVM ABI snapshots
-  flag signature changes for review, including compatible additions; they do not
-  validate behavior or full Kotlin source compatibility.
-- Runtime uses Kotlin language/API level 2.2 and Kotlin library baseline 2.2.21,
-  with JVM 17 unchanged. Exact Kotlin support is certified separately under the
-  rolling 18-month policy; an ABI check does not certify a compiler version.
-- Canvas-owned registration is `provide`, construction-time required lookup is
-  `source`, and optional Canvas/Mosaic lookup is `sourceOrNull`. Replace `single`,
-  `paint`, and `sourceOr`; no compatibility aliases remain. Construction stays eager.
-- Reified Canvas `source<T>(qualifier)` and `sourceOrNull<T>(qualifier)` accept
-  optional qualifiers, matching Mosaic lookup. CanvasKey and KClass lookups remain.
-- Scoped `withMosaic` is the sole supported execution lifecycle. Remove calls to
-  `Canvas.create()`, public `MosaicImpl` construction/subclassing, and
-  `TestMosaicBuilder.build()`. Use `mosaicBuilder()` or `TestMosaicBuilder()` without
-  a stored TestScope, and keep the complete handler or test inside `withMosaic`.
-  Execution inherits the caller's coroutine context; every exit cancels unfinished
-  producers and joins producer/attached-child cleanup.
-- These 0.7.0-to-1.0 changes break Kotlin source and JVM binary compatibility;
-  migrate and recompile consumers. The public `Mosaic` interface remains supported.
+- Runtime and Analysis release independently. The BOM aligns core, test, and
+  OpenTelemetry only. Stable Runtime APIs follow semantic versioning from 1.0.
+- Runtime uses Kotlin language/API level 2.2 and library baseline 2.2.21; Java 17
+  remains required. Kotlin support follows the rolling 18-month policy.
+- Canvas registration is `provide`, construction lookup is `source`, and optional
+  lookup is `sourceOrNull`. Replace `single`, `paint`, and `sourceOr`.
+- Scoped `withMosaic` replaces `Canvas.create()`, public `MosaicImpl` construction,
+  and `TestMosaicBuilder.build()`. Builders no longer take a TestScope.
+- Reified Canvas lookups accept optional qualifiers.
+- These changes break source and binary compatibility with 0.7.0; migrate and
+  recompile consumers.
 
 ### Fixed
 
-- `Canvas.close()` is idempotent and concurrency-safe. Owned resources close once
-  in reverse successful creation order; all hooks are attempted, with later
-  failures suppressed. Borrowed values and parent resources remain unaffected.
-- Aliasing a locally owned resource does not duplicate cleanup. Returning a
-  borrowed or inherited instance from `provide` does not transfer ownership.
-- Test Canvas sources use borrowed `instance` bindings and are never closed by
-  Canvas, including on failure.
-- Test executions snapshot Tile/MultiTile substitutions and Canvas sources, with
-  a fresh cache per invocation. Builder changes affect later executions only.
+- Canvas closes owned resources once, in reverse creation order, even with
+  repeated or concurrent close calls. Cleanup continues after a hook fails.
+- Resource aliases do not duplicate cleanup or transfer borrowed/parent ownership.
+- Test Canvas sources remain caller-owned. Each scoped test gets a fresh cache
+  and a snapshot of substitutions and sources.
 
-## [analysis-1.0.0] - Unreleased
+## [analysis-1.0.0] - 2026-10-15
 
 ### Changed
 
-- Analysis releases independently of Runtime, with its own explicitly provisional
-  tooling API. Compiler integration is selected automatically from bounded Kotlin
-  ABI profiles; exact compiler/KGP and Runtime combinations require certification.
-- Metadata uses **contract version 6**, replacing older format/analyzer headers.
-  The complete `main` summary records Analysis/compiler producer provenance and
-  a canonical payload hash. Producer release numbers alone do not determine
-  compatibility; regenerate dependency summaries from 0.7.0 with compatible tooling.
-- Core declares `Mosaic-Core-Analysis-Revision: 1`; summaries retain required Core
-  semantic revisions, and Analysis 1.0 understands revision 1. Missing, malformed,
-  conflicting, or unsupported Core revisions fail explicitly. Unsupported Runtime
-  semantics never silently produce `VERIFIED`.
-- Extraction recognizes the scoped `withMosaic` boundary and Canvas vocabulary:
-  `provide`, `instance`, `source`, and `sourceOrNull`. Construction lookup uses
-  `LookupKind.CONSTRUCTION` and the serialized `CONSTRUCTION` tag.
-- Missing metadata on a reached dependency remains `UNVERIFIED`; present invalid
-  or incompatible metadata fails. STANDARD warnings do not prove lookup safety;
-  STRICT also fails uncertainty. Existing unknown boundaries remain conservative.
+- Analysis has independent versioning and provisional tooling APIs. Compiler
+  integration is selected automatically for compatible Kotlin versions.
+- Metadata uses **contract version 6**; regenerate older dependency summaries.
+  Analysis understands Core semantic revision 1 and rejects unsupported revisions.
+- Extraction supports scoped `withMosaic` and the `provide`, `instance`, `source`,
+  and `sourceOrNull` vocabulary. Construction lookup uses `CONSTRUCTION`.
+- Conservative verification is unchanged: missing metadata remains `UNVERIFIED`,
+  incompatible metadata fails, and unsupported Runtime semantics never become `VERIFIED`.
 
 ## [0.7.0] - 2026-10-05
 

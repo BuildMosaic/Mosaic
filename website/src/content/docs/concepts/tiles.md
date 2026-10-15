@@ -5,7 +5,7 @@ description: 'Build responses from stable, reusable suspending Kotlin work.'
 
 A Tile produces one value. Its suspending block has a Mosaic receiver, so it can compose dependencies and read Canvas input. Declare reusable Tiles as stable `val`s; each declaration supplies the identity used for request reuse.
 
-The examples below use the models, services, and dependencies in the [shared order library](https://github.com/BuildMosaic/Mosaic/tree/0.7.0/examples/tile-library). Import `org.buildmosaic.core.*` and the corresponding example declarations.
+The examples below use the models, services, and dependencies in the [shared order library](https://github.com/BuildMosaic/Mosaic/tree/runtime-1.0.0/examples/tile-library). Import `org.buildmosaic.core.*` and the corresponding example declarations.
 
 `compose(tile)` suspends until a value is available. `composeAsync(tile)` returns `Deferred<V>` so independent work can start before you await it. Sequential `compose` calls remain sequential.
 
@@ -19,7 +19,7 @@ val OrderSummaryTile by singleTile {
 }
 ```
 
-Dependencies can themselves compose other Tiles. The checked-in [LineItemsTile](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/LineItemsTile.kt) gets product IDs and SKUs from `order.items`, starts both batches, then awaits each item's values:
+Dependencies can themselves compose other Tiles. The checked-in [LineItemsTile](https://github.com/BuildMosaic/Mosaic/blob/runtime-1.0.0/examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/LineItemsTile.kt) gets product IDs and SKUs from `order.items`, starts both batches, then awaits each item's values:
 
 ```kotlin
 val LineItemsTile by singleTile {

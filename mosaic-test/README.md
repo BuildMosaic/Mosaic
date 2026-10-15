@@ -6,16 +6,10 @@
 replaced by values, failures, delays, or custom providers. It uses the same runtime
 as production, with the enclosing coroutine TestScope and scheduler.
 
-This guide follows the unreleased scoped API on `develop`. For the published
-0.7.0 artifact, use the [release test guide](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/mosaic-test/README.md).
-See the [scoped execution migration](https://BuildMosaic.org/reference/releases/#scoped-execution-migration)
-when updating consumers.
-
 ## Installation
 
 Use the [installation guide](https://BuildMosaic.org/start/installation/) for
-released dependencies. The scoped examples below require a source build until
-1.0 is published; do not use them against the 0.7.0 artifact.
+dependencies and BOM alignment.
 
 The module exposes core and coroutine test APIs. `mosaic-test` must use the same
 Mosaic version as `mosaic-core`; use the [runtime BOM](../mosaic-bom/README.md) to

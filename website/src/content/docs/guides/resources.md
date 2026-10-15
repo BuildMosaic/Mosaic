@@ -17,7 +17,7 @@ For build-time checks within supported boundaries, see the optional [analysis pl
 
 Register a pre-existing service with `instance(existingClient)`, `instance<Client>("primary", existingClient)`, or `instance(clientKey, existingClient)`. Canvas never closes these borrowed values, including on construction rollback. They are available to `source` during eager construction and use the same lookup, qualifier, duplicate-key, override, and parent-fallback rules as `provide` bindings.
 
-Use `provide { HttpClient() }` when Canvas constructs and owns the client. Returning an already borrowed or inherited instance from a provider does not transfer ownership, and aliases of a locally owned resource do not duplicate cleanup. The external owner remains responsible for closing an `instance` binding.
+Use `provide { HttpClient() }` when Canvas constructs and owns the client. The external owner remains responsible for closing an `instance` binding.
 
 ## Scope a child that owns resources
 

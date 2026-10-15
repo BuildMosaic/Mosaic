@@ -6,9 +6,6 @@
 and request input; a request Mosaic runs Tiles and shares their in-flight work
 and results. MultiTile adds equal-key reuse and opportunistic batching.
 
-This checkout previews the 1.0 API, including `provide` and `sourceOrNull`.
-For published 0.7.0 usage, use the [released core guide](https://github.com/BuildMosaic/Mosaic/blob/0.7.0/mosaic-core/README.md).
-
 ## Installation
 
 Use the [installation guide](https://BuildMosaic.org/start/installation/) for published dependencies and optional module alignment.

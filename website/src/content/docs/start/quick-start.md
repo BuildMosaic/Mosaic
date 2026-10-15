@@ -3,11 +3,11 @@ title: 'Quick Start'
 description: 'Create a Tile, bind request input, and compose a response in a runnable Kotlin program.'
 ---
 
-Build a small response from request input, then compose it with another Tile. This runnable tutorial uses published Mosaic 0.7.0, Kotlin/JVM, JDK 21, and Gradle. You do not need an HTTP server. If you already have a Kotlin project, add the [core dependency](/start/installation/) and start at the program below.
+Build a small response from request input, then compose it with another Tile. This runnable tutorial uses Mosaic Runtime 1.0.0, Kotlin/JVM, JDK 21, and Gradle. You do not need an HTTP server. If you already have a Kotlin project, add the [core dependency](/start/installation/) and start at the program below.
 
 ## Create the project
 
-Add `settings.gradle.kts` with `rootProject.name = "mosaic-hello"`, then create this build file. This Kotlin version supports the published dependency below.
+Add `settings.gradle.kts` with `rootProject.name = "mosaic-hello"`, then create this build file.
 
 ```kotlin title="build.gradle.kts"
 plugins {
@@ -18,7 +18,7 @@ plugins {
 repositories { mavenCentral() }
 
 dependencies {
-  implementation("org.buildmosaic:mosaic-core:0.7.0")
+  implementation("org.buildmosaic:mosaic-core:1.0.0")
 }
 
 kotlin { jvmToolchain(21) }
@@ -79,36 +79,6 @@ fun main() = runBlocking {
 ```
 
 The result is `WelcomeResponse(greeting=Hello, user-123!, help=Your account is ready.)`. Both branches start before you await their values. Neither needs to know how the other works. If two branches ask for `GreetingTile`, they share its work within this Mosaic.
-
-## Preview Runtime 1.0.0
-
-Runtime 1.0.0 is not published yet. With source-built 1.0.0 artifacts available to your build, the same complete programs above run unchanged with `implementation("org.buildmosaic:mosaic-core:1.0.0")`. Keep the 0.7.0 dependency for Maven Central installation until publication is confirmed on the [releases page](/reference/releases/).
-
-The 1.0 Canvas vocabulary uses `provide` for eager owned construction, `instance` for borrowed values, `source` for required lookup, and `sourceOrNull` for optional lookup. For example, replace the first program's Canvas setup with this version; it still prints `Hello, user-123!`:
-
-```kotlin
-class GreetingService {
-  fun greet(name: String) = "Hello, $name!"
-}
-
-val GreetingTile by singleTile {
-  source<GreetingService>().greet(source(UserIdKey))
-}
-
-fun main() = runBlocking {
-  val applicationCanvas = canvas { provide { GreetingService() } }
-  try {
-    val greeting = applicationCanvas.withLayer {
-      instance(UserIdKey, "user-123")
-    }.withMosaic { compose(GreetingTile) }
-    println(greeting)
-  } finally {
-    applicationCanvas.close()
-  }
-}
-```
-
-Keep the original imports and `UserIdKey`, and replace the original `GreetingTile` and `main`. See [migration from 0.7.0](/reference/releases/#scoped-execution-migration) for removed APIs and test changes.
 
 ## Put it behind an endpoint
 

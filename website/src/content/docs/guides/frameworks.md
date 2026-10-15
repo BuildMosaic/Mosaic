@@ -7,7 +7,7 @@ Mosaic composes application logic; your HTTP framework owns routing, serializati
 
 ## Run an example
 
-Clone [BuildMosaic/Mosaic](https://github.com/BuildMosaic/Mosaic), check out tag `0.7.0` for the published release, use JDK 21, and run one application from the repository root:
+Clone [BuildMosaic/Mosaic](https://github.com/BuildMosaic/Mosaic), check out tag `runtime-1.0.0`, use JDK 21, and run one application from the repository root:
 
 ```bash
 ./gradlew -p examples :spring-example:run
@@ -22,9 +22,7 @@ curl http://localhost:8080/orders/order-1
 curl http://localhost:8080/orders/order-1/total
 ```
 
-The services are in-memory example implementations. Inspect the [models and services](https://github.com/BuildMosaic/Mosaic/tree/0.7.0/examples/tile-library/src/main/kotlin/org/buildmosaic/library) for sample data and response shape.
-
-The examples on `develop` preview 1.0 and build the repository Runtime sources through the composite build. Use that branch to try the upcoming API; the links and tag above retain the published 0.7.0 examples.
+The services are in-memory example implementations. Inspect the [models and services](https://github.com/BuildMosaic/Mosaic/tree/runtime-1.0.0/examples/tile-library/src/main/kotlin/org/buildmosaic/library) for sample data and response shape.
 
 ## Keep the request boundary small
 
@@ -40,11 +38,11 @@ The example's declarations and `org.buildmosaic.core.injection.withMosaic` suppl
 
 ## Pick the example for your framework
 
-| Example                                                                                  | Where to look                                         |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| [Spring Boot](https://github.com/BuildMosaic/Mosaic/tree/0.7.0/examples/spring-example)  | Canvas configuration bean and order controllers       |
-| [Ktor](https://github.com/BuildMosaic/Mosaic/tree/0.7.0/examples/ktor-example)           | Coroutine routes and StatusPages error mapping        |
-| [Micronaut](https://github.com/BuildMosaic/Mosaic/tree/0.7.0/examples/micronaut-example) | Canvas factory, dependency injection, and controllers |
+| Example                                                                                          | Where to look                                         |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| [Spring Boot](https://github.com/BuildMosaic/Mosaic/tree/runtime-1.0.0/examples/spring-example)  | Canvas configuration bean and order controllers       |
+| [Ktor](https://github.com/BuildMosaic/Mosaic/tree/runtime-1.0.0/examples/ktor-example)           | Coroutine routes and StatusPages error mapping        |
+| [Micronaut](https://github.com/BuildMosaic/Mosaic/tree/runtime-1.0.0/examples/micronaut-example) | Canvas factory, dependency injection, and controllers |
 
 Ktor composes directly in coroutine routes. Spring MVC and Micronaut use suspending controllers. Spring includes `kotlinx-coroutines-reactor` for its coroutine support. Each application uses `runBlocking` only to construct the application Canvas at its synchronous setup boundary.
 
@@ -78,6 +76,6 @@ canvas {
 
 `instance` borrows a value: Canvas never closes it, including on construction failure. The framework or application keeps ownership. The request ID is also an existing value, so the child Canvas registers it with `instance(OrderKey, orderId)`. Neither Canvas owns closeable resources in these examples.
 
-In the upcoming 1.0 API, use `provide { ... }` when Canvas creates and owns a service. If the application Canvas owns `AutoCloseable` services, close it during framework shutdown. If a request child owns local resources, scope it explicitly around composition; `withMosaic` does not close Canvas. See [resource ownership](/guides/resources/) for 1.0 ownership semantics.
+Use `provide { ... }` when Canvas creates and owns a service. If the application Canvas owns `AutoCloseable` services, close it during framework shutdown. If a request child owns local resources, scope it explicitly around composition; `withMosaic` does not close Canvas. See [resource ownership](/guides/resources/) for ownership guidance.
 
 Use [OpenTelemetry tracing](/guides/tracing/) with your framework's existing request context propagation. Test the response composition separately with [mosaic-test](/guides/testing/); keep framework-specific HTTP assertions in your application tests.
