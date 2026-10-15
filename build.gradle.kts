@@ -43,7 +43,6 @@ dokka {
 listOf(
   "certifyKotlin" to "all",
   "certifyKotlinRuntime" to "runtime",
-  "certifyKotlinAnalysis" to "analysis",
 ).forEach { (taskName, scope) ->
   tasks.register<Exec>(taskName) {
     group = "compatibility"
@@ -65,7 +64,7 @@ listOf(
 
 tasks.register<Exec>("certifyReleaseCompatibility") {
   group = "compatibility"
-  description = "Certify every supported Kotlin compiler before publication (-Pcompat.scope=runtime|analysis|all)"
+  description = "Certify a release against every discovered stable Kotlin compiler (-Pcompat.scope=runtime|analysis, -Pcompat.release=VERSION)"
   commandLine(
     "python3",
     layout.projectDirectory.file("compatibility/certify.py").asFile.absolutePath,
@@ -74,7 +73,7 @@ tasks.register<Exec>("certifyReleaseCompatibility") {
     "--java-installations",
     providers.gradleProperty("org.gradle.java.installations.paths").getOrElse(""),
   )
-  providers.gradleProperty("compat.release").orNull?.let { args("--release", it) }
+  args("--release", providers.gradleProperty("compat.release").getOrElse(""))
   providers.gradleProperty("compat.counterparts").orNull?.let { args("--counterparts", it) }
   outputs.upToDateWhen { false }
 }

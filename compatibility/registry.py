@@ -42,8 +42,8 @@ def validate(data):
     return data
 
 
-def load(path=PATH):
-    return validate(json.loads(Path(path).read_text()))
+def load():
+    return validate(json.loads(PATH.read_text()))
 
 
 def record(data, result):
@@ -69,8 +69,9 @@ def compatible(data, runtime, kotlin, analysis=None):
 def apply_evidence(data, evidence):
     if 'records' in evidence:
         for result in evidence['records']:
-            if result['runtime'] not in data['runtime'] or (result['analysis'] and result['analysis'] not in data['analysis']):
-                raise ValueError('Daily certification requires recorded published artifacts')
+            if result['runtime'] not in data['runtime'] or (result['analysis'] and
+                    result['runtime'] not in data['analysis'].get(result['analysis'], {}).get('runtime', {})):
+                raise ValueError('Daily certification only extends established published relationships')
             record(data, result)
         return data
     train, release = evidence['train'], evidence['version']
@@ -100,13 +101,7 @@ def apply_evidence(data, evidence):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('validate', 'check'))
-    parser.add_argument('--runtime')
-    parser.add_argument('--analysis')
-    parser.add_argument('--kotlin')
-    args = parser.parse_args()
-    if args.command == 'check' and not (args.runtime and args.kotlin):
-        parser.error('check requires --runtime and --kotlin')
-    data = load()
-    print('valid' if args.command == 'validate' else
-          'verified' if compatible(data, args.runtime, args.kotlin, args.analysis) else 'unknown')
+    parser.add_argument('command', choices=('validate',))
+    parser.parse_args()
+    load()
+    print('valid')

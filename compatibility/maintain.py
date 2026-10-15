@@ -3,15 +3,17 @@
 
 import argparse
 import base64
+import calendar
 from datetime import date, datetime, timezone
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 
 import certify
-import discovery
 import registry
 
 
@@ -54,12 +56,31 @@ def report_failure(kotlin, runtime, analysis, failure, issues):
     print(json.loads(result)['html_url'])
 
 
-def pending_checks(data, compiler, issues, retry=False):
-    """Extend recorded relationships only; retries bypass failed-issue suppression."""
-    cases = [(r, None) for r in data['runtime']] + [
-        (r, a) for a, entry in data['analysis'].items() for r in entry['runtime']]
-    return [(r, a) for r, a in cases if not registry.compatible(data, r, compiler, a)
-            and (retry or issue_title(compiler, r, a) not in issues)]
+def available(version):
+    for artifact in ('kotlin-compiler-embeddable', 'kotlin-gradle-plugin'):
+        for extension in ('pom', 'jar'):
+            url = f'https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/{artifact}/{version}/{artifact}-{version}.{extension}'
+            try:
+                with urllib.request.urlopen(urllib.request.Request(url, method='HEAD'), timeout=30):
+                    pass
+            except urllib.error.HTTPError as error:
+                if error.code == 404:
+                    return False
+                raise
+    return True
+
+
+def supported_versions():
+    versions = certify.central_versions()
+    today = datetime.now(timezone.utc).date()
+    supported = set()
+    for family in {'.'.join(v.split('.')[:2]) + '.0' for v in versions}:
+        first = date.fromisoformat(json.loads(gh('api', f'repos/JetBrains/kotlin/releases/tags/v{family}'))['published_at'][:10])
+        year, month = divmod(first.year * 12 + first.month - 1 + 18, 12)
+        expiry = date(year, month + 1, min(first.day, calendar.monthrange(year, month + 1)[1]))
+        if first <= today < expiry:
+            supported.add(family.rsplit('.', 1)[0])
+    return [v for v in versions if v.rsplit('.', 1)[0] in supported]
 
 
 def scan(kotlin, java_installations):
@@ -67,37 +88,37 @@ def scan(kotlin, java_installations):
     issues = open_issues()
     if kotlin and registry.version(kotlin) < (2, 2, 0):
         raise ValueError('Compatibility discovery starts at Kotlin 2.2.0')
-    if kotlin:
-        versions = [kotlin]
-    elif data['runtime']:
-        versions = discovery.central_versions()
-        families = {'.'.join(v.split('.')[:2]) + '.0' for v in versions}
-        releases = {family: date.fromisoformat(json.loads(
-            gh('api', f'repos/JetBrains/kotlin/releases/tags/v{family}'))['published_at'][:10])
-            for family in sorted(families, key=registry.version)}
-        versions = discovery.supported_versions(versions, releases, datetime.now(timezone.utc).date())
-    else:
-        versions = []
+    versions = [kotlin] if kotlin else supported_versions() if data['runtime'] else []
     records, failures, passed_issues = [], [], []
-    prepared = False
-    checked_runtime = set()
+    check = certify.Certification(java_installations)
+    cases = [(r, None) for r in data['runtime']] + [
+        (r, a) for a, entry in data['analysis'].items() for r in entry['runtime']]
     for compiler in versions:
-        pending = pending_checks(data, compiler, issues, retry=bool(kotlin))
-        if not pending or not discovery.available(compiler):
+        pending = [(r, a) for r, a in cases if not registry.compatible(data, r, compiler, a)
+                   and (kotlin or issue_title(compiler, r, a) not in issues)]
+        if not pending or not available(compiler):
             continue
-        for runtime, analysis in pending:
+        for runtime in data['runtime']:
+            analyses = [a for r, a in pending if r == runtime]
+            if not analyses:
+                continue
             try:
-                if analysis and not prepared:
-                    certify.Certification(java_installations).prepare_tests()
-                    prepared = True
-                records.append(certify.certify_published(compiler, runtime, analysis, java_installations,
-                                                        prepare=False, checked_runtime=checked_runtime))
-                title = issue_title(compiler, runtime, analysis)
-                if title in issues:
-                    passed_issues.append(issues[title]['number'])
-            except (subprocess.SubprocessError, OSError, ValueError, RuntimeError, KeyError) as failure:
-                print(f'{issue_title(compiler, runtime, analysis)}: {failure}', file=sys.stderr, flush=True)
-                failures.append((compiler, runtime, analysis, failure))
+                if not registry.compatible(data, runtime, compiler):
+                    check.runtime([compiler], runtime)
+            except Exception as failure:
+                failures.extend((compiler, runtime, a, failure) for a in analyses)
+                continue
+            for analysis in analyses:
+                try:
+                    if analysis:
+                        check.analysis([compiler], runtime, analysis)
+                    records.append({'result': 'pass', 'runtime': runtime, 'analysis': analysis,
+                                    'kotlin': [compiler], 'revision': check.revision})
+                    title = issue_title(compiler, runtime, analysis)
+                    if title in issues:
+                        passed_issues.append(issues[title]['number'])
+                except Exception as failure:
+                    failures.append((compiler, runtime, analysis, failure))
     certify.REPORTS.mkdir(parents=True, exist_ok=True)
     evidence = {'records': records}
     (certify.REPORTS / 'published.json').write_text(json.dumps(evidence, indent=2) + '\n')
@@ -106,6 +127,7 @@ def scan(kotlin, java_installations):
         with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
             output.write(f'evidence={str(bool(records)).lower()}\n')
     for compiler, runtime, analysis, failure in failures:
+        print(f'{issue_title(compiler, runtime, analysis)}: {failure}', file=sys.stderr, flush=True)
         report_failure(compiler, runtime, analysis, failure, issues)
     for number in passed_issues:
         gh('issue', 'close', str(number), '--comment', f'Published artifacts passed verification: {run_url()}')
