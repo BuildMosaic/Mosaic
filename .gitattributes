@@ -4,3 +4,5 @@
 # These are explicitly windows files and should use crlf
 *.bat           text eol=crlf
 
+# Kotlin's generated ABI dumps end with a blank line.
+mosaic-*/api/*.api whitespace=-blank-at-eof
