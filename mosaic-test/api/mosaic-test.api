@@ -1,0 +1,37 @@
+public final class org/buildmosaic/test/TestMosaic : org/buildmosaic/core/Mosaic {
+	public final fun assertEquals (Lorg/buildmosaic/core/MultiTile;Ljava/util/Collection;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun assertEquals (Lorg/buildmosaic/core/MultiTile;Ljava/util/List;Ljava/util/Map;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun assertEquals (Lorg/buildmosaic/core/Tile;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun assertEquals (Lorg/buildmosaic/core/Tile;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun assertThrows (Lorg/buildmosaic/core/MultiTile;Ljava/util/List;Lkotlin/reflect/KClass;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun assertThrows (Lorg/buildmosaic/core/Tile;Lkotlin/reflect/KClass;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun assertThrows (Lorg/buildmosaic/core/Tile;Lkotlin/reflect/KClass;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun compose (Lorg/buildmosaic/core/MultiTile;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun compose (Lorg/buildmosaic/core/MultiTile;Ljava/util/Collection;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun compose (Lorg/buildmosaic/core/Tile;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun composeAsync (Lorg/buildmosaic/core/MultiTile;Ljava/lang/Object;)Lkotlinx/coroutines/Deferred;
+	public fun composeAsync (Lorg/buildmosaic/core/MultiTile;Ljava/util/Collection;)Ljava/util/Map;
+	public fun composeAsync (Lorg/buildmosaic/core/Tile;)Lkotlinx/coroutines/Deferred;
+	public fun getCanvas ()Lorg/buildmosaic/core/injection/Canvas;
+}
+
+public final class org/buildmosaic/test/TestMosaicBuilder {
+	public fun <init> ()V
+	public final fun withCanvasSource (Lkotlin/reflect/KClass;Ljava/lang/Object;)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withCanvasSource (Lkotlin/reflect/KClass;Ljava/lang/String;Ljava/lang/Object;)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withCanvasSource (Lorg/buildmosaic/core/injection/CanvasKey;Ljava/lang/Object;)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withCustomMultiTile (Lorg/buildmosaic/core/MultiTile;Lkotlin/jvm/functions/Function3;)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withCustomTile (Lorg/buildmosaic/core/Tile;Lkotlin/jvm/functions/Function2;)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withDelayedMultiTile (Lorg/buildmosaic/core/MultiTile;Ljava/util/Map;J)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withDelayedTile (Lorg/buildmosaic/core/Tile;Ljava/lang/Object;J)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withFailedMultiTile (Lorg/buildmosaic/core/MultiTile;Ljava/lang/Throwable;)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withFailedTile (Lorg/buildmosaic/core/Tile;Ljava/lang/Throwable;)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withMockMultiTile (Lorg/buildmosaic/core/MultiTile;Ljava/util/Map;)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withMockTile (Lorg/buildmosaic/core/Tile;Ljava/lang/Object;)Lorg/buildmosaic/test/TestMosaicBuilder;
+	public final fun withMosaic (Lkotlin/jvm/functions/Function2;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class org/buildmosaic/test/TestMosaicBuilderKt {
+	public static final fun mosaicBuilder ()Lorg/buildmosaic/test/TestMosaicBuilder;
+}
+

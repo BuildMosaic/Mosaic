@@ -13,6 +13,8 @@ val libs = project.extensions.getByType<VersionCatalogsExtension>().named("libs"
 
 kotlin {
   if (isRuntimeModule) {
+    @OptIn(org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation::class)
+    abiValidation()
     // Language/API settings do not select the stdlib or mosaic-test's published kotlin-test.
     coreLibrariesVersion = libs.findVersion("runtime-kotlin").get().requiredVersion
   }

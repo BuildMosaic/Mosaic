@@ -1,0 +1,5 @@
+public final class org/buildmosaic/opentelemetry/TracingKt {
+	public static final fun tracing (Lorg/buildmosaic/core/injection/CanvasBuilder;)V
+	public static final fun tracing (Lorg/buildmosaic/core/injection/CanvasBuilder;Lkotlin/jvm/functions/Function0;)V
+}
+
