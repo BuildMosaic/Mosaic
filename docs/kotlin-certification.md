@@ -6,12 +6,20 @@ verification records do not expire automatically; older combinations can remain
 usable outside that support window.
 
 The daily `kotlin-compatibility.yml` workflow discovers stable Kotlin releases
-from 2.2.0 onward, including backports. For every recorded Runtime release and
-every Runtime/Analysis combination, it checks missing certification facts against
-the unchanged published artifacts. It also discovers missing combinations after
-either train releases. Existing issues suppress repeated checks of that exact
-compiler and artifact combination; dispatch with an exact `kotlin` version to
-retry it. Both scheduled and manual workflow runs require `main`.
+from 2.2.0 onward, including backports within the rolling 18-month support window.
+The window starts at the Kotlin minor family's first stable GitHub release;
+later patches do not restart it. For every recorded Runtime release and each
+Runtime/Analysis relationship already recorded in the registry, it checks missing
+certification facts against the unchanged published artifacts. It never discovers
+new relationships by testing all releases against each other. Release
+certification or an explicit investigation establishes new relationships.
+
+Existing issues suppress repeated checks of that exact compiler and artifact
+combination. Dispatch with an exact `kotlin` version to retry unresolved failures,
+including historical versions outside the support window. Both routine scans and
+manual retries skip successful certification already in the registry. Successful
+Runtime checks are reused across relationships within a scan. Historical verified
+records are preserved. Both scheduled and manual workflow runs require `main`.
 
 Compiler admission and certification have separate owners. Bundled
 `compiler-profiles.properties` defines inclusive lower and exclusive upper ABI

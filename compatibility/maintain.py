@@ -3,6 +3,8 @@
 
 import argparse
 import base64
+import calendar
+from datetime import date, datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -42,6 +44,24 @@ def available(version):
                     return False
                 raise
     return True
+
+
+def supported_versions(versions, today=None):
+    today = today or datetime.now(timezone.utc).date()
+    families = {}
+    result = []
+    for version in versions:
+        major, minor, _ = registry.version(version)
+        family = f'{major}.{minor}.0'
+        if family not in families:
+            release = json.loads(gh('api', f'repos/JetBrains/kotlin/releases/tags/v{family}'))
+            first = date.fromisoformat(release['published_at'][:10])
+            year, month = divmod(first.year * 12 + first.month - 1 + 18, 12)
+            expiry = date(year, month + 1, min(first.day, calendar.monthrange(year, month + 1)[1]))
+            families[family] = first <= today < expiry
+        if families[family]:
+            result.append(version)
+    return result
 
 
 def gh(*args, payload=None, token=None):
@@ -88,12 +108,14 @@ def scan(kotlin, java_installations):
     issues = open_issues()
     if kotlin and registry.version(kotlin) < (2, 2, 0):
         raise ValueError('Compatibility discovery starts at Kotlin 2.2.0')
-    versions = [kotlin] if kotlin else central_versions() if data['runtime'] else []
+    versions = [kotlin] if kotlin else supported_versions(central_versions()) if data['runtime'] else []
     records, failures, passed_issues = [], [], []
     prepared = False
+    checked_runtime = set()
+    cases = [(r, None) for r in data['runtime']] + [
+        (r, a) for a, entry in data['analysis'].items() for r in entry['runtime']]
     for compiler in versions:
-        cases = [(r, None) for r in data['runtime']] + [(r, a) for r in data['runtime'] for a in data['analysis']]
-        pending = [(r, a) for r, a in cases if (kotlin or not registry.compatible(data, r, compiler, a))
+        pending = [(r, a) for r, a in cases if not registry.compatible(data, r, compiler, a)
                    and (kotlin or issue_title(compiler, r, a) not in issues)]
         if not pending or not available(compiler):
             continue
@@ -102,7 +124,8 @@ def scan(kotlin, java_installations):
                 if analysis and not prepared:
                     certify.Certification(java_installations).prepare_tests()
                     prepared = True
-                records.append(certify.certify_published(compiler, runtime, analysis, java_installations, prepare=False))
+                records.append(certify.certify_published(compiler, runtime, analysis, java_installations,
+                                                        prepare=False, checked_runtime=checked_runtime))
                 title = issue_title(compiler, runtime, analysis)
                 if title in issues:
                     passed_issues.append(issues[title]['number'])

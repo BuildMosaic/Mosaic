@@ -179,9 +179,10 @@ class Certification:
     def check(self, versions, scope):
         for version in versions:
             artifacts = self.resolve(version, scope)
-            if version not in self.checked_runtime:
+            runtime_check = (self.runtime_version, version)
+            if runtime_check not in self.checked_runtime:
                 self.runtime(version, artifacts)
-                self.checked_runtime.add(version)
+                self.checked_runtime.add(runtime_check)
             if scope != 'runtime':
                 default_jar = artifacts['extractor'][0]['file']
                 default, bounds = compiler_profiles(default_jar)
@@ -206,12 +207,15 @@ class Certification:
         junit_results(ROOT / 'mosaic-gradle-plugin/build/test-results/releaseCompatibilityTest')
 
 
-def certify_published(version, runtime, analysis=None, java_installations='', repository=None, prepare=True):
+def certify_published(version, runtime, analysis=None, java_installations='', repository=None, prepare=True,
+                      checked_runtime=None):
     registry.version(version)
     registry.version(runtime)
     if analysis:
         registry.version(analysis)
     check = Certification(java_installations, runtime=runtime, analysis=analysis, repository=repository)
+    if checked_runtime is not None:
+        check.checked_runtime = checked_runtime
     if analysis and prepare:
         check.prepare_tests()
     check.check([version], 'all' if analysis else 'runtime')
