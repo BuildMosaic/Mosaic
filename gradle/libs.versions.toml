@@ -2,7 +2,7 @@
 kotlin = "2.4.21"
 runtime-kotlin = "2.2.21"
 dsl = "5.2.0"
-ktlint = "13.1.0"
+ktlint = "14.2.0"
 detekt = "1.23.8"
 kover = "0.9.11"
 coroutines = "1.11.0"
@@ -13,8 +13,8 @@ serialization = "1.11.0"
 mockk = "1.14.5"
 ksp = "2.3.12"
 dokka = "2.2.0"
-maven-publish = "0.34.0"
-plugin-publish = "2.0.0"
+maven-publish = "0.35.0"
+plugin-publish = "2.2.1"
 
 [libraries]
 opentelemetry-api = { module = "io.opentelemetry:opentelemetry-api", version.ref = "opentelemetry" }

@@ -240,6 +240,7 @@ class IntrospectorSelectionInstallationTest {
         )
       assertTrue(repeated.output.contains("Configuration cache entry reused"), repeated.output)
       assertCompilerProvenance(app, "2.4.21")
+      app.resolve("configuration-cache-reuse.log").writeText(repeated.output)
     }
     val unsupported = failedBuild(app, "-Pfixture.compiler=999.0.0")
     assertTrue(unsupported.contains("does not support Kotlin compiler 999.0.0"), unsupported)

@@ -1,4 +1,5 @@
 import org.gradle.api.tasks.WriteProperties
+import org.gradle.plugin.compatibility.compatibility
 import org.gradle.plugin.devel.tasks.PluginUnderTestMetadata
 
 description = "Mosaic contract analysis for Kotlin/JVM Gradle builds"
@@ -97,6 +98,11 @@ gradlePlugin {
       description = "Kotlin/JVM Mosaic contract extraction and verification"
       tags.set(listOf("kotlin", "analysis"))
       implementationClass = "org.buildmosaic.gradle.MosaicAnalysisPlugin"
+      compatibility {
+        features {
+          configurationCache = true
+        }
+      }
     }
   }
 }

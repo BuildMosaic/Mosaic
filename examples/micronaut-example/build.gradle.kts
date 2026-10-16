@@ -2,7 +2,7 @@ plugins {
   kotlin("jvm")
   kotlin("plugin.serialization") version "2.4.21"
   id("com.google.devtools.ksp")
-  id("io.micronaut.application") version "4.5.4"
+  id("io.micronaut.application") version "4.6.2"
 }
 
 val mosaicVersion: String by rootProject.extra
