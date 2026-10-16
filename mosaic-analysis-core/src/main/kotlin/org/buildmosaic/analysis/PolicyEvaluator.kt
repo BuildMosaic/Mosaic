@@ -7,10 +7,11 @@ internal object PolicyEvaluator {
     policy: AnalysisPolicy,
     approvedAssumptions: Set<String>,
   ): PolicyDecision {
+    val activeFindings = findings.filter { it.suppressedAt.isEmpty() }
     val errors =
-      findings.filter { finding ->
+      activeFindings.filter { finding ->
         if (finding.rule != null) {
-          finding.suppressedAt.isEmpty() && finding.severity == MosaicRuleSeverity.ERROR
+          finding.severity == MosaicRuleSeverity.ERROR
         } else {
           status == ConfigurationStatus.UNCONFIGURED ||
             finding.certainty == Certainty.MISSING ||
@@ -19,10 +20,10 @@ internal object PolicyEvaluator {
         }
       }
     val warnings =
-      findings.filter { finding ->
+      activeFindings.filter { finding ->
         finding !in errors &&
           if (finding.rule != null) {
-            finding.suppressedAt.isEmpty() && finding.severity == MosaicRuleSeverity.WARNING
+            finding.severity == MosaicRuleSeverity.WARNING
           } else {
             finding.certainty == Certainty.UNVERIFIED
           }

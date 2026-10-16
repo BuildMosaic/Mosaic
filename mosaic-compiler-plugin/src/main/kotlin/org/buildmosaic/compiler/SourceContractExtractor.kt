@@ -296,7 +296,9 @@ internal class SourceContractExtractor(
     }.flatMap { annotation ->
       annotation.arguments.filterIsInstance<IrVararg>().flatMap { it.elements }.filterIsInstance<IrConst>().mapNotNull {
         val id = it.value as? String
-        if (MosaicRule.entries.any { rule -> rule.id == id && rule.suppressible }) {
+        if (id == MosaicSuppression.UNVERIFIED ||
+          MosaicRule.entries.any { rule -> rule.id == id && rule.suppressible }
+        ) {
           MosaicSuppression(id!!, location(declaration, "suppression:$id"))
         } else {
           null

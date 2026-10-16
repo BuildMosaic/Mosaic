@@ -192,6 +192,11 @@ class TileRecursionTest {
       val hard = tile.copy(multi = false, suppressions = listOf(MosaicSuppression(cyclic.id, site)))
       assertFalse(analyze(module(listOf(hard)), policy).policyDecision.passed)
       assertTrue(analyze(module(listOf(hard)), policy).findings.single().suppressedAt.isEmpty())
+      val general = hard.copy(suppressions = listOf(MosaicSuppression(MosaicSuppression.UNVERIFIED, site)))
+      val proven = analyze(module(listOf(general)), policy)
+      assertFalse(proven.policyDecision.passed)
+      assertEquals(Certainty.MISSING, proven.findings.single().certainty)
+      assertTrue(proven.findings.single().suppressedAt.isEmpty())
     }
   }
 
