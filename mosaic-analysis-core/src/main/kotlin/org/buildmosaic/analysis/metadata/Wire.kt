@@ -1,5 +1,8 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package org.buildmosaic.analysis.metadata
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -296,6 +299,8 @@ import kotlinx.serialization.Serializable
   val result: WireCanvas,
   val site: WireSite,
   val reusable: Boolean,
+  @EncodeDefault(EncodeDefault.Mode.NEVER)
+  val suppressions: List<WireSuppression> = emptyList(),
 )
 
 @Serializable internal data class WireTileContract(
@@ -313,6 +318,8 @@ import kotlinx.serialization.Serializable
   val effects: List<WireEffect>,
   val site: WireSite,
   val reusable: Boolean,
+  @EncodeDefault(EncodeDefault.Mode.NEVER)
+  val suppressions: List<WireSuppression> = emptyList(),
 )
 
 @Serializable internal data class WireOverrideSlot(

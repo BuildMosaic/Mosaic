@@ -309,6 +309,7 @@ data class CanvasContract(
   val result: CanvasExpression,
   val site: SourceLocation,
   val reusable: Boolean = true,
+  val suppressions: List<MosaicSuppression> = emptyList(),
 )
 
 data class TileContract(
@@ -326,6 +327,7 @@ data class CallableContract(
   val effects: List<Effect>,
   val site: SourceLocation,
   val reusable: Boolean = true,
+  val suppressions: List<MosaicSuppression> = emptyList(),
 )
 
 data class ModuleContract(
@@ -442,7 +444,6 @@ data class Finding(
   val bindingCapturedOrigins: Set<CaptureOrigin> = emptySet(),
   val rule: MosaicRule? = null,
   val severity: MosaicRuleSeverity? = null,
-  val suppressedAt: List<SourceLocation> = emptyList(),
 )
 
 enum class RootStatus {

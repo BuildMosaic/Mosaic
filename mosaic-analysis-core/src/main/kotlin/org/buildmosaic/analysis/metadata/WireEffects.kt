@@ -122,6 +122,7 @@ internal fun ModuleContract.toWire() =
         it.result.toWire(),
         it.site.toWire(),
         it.reusable,
+        it.suppressions.map { suppression -> WireSuppression(suppression.ruleId, suppression.site.toWire()) },
       )
     },
     tiles.sortedBy { it.id }.map {
@@ -147,6 +148,7 @@ internal fun ModuleContract.toWire() =
         it.effects.map { e -> e.toWire() },
         it.site.toWire(),
         it.reusable,
+        it.suppressions.map { suppression -> WireSuppression(suppression.ruleId, suppression.site.toWire()) },
       )
     },
     overrides.sortedWith(compareBy({ it.receiverType }, { it.baseId }, { it.implementationId })).map {
@@ -176,6 +178,7 @@ internal fun WireModule.toModel() =
         it.result.toModel(),
         it.site.toModel(),
         it.reusable,
+        it.suppressions.map { suppression -> MosaicSuppression(suppression.ruleId, suppression.site.toModel()) },
       )
     },
     tiles.map {
@@ -198,6 +201,7 @@ internal fun WireModule.toModel() =
         it.effects.map { e -> e.toModel() },
         it.site.toModel(),
         it.reusable,
+        it.suppressions.map { suppression -> MosaicSuppression(suppression.ruleId, suppression.site.toModel()) },
       )
     },
     overrides.map {

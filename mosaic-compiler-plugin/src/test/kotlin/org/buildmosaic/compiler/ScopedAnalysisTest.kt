@@ -2,6 +2,7 @@
 
 package org.buildmosaic.compiler
 
+import org.buildmosaic.analysis.AnalysisPolicy
 import org.buildmosaic.analysis.AnalysisRequest
 import org.buildmosaic.analysis.CanvasExpression
 import org.buildmosaic.analysis.Certainty
@@ -10,6 +11,7 @@ import org.buildmosaic.analysis.MosaicAnalyzer
 import org.buildmosaic.analysis.MosaicProvenance
 import org.buildmosaic.analysis.MosaicRule
 import org.buildmosaic.analysis.RootSelectionResolver
+import org.buildmosaic.analysis.RootStatus
 import org.buildmosaic.analysis.SelectedRoot
 import java.io.File
 import java.nio.file.Files
@@ -30,7 +32,11 @@ class ScopedAnalysisTest {
 
   private fun report(name: String) =
     MosaicAnalyzer().analyze(
-      AnalysisRequest(module, roots = listOf(SelectedRoot(name, "scoped.$name()"))),
+      AnalysisRequest(
+        module,
+        roots = listOf(SelectedRoot(name, "scoped.${if ('(' in name) name else "$name()"}")),
+        policy = AnalysisPolicy.STRICT,
+      ),
     )
 
   @Test
@@ -109,9 +115,8 @@ class ScopedAnalysisTest {
   fun `declaration class object and file suppressions survive export`() {
     for (root in listOf("propertySuppressed", "fileSuppressed")) {
       val report = report(root)
-      val finding = report.findings.single()
-      assertEquals(MosaicRule.MOSAIC_RECURSIVE_MULTITILE, finding.rule, report.toString())
-      assertTrue(finding.suppressedAt.isNotEmpty(), report.toString())
+      assertTrue(report.findings.isEmpty(), report.toString())
+      assertEquals(RootStatus.VERIFIED, report.roots.single().status)
       assertTrue(report.policyDecision.passed, report.toString())
     }
     // Class/object scopes attach to Tile templates declared inside them. They cannot
@@ -126,8 +131,29 @@ class ScopedAnalysisTest {
     assertTrue(report("objectSuppressed").findings.any { it.certainty == Certainty.UNVERIFIED })
     val hard = report("unsuppressible")
     assertFalse(hard.policyDecision.passed)
-    assertTrue(hard.findings.single().suppressedAt.isEmpty())
+    assertEquals(MosaicRule.MOSAIC_CYCLIC_TILE_DEPENDENCY, hard.findings.single().rule)
     assertTrue(module.tiles.single { it.id == "scoped.Suppressed" }.suppressions.isNotEmpty())
+  }
+
+  @Test
+  fun `general suppression covers function and Tile scopes without leaking to callees or recursion`() {
+    for (root in listOf("greet(scoped.Person)", "uncertaintySuppressed")) {
+      val result = report(root)
+      assertTrue(result.findings.none { it.certainty == Certainty.UNVERIFIED }, result.toString())
+      assertEquals(RootStatus.VERIFIED, result.roots.single().status)
+      assertTrue(result.policyDecision.passed)
+      assertTrue(result.policyDecision.warnings.isEmpty())
+    }
+    assertTrue(report("greet(scoped.Person)").findings.isEmpty())
+    for (root in listOf("greetUnsuppressed(scoped.Person)", "callerSuppressed(scoped.Person)")) {
+      assertEquals(Certainty.UNVERIFIED, report(root).findings.single().certainty)
+      assertFalse(report(root).policyDecision.passed)
+    }
+    val missing = report("missingSuppressed")
+    assertEquals(Certainty.MISSING, missing.findings.single().certainty)
+    assertFalse(missing.policyDecision.passed)
+    assertEquals(MosaicRule.MOSAIC_RECURSIVE_MULTITILE, report("callerRecursionSuppressed").findings.single().rule)
+    assertFalse(report("callerRecursionSuppressed").policyDecision.passed)
   }
 
   @Test
@@ -153,9 +179,8 @@ class ScopedAnalysisTest {
         MosaicAnalyzer().analyze(
           AnalysisRequest(consumer, listOf(producer), listOf(SelectedRoot(root, "consumer.$root()"))),
         )
-      assertEquals(report(expected).findings.single().rule, report.findings.single().rule)
+      assertEquals(report(expected).findings.map { it.rule }, report.findings.map { it.rule })
       assertEquals(report(expected).policyDecision.passed, report.policyDecision.passed)
-      assertEquals(report(expected).findings.single().suppressedAt, report.findings.single().suppressedAt)
     }
   }
 }
@@ -180,6 +205,19 @@ private val scopedSource =
   val Suppressed: MultiTile<Int, Int> by perKeyTile { key -> compose(Suppressed, key - 1) }
   @Suppress("MOSAIC_CYCLIC_TILE_DEPENDENCY")
   val Hard: Tile<Int> by singleTile { compose(Hard) }
+  class Person
+  fun greetUnsuppressed(person: Person) = "Hello, ${'$'}person"
+  @Suppress("MOSAIC_UNVERIFIED")
+  fun greet(person: Person) = "Hello, ${'$'}person"
+  @Suppress("MOSAIC_UNVERIFIED")
+  fun callerSuppressed(person: Person) = greetUnsuppressed(person)
+  @Suppress("MOSAIC_UNVERIFIED")
+  val UncertainTile by singleTile { "Hello, ${'$'}{sourceOrNull<Person>()}" }
+  @Suppress("MOSAIC_UNVERIFIED")
+  suspend fun missingSuppressed() = canvas {}.withMosaic { source<Service>() }
+  suspend fun uncertaintySuppressed() = canvas {}.withMosaic { compose(UncertainTile) }
+  @Suppress("MOSAIC_UNVERIFIED", "MOSAIC_RECURSIVE_MULTITILE")
+  suspend fun callerRecursionSuppressed() = canvas {}.withMosaic { compose(Recursive, 1) }
   @Suppress("MOSAIC_RECURSIVE_MULTITILE")
   class Group {
     fun local() { val tile = perKeyTile<Int, Int> { it }; }

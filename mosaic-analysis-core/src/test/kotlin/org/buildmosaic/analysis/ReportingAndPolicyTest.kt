@@ -61,6 +61,25 @@ class ReportingAndPolicyTest {
   }
 
   @Test
+  fun `suppression removes uncertainty after evaluation without hiding missing or unrelated findings`() {
+    val unknown = Effect.Unknown("unknown", "unsupported dispatch", site("unknown"))
+    val helper =
+      entry("helper", unknown, lookup("missing", metrics, canvas = CanvasExpression.Empty))
+        .copy(suppressions = listOf(MosaicSuppression(MosaicSuppression.UNVERIFIED, site("helper"))))
+    val module =
+      ModuleContract(
+        "app",
+        callables = listOf(helper, entry("entry", Effect.Call("call", helper.id, site = site("call")), unknown)),
+      )
+    val result = report(module, policy = AnalysisPolicy.STRICT)
+
+    assertFalse(result.policyDecision.passed)
+    assertEquals(listOf(Certainty.MISSING, Certainty.UNVERIFIED), result.findings.map { it.certainty })
+    assertEquals(result.findings, result.policyDecision.errors)
+    assertEquals(RootStatus.FAILED, result.roots.single().status)
+  }
+
+  @Test
   fun `labeled positive assumptions require explicit strict approval and never prove absence`() {
     val assumption = ExternalAssumption("managed-canvas", setOf(metrics), site("assumption"))
     val assumedCanvas = CanvasExpression.Assumption(assumption.id, site("handler"))
