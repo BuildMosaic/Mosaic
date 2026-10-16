@@ -187,11 +187,15 @@ class TileRecursionTest {
       val suppressed = tile.copy(suppressions = listOf(MosaicSuppression(keyed.id, site)))
       val report = analyze(module(listOf(suppressed)), policy)
       assertTrue(report.policyDecision.passed)
-      assertEquals(listOf(site), report.findings.single().suppressedAt)
+      assertTrue(report.findings.isEmpty())
+      assertEquals(RootStatus.VERIFIED, report.roots.single().status)
       assertTrue(report.policyDecision.warnings.isEmpty())
       val hard = tile.copy(multi = false, suppressions = listOf(MosaicSuppression(cyclic.id, site)))
       assertFalse(analyze(module(listOf(hard)), policy).policyDecision.passed)
-      assertTrue(analyze(module(listOf(hard)), policy).findings.single().suppressedAt.isEmpty())
+      val general = hard.copy(suppressions = listOf(MosaicSuppression(MosaicSuppression.UNVERIFIED, site)))
+      val proven = analyze(module(listOf(general)), policy)
+      assertFalse(proven.policyDecision.passed)
+      assertEquals(Certainty.MISSING, proven.findings.single().certainty)
     }
   }
 
@@ -213,12 +217,12 @@ class TileRecursionTest {
     val sourceReport = analyze(module(listOf(a, b)))
     val binaryReport = analyze(program, dependencies = listOf(dependency))
     assertEquals(sourceReport.findings, binaryReport.findings)
+    assertTrue(binaryReport.findings.isEmpty())
     assertTrue(binaryReport.policyDecision.passed)
     val unrelated = b.copy(id = "Other")
     assertFalse(analyze(module(listOf(a, b.copy(suppressions = emptyList()), unrelated))).policyDecision.passed)
     val graph = MosaicGraph.render(AnalysisRequest(program, listOf(dependency), listOf(SelectedRoot("root", "entry"))))
-    assertTrue(graph.contains("SUPPRESSED"))
-    assertTrue(graph.contains("Suppressed at Tiles.kt:14"))
+    assertFalse(graph.contains("Recursive Tile structure detected"))
   }
 
   @Test

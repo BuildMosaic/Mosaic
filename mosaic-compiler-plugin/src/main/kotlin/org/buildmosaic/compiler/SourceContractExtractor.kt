@@ -26,7 +26,6 @@ import org.buildmosaic.analysis.KeyContract
 import org.buildmosaic.analysis.LookupKind
 import org.buildmosaic.analysis.ModuleContract
 import org.buildmosaic.analysis.MosaicProvenance
-import org.buildmosaic.analysis.MosaicRule
 import org.buildmosaic.analysis.MosaicSuppression
 import org.buildmosaic.analysis.MultiTileExecution
 import org.buildmosaic.analysis.OverrideSlot
@@ -79,6 +78,7 @@ import org.jetbrains.kotlin.ir.expressions.IrSetField
 import org.jetbrains.kotlin.ir.expressions.IrSetValue
 import org.jetbrains.kotlin.ir.expressions.IrSpreadElement
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
+import org.jetbrains.kotlin.ir.expressions.IrStringConcatenation
 import org.jetbrains.kotlin.ir.expressions.IrThrow
 import org.jetbrains.kotlin.ir.expressions.IrTry
 import org.jetbrains.kotlin.ir.expressions.IrTypeOperatorCall
@@ -218,9 +218,9 @@ internal class SourceContractExtractor(
                 else -> normalizer.body(accessor.body)
               }
             if (isCanvasType(accessor.returnType)) {
-              canvases += CanvasContract(id, canvasParameters(accessor, id), normalizer.result(value, accessor), site)
+              canvases += CanvasContract(id, canvasParameters(accessor, id), normalizer.result(value, accessor), site, suppressions = suppressions)
             } else {
-              callables += CallableContract(id, canvasParameters(accessor, id), normalizer.effects, site)
+              callables += CallableContract(id, canvasParameters(accessor, id), normalizer.effects, site, suppressions = suppressions)
             }
             locators[id] = binaryLocator(accessor, file)
           }
@@ -247,7 +247,7 @@ internal class SourceContractExtractor(
           if (declaration.body == null || initializers.any { !provenHarmless(it) } || ownBody.any { !provenHarmless(it) }) {
             normalizer.effects += Effect.Unknown("$id:initialization", "Constructor initialization may have Mosaic effects", site)
           }
-          callables += CallableContract(id, canvasParameters(declaration, id), normalizer.effects, site)
+          callables += CallableContract(id, canvasParameters(declaration, id), normalizer.effects, site, suppressions = suppressions)
           locators[id] = binaryLocator(declaration, file)
         }
         is IrSimpleFunction -> {
@@ -259,9 +259,9 @@ internal class SourceContractExtractor(
           if (declaration.body == null) normalizer.effects += Effect.Unknown("$id:body", "Callable body is unavailable", site)
           val value = normalizer.body(declaration.body)
           if (isCanvasType(declaration.returnType)) {
-            canvases += CanvasContract(id, canvasParameters(declaration, id), normalizer.result(value, declaration), site)
+            canvases += CanvasContract(id, canvasParameters(declaration, id), normalizer.result(value, declaration), site, suppressions = suppressions)
           } else {
-            callables += CallableContract(id, canvasParameters(declaration, id), normalizer.effects, site)
+            callables += CallableContract(id, canvasParameters(declaration, id), normalizer.effects, site, suppressions = suppressions)
           }
         }
       }
@@ -295,8 +295,8 @@ internal class SourceContractExtractor(
     }.flatMap { annotation ->
       annotation.arguments.filterIsInstance<IrVararg>().flatMap { it.elements }.filterIsInstance<IrConst>().mapNotNull {
         val id = it.value as? String
-        if (MosaicRule.entries.any { rule -> rule.id == id && rule.suppressible }) {
-          MosaicSuppression(id!!, location(declaration, "suppression:$id"))
+        if (id?.startsWith("MOSAIC_") == true) {
+          MosaicSuppression(id, location(declaration, "suppression:$id"))
         } else {
           null
         }
@@ -430,6 +430,15 @@ internal class SourceContractExtractor(
               Value()
             }
           is IrClassReference -> Value(keyClass = runtimeKeyClass(element.classType))
+          is IrStringConcatenation -> {
+            element.arguments.forEach { argument ->
+              evaluate(argument)
+              if (!scalarValue(argument)) {
+                unknown(argument, "Implicit toString callback is unsupported for string interpolation")
+              }
+            }
+            Value()
+          }
           is IrVararg -> {
             element.elements.forEach(::evaluate)
             Value()
@@ -953,7 +962,7 @@ internal class SourceContractExtractor(
           call.typeArguments.firstOrNull()?.let(::scalarType) == true ||
             actuals.all { it is IrVararg && it.elements.isEmpty() }
         } else {
-          actuals.all { scalarType(it.type) || it is IrConst && it.value == null }
+          actuals.all(::scalarValue)
         }
       return if (safe) {
         CallableEligibility.EffectFree
@@ -967,6 +976,9 @@ internal class SourceContractExtractor(
   }
 
   private fun scalarType(type: IrType): Boolean = type.classFqName?.asString() in scalarClasses
+
+  private fun scalarValue(expression: IrExpression): Boolean =
+    scalarType(expression.type) || expression is IrConst && expression.value == null
 
   private val scalarClasses =
     setOf("Int", "Long", "Float", "Double", "Short", "Byte", "Char", "Boolean", "String").map { "kotlin.$it" }.toSet()
@@ -1021,6 +1033,7 @@ internal class SourceContractExtractor(
     fun children(): Boolean = evaluatedChildren(element).all { provenHarmless(it, active) }
     return when (element) {
       is IrConst, is IrGetValue -> true
+      is IrStringConcatenation -> element.arguments.all(::scalarValue) && children()
       is IrFunctionExpression, is IrFunctionReference -> children() // evaluated captures only, never the body
       is IrFunctionAccessExpression -> {
         val function = element.symbol.owner

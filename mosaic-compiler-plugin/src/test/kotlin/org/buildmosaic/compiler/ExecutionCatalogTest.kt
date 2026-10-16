@@ -258,6 +258,39 @@ class ExecutionCatalogTest {
     unknown("errorCallback", "Implicit toString")
   }
 
+  @Test fun `F6 scalar string interpolation verifies including structural omission`() {
+    verified("greet(kotlin.String)")
+    verified("scalarInterpolation(kotlin.String,kotlin.Int,kotlin.Int)")
+    verified("conditionalInterpolation(kotlin.Boolean,kotlin.String)")
+  }
+
+  @Test fun `F6 string interpolation retains ordered dependency lookups`() {
+    val missing = report("interpolationMissing")
+    assertEquals(
+      listOf("kotlin.String", "kotlin.Int"),
+      missing.findings.filter { it.certainty == Certainty.MISSING }.map { it.key?.classId },
+      missing.toString(),
+    )
+    assertTrue(missing.findings.none { it.certainty == Certainty.UNVERIFIED }, missing.toString())
+    verified("interpolationSupplied")
+    val supplied = report("interpolationSupplied")
+    assertEquals(
+      listOf("kotlin.String", "kotlin.Int"),
+      supplied.findings.filter { it.certainty == Certainty.VERIFIED }.map { it.key?.classId },
+      supplied.toString(),
+    )
+  }
+
+  @Test fun `F6 string interpolation cannot omit user toString or its argument effects`() {
+    unknown(
+      "interpolationCallback(catalog.CallbackValue)",
+      "Implicit toString callback is unsupported for string interpolation",
+    )
+    unknown("conditionalInterpolationCallback(kotlin.Boolean,catalog.CallbackValue)", "Unsupported control flow")
+    unknown("interpolationObjectLookup", "Implicit toString callback is unsupported for string interpolation")
+    missing("interpolationObjectLookup", "CallbackValue")
+  }
+
   @Test fun `F6 structural proof respects mutable capability alias boundary`() {
     unknown("mutableAlias(kotlin.Boolean,org.buildmosaic.core.injection.Canvas)", "Unsupported control flow")
   }

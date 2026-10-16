@@ -68,14 +68,12 @@ internal object MosaicVerificationReport {
 
   private fun StringBuilder.appendFinding(finding: Finding) {
     finding.rule?.let { rule ->
-      val status = if (finding.suppressedAt.isNotEmpty()) "SUPPRESSED" else finding.severity.toString()
-      appendLine("${rule.id}: ${rule.title}: $status")
+      appendLine("${rule.id}: ${rule.title}: ${finding.severity}")
       appendLine("  ${finding.reason}")
       appendLine("  ${finding.dependencyPath.joinToString(" -> ") { it.label }}")
       finding.dependencyPath.forEach { node ->
         appendLine("  ${node.label}    ${node.site.path}:${node.site.line}")
       }
-      finding.suppressedAt.forEach { appendLine("  Suppressed at ${it.path}:${it.line}") }
       return
     }
     appendLine(

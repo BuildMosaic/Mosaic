@@ -10,7 +10,7 @@ internal object PolicyEvaluator {
     val errors =
       findings.filter { finding ->
         if (finding.rule != null) {
-          finding.suppressedAt.isEmpty() && finding.severity == MosaicRuleSeverity.ERROR
+          finding.severity == MosaicRuleSeverity.ERROR
         } else {
           status == ConfigurationStatus.UNCONFIGURED ||
             finding.certainty == Certainty.MISSING ||
@@ -22,7 +22,7 @@ internal object PolicyEvaluator {
       findings.filter { finding ->
         finding !in errors &&
           if (finding.rule != null) {
-            finding.suppressedAt.isEmpty() && finding.severity == MosaicRuleSeverity.WARNING
+            finding.severity == MosaicRuleSeverity.WARNING
           } else {
             finding.certainty == Certainty.UNVERIFIED
           }

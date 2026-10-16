@@ -3,6 +3,22 @@
 Significant user-facing changes to Mosaic are documented here. Earlier versions
 predate this maintained changelog; their release history is not reconstructed here.
 
+## [analysis-1.0.1] - 2026-10-16
+
+### Fixed
+
+- Ordinary scalar and nullable string interpolations no longer produce false
+  `UNVERIFIED` results. Mosaic lookups inside interpolations remain analyzed;
+  potentially effectful object conversions remain conservative.
+- `@Suppress("MOSAIC_UNVERIFIED")` and existing named-rule suppressions remove
+  applicable findings from Analysis results, reports, and graphs. Proven missing
+  dependencies and non-suppressible cycles cannot be hidden.
+
+### Changed
+
+- The `org.buildmosaic.analysis` Gradle plugin declares configuration-cache
+  compatibility, verified with published-artifact consumers.
+
 ## [runtime-1.0.0] - 2026-10-15
 
 ### Changed

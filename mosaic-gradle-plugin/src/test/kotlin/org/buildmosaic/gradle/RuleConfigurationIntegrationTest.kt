@@ -113,8 +113,8 @@ class RuleConfigurationIntegrationTest {
     )
     run(app, "build mosaicGraph", buildCache = true)
     val report = File(app, "build/reports/mosaic-analysis/main.txt").readText()
-    assertTrue(report.contains("SUPPRESSED"))
-    assertTrue(report.contains("Suppressed at App.kt:4"))
+    assertTrue(report.contains("Result: FULLY VERIFIED"))
+    assertFalse(report.contains("Recursive MultiTile dependency"))
     source(
       app,
       """
@@ -129,7 +129,6 @@ class RuleConfigurationIntegrationTest {
     assertTrue(failed.contains("Cyclic Tile dependency: ERROR"))
     assertTrue(failed.contains("library.A"))
     assertTrue(failed.contains("library.B"))
-    assertFalse(failed.contains("SUPPRESSED"))
     assertFreshEquivalent(app, failed, expectFailure = true)
   }
 

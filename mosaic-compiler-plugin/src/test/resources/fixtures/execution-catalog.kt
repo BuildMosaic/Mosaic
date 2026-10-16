@@ -89,6 +89,17 @@ fun Mosaic.noWork() {}
 fun conditionalExtension(base: Mosaic) { if (true) base.noWork() }
 fun errorCallback() { error(CallbackValue()) }
 fun errorConstant() { error("not executed") }
+fun greet(name: String) = "Hello, $name!"
+fun scalarInterpolation(name: String?, count: Int, optional: Int?) = "$name: $count / $optional / ${null}"
+fun conditionalInterpolation(enabled: Boolean, name: String) { if (enabled) greet(name) }
+fun interpolationCallback(value: CallbackValue) = "Value: $value"
+fun conditionalInterpolationCallback(enabled: Boolean, value: CallbackValue) { if (enabled) "Value: $value" }
+val InterpolatedTile = singleTile { "${source<String>("first")} ${source<Int>("second")}" }
+suspend fun interpolationMissing() = canvas {}.withMosaic { compose(InterpolatedTile) }
+suspend fun interpolationSupplied() = canvas {
+    provide<String>("first") { "ok" }; provide<Int>("second") { 1 }
+}.withMosaic { compose(InterpolatedTile) }
+suspend fun interpolationObjectLookup() = canvas {}.withMosaic { "Value: ${source<CallbackValue>()}" }
 fun mutableAlias(enabled: Boolean, base: Canvas) { if (enabled) { var alias = base } }
 class FieldBox { @JvmField val value = 1 }
 suspend fun fieldReceiver(): FieldBox { missingReceiver(); return FieldBox() }
