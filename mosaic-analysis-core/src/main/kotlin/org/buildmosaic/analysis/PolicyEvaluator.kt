@@ -7,9 +7,8 @@ internal object PolicyEvaluator {
     policy: AnalysisPolicy,
     approvedAssumptions: Set<String>,
   ): PolicyDecision {
-    val activeFindings = findings.filter { it.suppressedAt.isEmpty() }
     val errors =
-      activeFindings.filter { finding ->
+      findings.filter { finding ->
         if (finding.rule != null) {
           finding.severity == MosaicRuleSeverity.ERROR
         } else {
@@ -20,7 +19,7 @@ internal object PolicyEvaluator {
         }
       }
     val warnings =
-      activeFindings.filter { finding ->
+      findings.filter { finding ->
         finding !in errors &&
           if (finding.rule != null) {
             finding.severity == MosaicRuleSeverity.WARNING

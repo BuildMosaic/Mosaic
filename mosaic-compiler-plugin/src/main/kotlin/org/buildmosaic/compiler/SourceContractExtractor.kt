@@ -26,7 +26,6 @@ import org.buildmosaic.analysis.KeyContract
 import org.buildmosaic.analysis.LookupKind
 import org.buildmosaic.analysis.ModuleContract
 import org.buildmosaic.analysis.MosaicProvenance
-import org.buildmosaic.analysis.MosaicRule
 import org.buildmosaic.analysis.MosaicSuppression
 import org.buildmosaic.analysis.MultiTileExecution
 import org.buildmosaic.analysis.OverrideSlot
@@ -219,9 +218,9 @@ internal class SourceContractExtractor(
                 else -> normalizer.body(accessor.body)
               }
             if (isCanvasType(accessor.returnType)) {
-              canvases += CanvasContract(id, canvasParameters(accessor, id), normalizer.result(value, accessor), site)
+              canvases += CanvasContract(id, canvasParameters(accessor, id), normalizer.result(value, accessor), site, suppressions = suppressions)
             } else {
-              callables += CallableContract(id, canvasParameters(accessor, id), normalizer.effects, site)
+              callables += CallableContract(id, canvasParameters(accessor, id), normalizer.effects, site, suppressions = suppressions)
             }
             locators[id] = binaryLocator(accessor, file)
           }
@@ -248,7 +247,7 @@ internal class SourceContractExtractor(
           if (declaration.body == null || initializers.any { !provenHarmless(it) } || ownBody.any { !provenHarmless(it) }) {
             normalizer.effects += Effect.Unknown("$id:initialization", "Constructor initialization may have Mosaic effects", site)
           }
-          callables += CallableContract(id, canvasParameters(declaration, id), normalizer.effects, site)
+          callables += CallableContract(id, canvasParameters(declaration, id), normalizer.effects, site, suppressions = suppressions)
           locators[id] = binaryLocator(declaration, file)
         }
         is IrSimpleFunction -> {
@@ -260,9 +259,9 @@ internal class SourceContractExtractor(
           if (declaration.body == null) normalizer.effects += Effect.Unknown("$id:body", "Callable body is unavailable", site)
           val value = normalizer.body(declaration.body)
           if (isCanvasType(declaration.returnType)) {
-            canvases += CanvasContract(id, canvasParameters(declaration, id), normalizer.result(value, declaration), site)
+            canvases += CanvasContract(id, canvasParameters(declaration, id), normalizer.result(value, declaration), site, suppressions = suppressions)
           } else {
-            callables += CallableContract(id, canvasParameters(declaration, id), normalizer.effects, site)
+            callables += CallableContract(id, canvasParameters(declaration, id), normalizer.effects, site, suppressions = suppressions)
           }
         }
       }
@@ -296,10 +295,8 @@ internal class SourceContractExtractor(
     }.flatMap { annotation ->
       annotation.arguments.filterIsInstance<IrVararg>().flatMap { it.elements }.filterIsInstance<IrConst>().mapNotNull {
         val id = it.value as? String
-        if (id == MosaicSuppression.UNVERIFIED ||
-          MosaicRule.entries.any { rule -> rule.id == id && rule.suppressible }
-        ) {
-          MosaicSuppression(id!!, location(declaration, "suppression:$id"))
+        if (id?.startsWith("MOSAIC_") == true) {
+          MosaicSuppression(id, location(declaration, "suppression:$id"))
         } else {
           null
         }

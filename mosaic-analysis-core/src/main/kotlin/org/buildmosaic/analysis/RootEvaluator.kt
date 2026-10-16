@@ -21,6 +21,7 @@ internal class RootEvaluator(
     val feasibility: PathFeasibility,
     val assignments: Map<BooleanIdentity, Boolean>,
     val conditions: List<PathCondition>,
+    val suppressions: List<MosaicSuppression>,
   ) {
     val supportedConditions: List<PathCondition> get() =
       conditions.filter {
@@ -42,12 +43,14 @@ internal class RootEvaluator(
       is Resolution.Conflict -> addConflict(initial, root.target, callable.owners, rootSite())
       Resolution.Missing -> evaluateCanvasRoot(initial)
     }
-    val findings = coalesceOpaqueLookupFindings()
+    val findings =
+      coalesceOpaqueLookupFindings()
+        .filterNot { record -> record.suppressions.any { it.matches(record.finding) } }.map { it.finding }.distinct()
     val status =
       when {
         findings.any {
           it.rule == null && it.certainty == Certainty.MISSING ||
-            it.rule != null && it.suppressedAt.isEmpty() && it.severity == MosaicRuleSeverity.ERROR
+            it.rule != null && it.severity == MosaicRuleSeverity.ERROR
         } -> RootStatus.FAILED
         findings.any { it.rule == null && it.certainty == Certainty.UNVERIFIED } -> RootStatus.UNVERIFIED
         else -> RootStatus.VERIFIED
@@ -60,7 +63,7 @@ internal class RootEvaluator(
     context: EvaluationContext,
   ) {
     specializedContracts += contract.id
-    val bound = bindRootParameters(context, contract.parameters)
+    val bound = bindRootParameters(context.copy(suppressions = contract.suppressions), contract.parameters)
     evaluateEffects(bound, contract.effects)
   }
 
@@ -68,7 +71,7 @@ internal class RootEvaluator(
     when (val canvas = registry.canvas(root.target)) {
       is Resolution.Found -> {
         specializedContracts += canvas.value.id
-        val bound = bindRootParameters(context, canvas.value.parameters)
+        val bound = bindRootParameters(context.copy(suppressions = canvas.value.suppressions), canvas.value.parameters)
         bound.forEach { evaluateCanvas(canvas.value.result, it) }
       }
       is Resolution.Conflict -> addConflict(context, root.target, canvas.owners, rootSite())
@@ -269,6 +272,7 @@ internal class RootEvaluator(
         mosaics = emptyMap(),
         cycleProofSupported = true,
         scope = identity,
+        suppressions = contract.suppressions,
         activation = nextActivation++,
         aliases = emptyMap(),
         depth = context.depth + 1,
@@ -302,12 +306,6 @@ internal class RootEvaluator(
       }
     val severity = ruleSeverities[rule.id] ?: rule.defaultSeverity
     if (severity == MosaicRuleSeverity.OFF) return
-    val suppressions =
-      if (rule.suppressible) {
-        participants.flatMap { it.contract.suppressions }.filter { it.ruleId == rule.id }.map { it.site }.distinct()
-      } else {
-        emptyList()
-      }
     record(
       context,
       Finding(
@@ -320,7 +318,6 @@ internal class RootEvaluator(
         pathCondition = context.conditions.map { it.display },
         rule = rule,
         severity = severity,
-        suppressedAt = suppressions,
         reason =
           when (rule) {
             MosaicRule.MOSAIC_CYCLIC_TILE_DEPENDENCY ->
@@ -331,6 +328,7 @@ internal class RootEvaluator(
               "Mosaic cannot establish that recursive MultiTile requests use different keys or terminate."
           },
       ),
+      suppressions = participants.flatMap { it.contract.suppressions },
     )
   }
 
@@ -441,9 +439,13 @@ internal class RootEvaluator(
       val resolvedTarget = override?.implementationId ?: effect.target
       val contract =
         if (canvasResult) {
-          registry.canvas(resolvedTarget).map { InvocationContract(it.id, it.parameters, emptyList(), it.result) }
+          registry.canvas(resolvedTarget).map {
+            InvocationContract(it.id, it.parameters, emptyList(), it.result, it.suppressions)
+          }
         } else {
-          registry.callable(resolvedTarget).map { InvocationContract(it.id, it.parameters, it.effects, null) }
+          registry.callable(resolvedTarget).map {
+            InvocationContract(it.id, it.parameters, it.effects, null, it.suppressions)
+          }
         }
       when (val target = contract) {
         is Resolution.Found -> {
@@ -471,6 +473,7 @@ internal class RootEvaluator(
             callee.copy(
               dependencyPath = caller.dependencyPath + DependencyPathNode("call:${effect.target}", effect.site),
               scope = resolvedTarget,
+              suppressions = target.value.suppressions,
               depth = caller.depth + 1,
               knownReceiverType = receiverType,
               currentCanvas = null,
@@ -521,6 +524,7 @@ internal class RootEvaluator(
     val parameters: List<ContractParameter>,
     val effects: List<Effect>,
     val result: CanvasExpression?,
+    val suppressions: List<MosaicSuppression>,
   )
 
   private fun <T, R> Resolution<T>.map(transform: (T) -> R): Resolution<R> =
@@ -1242,24 +1246,19 @@ internal class RootEvaluator(
   private fun record(
     context: EvaluationContext,
     finding: Finding,
+    suppressions: List<MosaicSuppression> = context.suppressions,
   ) {
-    val suppressions =
-      if (finding.certainty == Certainty.UNVERIFIED) {
-        context.activeTiles.flatMap { it.contract.suppressions }
-          .filter { it.ruleId == MosaicSuppression.UNVERIFIED }.map { it.site }
-      } else {
-        emptyList()
-      }
     recordedFindings +=
       RecordedFinding(
-        finding.copy(suppressedAt = (finding.suppressedAt + suppressions).distinct()),
+        finding,
         context.feasibility,
         context.assignments.filterKeys { it.kind == PathConditionKind.SUPPORTED_ASSIGNMENT },
         context.conditions,
+        suppressions,
       )
   }
 
-  private fun coalesceOpaqueLookupFindings(): List<Finding> {
+  private fun coalesceOpaqueLookupFindings(): List<RecordedFinding> {
     val lookupKinds =
       setOf(
         FindingKind.REQUIRED_LOOKUP,
@@ -1279,8 +1278,8 @@ internal class RootEvaluator(
           record.assignments,
           record.supportedConditions,
         )
-      }.values.map { alternatives -> mergeOpaqueLookupAlternatives(alternatives) }
-    return (ordinary.map { it.finding } + merged).distinct()
+      }.values.map { alternatives -> alternatives.first().copy(finding = mergeOpaqueLookupAlternatives(alternatives)) }
+    return ordinary + merged
   }
 
   private fun mergeOpaqueLookupAlternatives(alternatives: List<RecordedFinding>): Finding {
@@ -1299,7 +1298,6 @@ internal class RootEvaluator(
     }
     return first.copy(
       certainty = Certainty.UNVERIFIED,
-      suppressedAt = findings.flatMap { it.suppressedAt }.distinct(),
       bindingSite = null,
       bindingFactProvenance = null,
       bindingCapturedOrigins = findings.flatMapTo(mutableSetOf()) { it.bindingCapturedOrigins },
