@@ -72,7 +72,14 @@ private fun corpusModule(
             index,
             canvas,
           ->
-          CanvasContract("canvas$index", listOf(canvasParameter, booleanParameter), canvas, site, false)
+          CanvasContract(
+            "canvas$index",
+            listOf(canvasParameter, booleanParameter),
+            canvas,
+            site,
+            false,
+            listOf(MosaicSuppression(MosaicSuppression.UNVERIFIED, site)),
+          )
         }.sortedBy { it.id },
       tiles =
         listOf(
@@ -85,7 +92,17 @@ private fun corpusModule(
             listOf(MosaicSuppression("MOSAIC_RECURSIVE_MULTITILE", site)),
           ),
         ),
-      callables = listOf(CallableContract("helper", listOf(canvasParameter, booleanParameter), effects, site, false)),
+      callables =
+        listOf(
+          CallableContract(
+            "helper",
+            listOf(canvasParameter, booleanParameter),
+            effects,
+            site,
+            false,
+            listOf(MosaicSuppression(MosaicSuppression.UNVERIFIED, site)),
+          ),
+        ),
       overrides =
         listOf(
           ResolvedOverride(

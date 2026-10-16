@@ -54,6 +54,7 @@ internal data class EvaluationContext(
   val currentMosaic: Int? = null,
   val mosaics: Map<String, Int> = emptyMap(),
   val scope: String,
+  val suppressions: List<MosaicSuppression> = emptyList(),
   val depth: Int = 0,
   val blocked: Boolean = false,
   val capturedOrigins: Set<CaptureOrigin> = emptySet(),

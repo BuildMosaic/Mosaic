@@ -57,8 +57,15 @@ enum class MosaicRule(
   }
 }
 
-/** Tile declaration scopes own suppressions; recursive rule suppressions require a participating Tile. */
+/** A Kotlin source suppression; recursive findings are owned by participating Tiles. */
 data class MosaicSuppression(val ruleId: String, val site: SourceLocation) {
+  internal fun matches(finding: Finding): Boolean =
+    if (ruleId == UNVERIFIED) {
+      finding.certainty == Certainty.UNVERIFIED
+    } else {
+      finding.rule?.let { it.suppressible && it.id == ruleId } == true
+    }
+
   companion object {
     const val UNVERIFIED = "MOSAIC_UNVERIFIED"
   }

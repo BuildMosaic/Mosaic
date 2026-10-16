@@ -71,9 +71,9 @@ object MosaicGraph {
                 finding.bindingSite?.let(::siteLabel).orEmpty(),
                 finding.bindingFactProvenance?.let(::siteLabel).orEmpty(),
                 finding.rule?.let {
-                  "${it.id}: ${if (finding.suppressedAt.isNotEmpty()) "SUPPRESSED" else finding.severity}; "
+                  "${it.id}: ${finding.severity}; "
                 }.orEmpty() +
-                  finding.reason + finding.suppressedAt.joinToString(prefix = " ") { "Suppressed at ${siteLabel(it)}" },
+                  finding.reason,
               ).joinToString(" | ", prefix = "| ", postfix = " |") { cell(it.toString()) },
             )
           }

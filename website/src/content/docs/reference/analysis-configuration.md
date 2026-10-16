@@ -48,7 +48,7 @@ mosaicAnalysis {
 | Named rule configured to OFF                                                                       | Disabled                                  | Disabled                                  |
 | Invalid configuration, roots, selected owners, or present malformed/incompatible/partial summaries | Fail                                      | Fail                                      |
 
-A STANDARD pass with uncertainty warnings retains `UNVERIFIED` status. It does not prove that every lookup succeeds. A policy WARNING expresses the chosen policy severity; it does not turn into ERROR under STRICT. Suppressed findings remain in full reports and do not fail verification or produce a rule warning. Proven correctness errors cannot be suppressed or reconfigured.
+A STANDARD pass with uncertainty warnings retains `UNVERIFIED` status. It does not prove that every lookup succeeds. A policy WARNING expresses the chosen policy severity; it does not turn into ERROR under STRICT. Suppressed findings are excluded before root status, enforcement, and reports are calculated. Proven correctness errors cannot be suppressed or reconfigured.
 
 A dependency JAR without a summary is harmless until a selected path needs one of its contracts. Such a reached boundary is `UNVERIFIED`. A summary that is present but invalid is an artifact error in either mode. LIBRARY validates the local summary and exports contracts; consumers evaluate them in application contexts.
 
@@ -159,19 +159,13 @@ package app.categories
 val RecursiveTile: Tile<Int> by singleTile { canvas.withMosaic { compose(RecursiveTile) } }
 ```
 
-Supported scopes are Tile declarations/properties, file annotations, and inherited containing class/object scopes on Tile templates that extraction can establish. Local immutable value annotations are retained on their extracted templates. These scopes do not expand supported Tile identity: stable exported Tile properties remain top-level immutable declarations. Arbitrary member-dependent/computed Tiles remain unknown, even with a containing-class annotation.
+Supported scopes are ordinary functions, Tile declarations/properties, file annotations, and inherited containing class/object scopes on extracted declarations. Local immutable value annotations are retained on their extracted templates. These scopes do not expand supported Tile identity: stable exported Tile properties remain top-level immutable declarations. Arbitrary member-dependent/computed Tiles remain unknown, even with a containing-class annotation.
 
-A recursive finding is suppressed if **any participating Tile declaration in its closed path** carries the matching effective suppression. The report lists those suppression sites. An annotation on an unrelated Tile, caller, or root cannot suppress another declaration's recursion. An inherited scope applies only to declarations inside that scope. Source locations identify the declaration, containing scope, or file that supplies the suppression.
+A recursive finding is suppressed if **any participating Tile declaration in its closed path** carries the matching effective suppression. An annotation on an unrelated Tile, caller, or root cannot suppress another declaration's recursion. An inherited scope applies only to declarations inside that scope.
 
-Suppressions travel with exported Tile contracts. An application reaching a suppressed binary Tile honors that producer-local suppression, including cycles spanning modules. A consumer's unrelated file/class annotation cannot suppress a binary participant. Rule severity is a verification input of the consuming application; a library's Gradle rule overrides are not exported. Use Gradle severity for module-wide policy or third-party contracts whose source you cannot edit. Use a local suppression for one intentional recursive structure. Unknown IDs have no Mosaic suppression effect. `MOSAIC_CYCLIC_TILE_DEPENDENCY` ignores `@Suppress` and remains an ERROR.
+Suppressions travel with exported contracts. An application reaching a suppressed binary Tile honors that producer-local suppression, including cycles spanning modules. A consumer's unrelated file/class annotation cannot suppress a binary participant. Rule severity is a verification input of the consuming application; a library's Gradle rule overrides are not exported. Use Gradle severity for module-wide policy or third-party contracts whose source you cannot edit. Use a local suppression for one intentional recursive structure. Unknown IDs have no Mosaic suppression effect. `MOSAIC_CYCLIC_TILE_DEPENDENCY` ignores `@Suppress` and remains an ERROR.
 
-Full verification and graph reports retain entries such as:
-
-```text
-MOSAIC_RECURSIVE_MULTITILE: Recursive MultiTile dependency: SUPPRESSED
-  CategoryTile -> CategoryTile
-  Suppressed at CategoryTiles.kt:14
-```
+`@Suppress("MOSAIC_UNVERIFIED")` excludes findings whose certainty is `UNVERIFIED`, regardless of their cause. It does not suppress proven `MISSING` findings. A function annotation applies to that function’s analysis, not unrelated callees. Recursion findings still require a matching suppression on a participating Tile.
 
 ## Extraction semantics and unknown boundaries
 
@@ -195,7 +189,7 @@ Unsupported control flow, general callbacks, arbitrary virtual dispatch, mutable
 | `mosaicGraph`       | Writes `build/reports/mosaic-analysis/graph.md`, with a Mermaid overview and APPLICATION root findings. No finding alone fails graph generation. Invalid configuration/artifacts/roots still fail. |
 | `jar`               | Packages one complete summary at `META-INF/mosaic-analysis/v1/summary.json` for both roles. Shards are never dependency metadata.                                                                  |
 
-Reports show selected roots and receivers, statuses, closed witnesses and source locations, rule severity, suppressed sites, Canvas obligations, and uncertainty. Graph and verification reports use the same analysis findings; a loop in the diagram alone does not prove a cyclic result dependency. The graph represents possible static structure, not runtime timing, call counts, cache occupancy, or exact key batches.
+Reports show selected roots and receivers, statuses, closed witnesses and source locations, rule severity, Canvas obligations, and uncertainty. Graph and verification reports use the same analysis findings; a loop in the diagram alone does not prove a cyclic result dependency. The graph represents possible static structure, not runtime timing, call counts, cache occupancy, or exact key batches.
 
 Dependency summary changes can rerun verification without recompiling unchanged application sources. A missing dependency summary leaves reached behavior unknown; a present but incompatible or malformed summary fails explicitly. Regenerate incompatible dependency summaries with compatible Analysis tooling. Compiler and Analysis producer versions identify provenance; matching version numbers alone do not prove interoperability.
 
