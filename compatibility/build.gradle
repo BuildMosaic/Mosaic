@@ -14,7 +14,7 @@ def required = analysis ? ['compiler', 'consumer', 'extractor', 'runner'] : ['co
 
 repositories {
     maven {
-        url = uri(new File(workspace, 'repository'))
+        url = uri(providers.gradleProperty('compat.repository').getOrElse(new File(workspace, 'repository').absolutePath))
         // Exercise published POM transitivity; candidates have unique versions.
         metadataSources { mavenPom(); artifact() }
     }
@@ -53,7 +53,7 @@ dependencies {
 tasks.register('resolveEvidence') {
     doLast {
         evidence.mkdirs()
-        def result = [gradle: gradle.gradleVersion, java: System.getProperty('java.version'), configurations: [:]]
+        def result = [gradle: gradle.gradleVersion, java: System.getProperty('java.version'), gradleHome: gradle.gradleHomeDir.absolutePath, configurations: [:]]
         def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }.get()
         result.java17 = launcher.executablePath.asFile.absolutePath
         result.java17Version = launcher.metadata.javaRuntimeVersion

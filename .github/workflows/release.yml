@@ -33,15 +33,21 @@ concurrency:
   queue: max
 
 jobs:
-  release:
-    name: Publish release
+  prepare:
+    name: Prepare release certification
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    environment: release
+    environment: compatibility-writer
     permissions:
-      contents: write
+      contents: read
       actions: write
       issues: write
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      attempt: ${{ steps.release.outputs.attempt }}
     steps:
       - name: Require dispatch from main
         env:
@@ -124,6 +130,7 @@ jobs:
             echo "version=$RELEASE_VERSION"
             echo "tag=$RELEASE_TAG"
             echo "sha=$sha"
+            echo "attempt=$GITHUB_RUN_ATTEMPT"
           } >> "$GITHUB_OUTPUT"
 
       - name: Check repository
@@ -132,7 +139,8 @@ jobs:
       - name: Check examples
         run: ./gradlew check -p examples
 
-      - name: Certify release compatibility
+      - name: Prepare immutable certification inputs
+        id: plan
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TRAIN: ${{ inputs.train }}
@@ -143,15 +151,210 @@ jobs:
           MAX_RUNTIME: ${{ inputs.maxRuntime }}
           MOSAIC_SOURCE_ROOT: ${{ github.workspace }}
         run: |
-          python3 "$RUNNER_TEMP/mosaic-compatibility/certify.py" --scope "$RELEASE_TRAIN" --release "$RELEASE_VERSION" \
+          python3 "$RUNNER_TEMP/mosaic-compatibility/release.py" prepare --directory "$GITHUB_WORKSPACE/build/reports/compatibility/prepared" --scope "$RELEASE_TRAIN" --release "$RELEASE_VERSION" \
             --minKotlin "$MIN_KOTLIN" --maxKotlin "$MAX_KOTLIN" --minRuntime "$MIN_RUNTIME" --maxRuntime "$MAX_RUNTIME" \
             --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
-          cat "build/reports/compatibility/release-$RELEASE_TRAIN.json"
+          mkdir -p build/reports/compatibility/tooling
+          cp -R "$RUNNER_TEMP/mosaic-compatibility/." build/reports/compatibility/tooling/
+          tar -cf "$RUNNER_TEMP/inputs.tar" build/reports/compatibility/prepared build/reports/compatibility/tooling
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-inputs-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/inputs.tar
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload preparation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-prepare-logs-${{ github.run_attempt }}
+          path: build/reports/compatibility/**/*.log
+          retention-days: 7
+
+  kotlin:
+    name: Certify Kotlin ${{ matrix.kotlin }}
+    needs: prepare
+    if: needs.prepare.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        kotlin: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-inputs-${{ needs.prepare.outputs.attempt }}
+          path: ${{ runner.temp }}/release-inputs
+      - name: Restore immutable certification inputs
+        run: tar -xf "$RUNNER_TEMP/release-inputs/inputs.tar" -C "$GITHUB_WORKSPACE"
+      - name: Certify this Kotlin version
+        env:
+          KOTLIN: ${{ matrix.kotlin }}
+          MOSAIC_SOURCE_ROOT: ${{ github.workspace }}
+        run: |
+          python3 build/reports/compatibility/tooling/release.py worker \
+            --directory build/reports/compatibility/prepared --kotlin "$KOTLIN" \
+            --evidence build/reports/compatibility/evidence \
+            --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+      - name: Upload Kotlin evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-${{ matrix.kotlin }}-${{ needs.prepare.outputs.attempt }}
+          overwrite: true
+          path: build/reports/compatibility/evidence/*.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload Kotlin diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-kotlin-logs-${{ matrix.kotlin }}-${{ github.run_attempt }}
+          path: |
+            build/reports/compatibility/**/*.log
+            build/reports/compatibility/**/junit/
+            mosaic-gradle-plugin/build/reports/introspector-installation/
+          retention-days: 7
+
+  aggregate:
+    name: Verify complete release certification
+    needs: [prepare, kotlin]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-inputs-${{ needs.prepare.outputs.attempt }}
+          path: ${{ runner.temp }}/release-inputs
+      - name: Restore immutable certification inputs
+        run: tar -xf "$RUNNER_TEMP/release-inputs/inputs.tar" -C "$GITHUB_WORKSPACE"
+      - uses: actions/download-artifact@v4
+        if: needs.prepare.outputs.matrix != '[]'
+        with:
+          pattern: release-evidence-*-${{ needs.prepare.outputs.attempt }}
+          path: build/reports/compatibility/evidence
+          merge-multiple: true
+      - name: Compare summaries and verify cross-compiler behavior
+        env:
+          MOSAIC_SOURCE_ROOT: ${{ github.workspace }}
+        run: |
+          mkdir -p build/reports/compatibility/evidence
+          python3 build/reports/compatibility/tooling/release.py aggregate \
+            --directory build/reports/compatibility/prepared --evidence build/reports/compatibility/evidence \
+            --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+      - name: Show authoritative certification result
+        env:
+          RELEASE_TRAIN: ${{ inputs.train }}
+        run: cat "build/reports/compatibility/release-$RELEASE_TRAIN.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-certification-${{ needs.prepare.outputs.attempt }}
+          overwrite: true
+          path: build/reports/compatibility/release-*.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload aggregation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aggregate-logs-${{ github.run_attempt }}
+          path: |
+            build/reports/compatibility/**/*.log
+            build/reports/compatibility/**/junit/
+            mosaic-gradle-plugin/build/reports/introspector-installation/
+          retention-days: 7
+
+  release:
+    name: Publish release
+    needs: [prepare, kotlin, aggregate]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.aggregate.result == 'success' && (needs.kotlin.result == 'success' || needs.kotlin.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    # Only publication requires release approval; workers have no environment or write token.
+    environment: release
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-inputs-${{ needs.prepare.outputs.attempt }}
+          path: ${{ runner.temp }}/release-inputs
+      - name: Restore immutable certification inputs
+        run: tar -xf "$RUNNER_TEMP/release-inputs/inputs.tar" -C "$GITHUB_WORKSPACE"
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-certification-${{ needs.prepare.outputs.attempt }}
+          path: build/reports/compatibility
+      - name: Revalidate immutable tag before publication
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_TRAIN: ${{ inputs.train }}
+        run: |
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main' "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$RELEASE_SHA"
+          git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main
+          python3 - <<'PYTHON'
+          import json, os
+          from pathlib import Path
+          result = json.loads(Path(f"build/reports/compatibility/release-{os.environ['RELEASE_TRAIN']}.json").read_text())
+          assert (result['train'], result['version'], result['revision'], result['result']) == (
+              os.environ['RELEASE_TRAIN'], os.environ['RELEASE_VERSION'], os.environ['RELEASE_SHA'], 'pass')
+          PYTHON
 
       - name: Publish Runtime
         if: ${{ success() && inputs.train == 'runtime' }}
         env:
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_PRIVATE_KEY }}
@@ -161,7 +364,7 @@ jobs:
       - name: Publish Analysis
         if: ${{ success() && inputs.train == 'analysis' }}
         env:
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_PRIVATE_KEY }}
@@ -173,8 +376,8 @@ jobs:
       - name: Create GitHub Release from checked-in release notes and changelog
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: |
           entry="$(grep -F "## [$RELEASE_TAG] - " CHANGELOG.md)"
@@ -198,7 +401,7 @@ jobs:
           fi
 
       - name: Authenticate the registry writer
-        if: success() && !contains(steps.release.outputs.version, '-')
+        if: success() && !contains(needs.prepare.outputs.version, '-')
         id: writer
         uses: actions/create-github-app-token@v2
         with:
@@ -208,14 +411,14 @@ jobs:
 
       # Publication and GitHub Release creation must both succeed.
       - name: Record published compatibility on main and deploy the website
-        if: success() && !contains(steps.release.outputs.version, '-')
+        if: success() && !contains(needs.prepare.outputs.version, '-')
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
           MOSAIC_SOURCE_ROOT: ${{ github.workspace }}
           GH_TOKEN: ${{ steps.writer.outputs.token }}
           GH_WORKFLOW_TOKEN: ${{ github.token }}
         run: |
           evidence="$GITHUB_WORKSPACE/build/reports/compatibility/release-$RELEASE_TRAIN.json"
-          python3 "$RUNNER_TEMP/mosaic-compatibility/maintain.py" record --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"
+          python3 "$GITHUB_WORKSPACE/build/reports/compatibility/tooling/maintain.py" record --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"

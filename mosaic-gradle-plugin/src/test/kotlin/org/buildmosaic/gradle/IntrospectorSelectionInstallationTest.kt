@@ -46,7 +46,7 @@ class IntrospectorSelectionInstallationTest {
     }
     val versions = installationCompilers()
     workspace.resolve("results.txt").writeText("")
-    versions.forEach { compiler ->
+    installationVersions(versions).forEach { compiler ->
       val app = workspace.resolve("consumer-$compiler").apply { mkdirs() }
       // Twelve KGP classloaders need more metaspace than TestKit's single-version default.
       app.resolve("gradle.properties").writeText("org.gradle.jvmargs=-Xmx1g -XX:MaxMetaspaceSize=1g\n")
@@ -149,6 +149,9 @@ class IntrospectorSelectionInstallationTest {
       )
     }
   }
+
+  private fun installationVersions(versions: List<String>): List<String> =
+    if (System.getProperty("mosaic.test.compilerChangesOnly", "false").toBoolean()) listOf("2.4.20") else versions
 
   private fun installationCompilers(): List<String> {
     val boundaries = listOf("2.2.0", "2.3.0", "2.3.20", "2.4.20", "2.4.21")

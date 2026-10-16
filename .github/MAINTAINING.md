@@ -45,6 +45,24 @@ using each Runtime/Analysis intersection. Failure does not adjust the requested
 policy. Runtime releases also attempt extensions for Analysis releases following
 the previous Runtime frontier; failed extensions leave those bounds unchanged.
 
+The single Release dispatch prepares candidate Maven artifacts and compiled test
+fixtures once, then derives a Kotlin matrix from the existing release planner.
+Up to twelve GitHub-hosted runners certify exact compiler versions concurrently;
+independent failures do not cancel other workers. Each worker runs the applicable
+Runtime consumers, compiler fixtures and real Maven-installed Gradle consumers on
+Java 17. Aggregation requires evidence for every planned check, compares normalized
+summaries across each Runtime/Analysis intersection, and runs the existing
+cross-compiler and cache regressions. Optional Analysis extension failures retain
+their existing treatment; incomplete evidence always blocks the release.
+
+Preparation uses `compatibility-writer` for the existing publication-discovery
+writes. The `release` environment approval occurs once, after certification, at
+the publishing job. That job revalidates the tag and publishes the certified
+commit. Matrix workers and aggregation have read-only repository permissions and
+no environment secrets. The shared serialized slot covers all jobs, including the
+approval wait. Failed-job retries reuse the original preparation artifact and
+replace only retried worker evidence; retries do not rebuild the candidate.
+
 Maintenance and releases share one serialized workflow queue. Both discover
 Kotlin publications before certification; releases process outstanding events
 before planning against the latest registry, then build from the approved tag.
@@ -61,9 +79,11 @@ coordinates. Complete only missing publication steps after understanding partial
 success; do not rerun the entire release blindly.
 
 If publication succeeded but registry recording failed, recover the compact JSON
-from the certification step's Actions log into a local file. After confirming the
-matching GitHub Release is published and its immutable tag matches the evidence
-revision, retry **only** recording from an up-to-date `main` checkout, with
+from the aggregation step's Actions log or the `release-certification-*` artifact
+into a local file. Temporary inputs, evidence and diagnostics are retained for
+seven days. After confirming the matching GitHub Release is published and its
+immutable tag matches the evidence revision, retry **only** recording from an
+up-to-date `main` checkout, with
 `GH_TOKEN` set to the registry App installation token and
 `GH_WORKFLOW_TOKEN` set to a token authorized to dispatch the website.
 
