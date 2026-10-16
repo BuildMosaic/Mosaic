@@ -124,15 +124,18 @@ class PublishedInstallationTest {
         """.trimIndent(),
       )
     }
-    val result =
-      runPublished(
-        consumer,
+    val arguments =
+      arrayOf(
         "build",
         "mosaicGraph",
         "dependencies",
         "--configuration",
         "kotlinCompilerPluginClasspathMain",
+        "--configuration-cache",
+        "--configuration-cache-problems=fail",
       )
+    val result = runPublished(consumer, *arguments)
+    assertTrue(result.output.contains("Configuration cache entry stored"), result.output)
     assertEquals(TaskOutcome.SUCCESS, result.task(":verifyMosaicMain")?.outcome)
     assertEquals(TaskOutcome.SUCCESS, result.task(":mosaicGraph")?.outcome)
     assertTrue(result.output.contains("org.buildmosaic:mosaic-compiler-plugin:$version"), result.output)
@@ -149,6 +152,13 @@ class PublishedInstallationTest {
       assertEquals(version, packaged.producer.analysisVersion)
       assertEquals("2.4.21", packaged.producer.compilerVersion)
     }
+
+    val repeated = runPublished(consumer, *arguments)
+    assertTrue(repeated.output.contains("Configuration cache entry reused"), repeated.output)
+    assertEquals(TaskOutcome.UP_TO_DATE, repeated.task(":verifyMosaicMain")?.outcome)
+    assertEquals(TaskOutcome.UP_TO_DATE, repeated.task(":mosaicGraph")?.outcome)
+    assertTrue(repeated.output.contains("org.buildmosaic:mosaic-compiler-plugin:$version"), repeated.output)
+    assertEquals(summary, SummaryCodec.decode(consumer.resolve("build/mosaic-analysis/main/summary.json").readBytes()))
 
     verifyRuntimeConsumer(workspace, maven, version, useBom = false)
     verifyRuntimeConsumer(workspace, maven, version, useBom = true)
