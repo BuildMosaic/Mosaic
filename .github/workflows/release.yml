@@ -134,6 +134,7 @@ jobs:
 
       - name: Certify release compatibility
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TRAIN: ${{ inputs.train }}
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
           MIN_KOTLIN: ${{ inputs.minKotlin }}
