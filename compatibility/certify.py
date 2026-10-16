@@ -295,7 +295,11 @@ if __name__ == '__main__':
         registry.versions(versions)
         if args.release:
             from maintain import publications
-            published = {item['kotlin'] for item in publications()}
+            upstream = publications()
+            checkpoint = registry.PATH.with_name('kotlin-checkpoint.txt').read_text().strip()
+            if any(item['published'] > checkpoint for item in upstream):
+                raise ValueError('New Kotlin publications require discovery before release planning; retry the release workflow')
+            published = {item['kotlin'] for item in upstream}
             versions = [v for v in versions if v in published]
         if args.runtime:
             registry.version(args.runtime)
