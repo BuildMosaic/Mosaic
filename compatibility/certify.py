@@ -2,6 +2,7 @@
 """Build once; run existing compiler and installation fixtures against exact Kotlin versions."""
 
 import argparse
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -178,18 +179,17 @@ class Certification:
         name = f'{runtime}-{analysis}'
         for version in versions:
             artifacts = self.resolve(version, runtime, analysis)
-            default_jar = artifacts['extractor'][0]['file']
-            default, bounds = compiler_profiles(default_jar)
+            default, bounds = compiler_profiles(artifacts['extractor'][0]['file'])
             api = compiler_api(version, bounds)
             artifact = 'mosaic-compiler-plugin' + ('' if api == default else f'-kotlin-{api}')
             artifacts = self.resolve(version, runtime, analysis, baseline=default, extractor=artifact)
             if control is None:
                 self.junit(f'{name}-metadata', 'mosaic-analysis-core', artifacts, '.*Summary.*Test')
-                control = self.extract(f'{name}-control', artifacts['controlCompiler'], default, default_jar, artifacts)
-            if version != default:
-                selected = self.extract(f'{name}-{version}', artifacts['compiler'], version, artifacts['extractor'][0]['file'], artifacts)
-                if selected != control:
-                    raise RuntimeError(f'Compiler summaries differ for {version}; compare control and selected summaries')
+            selected = self.extract(f'{name}-{version}', artifacts['compiler'], version, artifacts['extractor'][0]['file'], artifacts)
+            if control is None:
+                control = selected
+            elif selected != control:
+                raise RuntimeError(f'Compiler summaries differ for {version}; compare {versions[0]} and {version} summaries')
         self.gradle(f'install-{name}', ':mosaic-gradle-plugin:releaseCompatibilityTest',
                     f'-Pmosaic.test.kotlinVersions={",".join(versions)}', f'-Pmosaic.test.repository={self.repository}',
                     f'-Pmosaic.test.runtimeVersion={runtime}', f'-Pmosaic.test.analysisVersion={analysis}',
@@ -199,6 +199,7 @@ class Certification:
 
 def certify(versions, scope, java_installations='', release=None, counterparts=None):
     registry.versions(versions)
+    published_kotlin = versions
     data = registry.load()
     opposite = 'analysis' if scope == 'runtime' else 'runtime'
     if release is not None:
@@ -228,7 +229,7 @@ def certify(versions, scope, java_installations='', release=None, counterparts=N
     records = []
     if release is not None and scope == 'runtime':
         records.append({'result': 'pass', 'train': 'runtime', 'version': release, 'kotlin': versions})
-        runtimes = set(data['runtime']) | {base}
+        runtimes = {**data['runtime'], base: {'minKotlin': versions[0], 'maxKotlin': versions[-1]}}
         for analysis in counterparts:
             interval = data['analysis'][analysis]
             lower = min(base, interval['minRuntime'], key=registry.version)
@@ -237,19 +238,25 @@ def certify(versions, scope, java_installations='', release=None, counterparts=N
             required = sorted([r for r in runtimes if registry.version(lower) <= registry.version(r) <= registry.version(upper)
                         and (r == base or not registry.within(interval, r, 'Runtime'))], key=registry.version)
             for runtime in required:
-                if not common:
-                    raise ValueError(f'No common Kotlin versions for Runtime {runtime} and Analysis {analysis}')
-                certification.analysis(common, candidate if runtime == base else runtime, analysis)
+                selected = registry.kotlin_versions(common, runtimes[runtime])
+                if selected:
+                    certification.analysis(selected, candidate if runtime == base else runtime, analysis)
             records.append({'result': 'pass', 'train': 'analysis', 'version': analysis,
                             'runtime': required, 'kotlin': common})
     elif release is not None:
+        versions = [v for v in versions if any(registry.within(data['runtime'][r], v) for r in counterparts)]
+        registry.versions(versions)
         for runtime in counterparts:
-            certification.runtime(versions, runtime)
-            certification.analysis(versions, runtime, candidate)
+            selected = registry.kotlin_versions(versions, data['runtime'][runtime])
+            if selected:
+                certification.runtime(selected, runtime)
+                certification.analysis(selected, runtime, candidate)
         records.append({'result': 'pass', 'train': 'analysis', 'version': release,
                         'kotlin': versions, 'runtime': sorted(counterparts, key=registry.version)})
     result = {'train': scope, 'version': release, 'records': records,
               'revision': certification.revision, 'result': 'pass'}
+    if release is not None and '-' not in release:
+        registry.apply_evidence(deepcopy(data), result, published_kotlin, data)
     path = certification.directory / 'result.json'
     path.write_text(json.dumps(result, indent=2) + '\n')
     if release is not None:

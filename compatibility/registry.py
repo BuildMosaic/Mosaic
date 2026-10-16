@@ -34,6 +34,20 @@ def within(interval, value, kind='Kotlin'):
     return lower <= version(value) <= upper
 
 
+def kotlin_versions(values, *intervals):
+    return [v for v in values if all(within(interval, v) for interval in intervals)]
+
+
+def certified_runtimes(data, evidence):
+    runtimes = deepcopy(data['runtime'])
+    for record in evidence['records']:
+        if record['train'] == 'runtime' and record['result'] == 'pass':
+            interval = runtimes.setdefault(record['version'], {})
+            endpoints = record['kotlin'] + list(interval.values())
+            interval.update(minKotlin=min(endpoints, key=version), maxKotlin=max(endpoints, key=version))
+    return runtimes
+
+
 def validate(data):
     if set(data) != {'runtime', 'analysis'}:
         raise ValueError('Expected runtime and analysis release maps')
@@ -62,7 +76,7 @@ def compatible(data, runtime, kotlin, analysis=None):
             (analysis is None or (a is not None and within(a, runtime, 'Runtime') and within(a, kotlin))))
 
 
-def apply_evidence(data, evidence, published_kotlin):
+def apply_evidence(data, evidence, published_kotlin, source):
     if evidence.get('result', 'pass') != 'pass':
         raise ValueError('Failed certification cannot update ranges')
     updated = deepcopy(data)
@@ -74,7 +88,6 @@ def apply_evidence(data, evidence, published_kotlin):
         if release not in updated[train] and (evidence.get('train'), evidence.get('version')) != (train, release):
             raise ValueError('New releases require matching release certification')
         entry = updated[train].setdefault(release, {})
-        previous = entry.copy()
         kinds = ['Kotlin'] if train == 'runtime' else ['Runtime', 'Kotlin']
         if not any(kind.lower() in record for kind in kinds):
             raise ValueError('Certification must verify a range')
@@ -94,16 +107,20 @@ def apply_evidence(data, evidence, published_kotlin):
                 raise ValueError(f'Unverified intermediate {kind} releases: {sorted(required - set(verified), key=version)}')
             entry.update({f'min{kind}': lower, f'max{kind}': upper})
         validate(updated)
-        if train == 'analysis':
-            # Extending either dimension must cover the other dimension in full.
-            # Recheck against the latest registry, including concurrent extensions.
-            for kind, other, published in [('Runtime', 'Kotlin', published_kotlin),
-                                            ('Kotlin', 'Runtime', updated['runtime'])]:
-                if any(key not in previous or previous[key] != entry[key]
-                       for key in (f'min{kind}', f'max{kind}')):
-                    required = {v for v in published if within(entry, v, other)}
-                    if not required <= set(record.get(other.lower(), [])):
-                        raise ValueError(f'Analysis {kind} extension requires verified {other} coverage')
+    # Check every newly claimed intersection, including claims created by Runtime
+    # Kotlin extensions. Evidence is scoped to the Runtime coverage actually tested.
+    tested_runtimes = certified_runtimes(source, evidence)
+    for analysis, interval in updated['analysis'].items():
+        checks = [r for r in evidence['records'] if r['train'] == 'analysis' and r['version'] == analysis]
+        for runtime, coverage in updated['runtime'].items():
+            if not within(interval, runtime, 'Runtime'):
+                continue
+            for kotlin in kotlin_versions(published_kotlin, interval, coverage):
+                if compatible(data, runtime, kotlin, analysis):
+                    continue
+                if (runtime not in tested_runtimes or not within(tested_runtimes[runtime], kotlin) or
+                        not any(runtime in r.get('runtime', []) and kotlin in r.get('kotlin', []) for r in checks)):
+                    raise ValueError(f'Unverified Analysis {analysis} / Runtime {runtime} / Kotlin {kotlin}')
     data.clear()
     data.update(updated)
     return data

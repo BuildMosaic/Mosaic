@@ -109,7 +109,10 @@ def scan(kotlin, java_installations):
     targets = [kotlin] if kotlin else supported_versions(discovered)
     failures, passed_issues, records = [], set(), []
     check = certify.Certification(java_installations)
-    for train, releases in data.items():
+    changed = False
+    for train in ('runtime', 'analysis'):
+        releases = data[train]
+        coverage = registry.certified_runtimes(data, {'records': records})
         for release, interval in releases.items():
             endpoints = targets + [interval['minKotlin'], interval['maxKotlin']]
             lower, upper = min(endpoints, key=registry.version), max(endpoints, key=registry.version)
@@ -119,11 +122,18 @@ def scan(kotlin, java_installations):
             runtimes = [release] if train == 'runtime' else [
                 r for r in data['runtime'] if registry.within(interval, r, 'Runtime')]
             analysis = release if train == 'analysis' else None
+            if analysis:
+                # A Runtime extension can expose historical Analysis coverage too.
+                compilers = sorted(set(compilers) | {v for v in discovered if registry.within(interval, v)
+                    and any(registry.within(coverage[r], v) and not registry.within(data['runtime'][r], v)
+                            for r in runtimes)}, key=registry.version)
+                compilers = [v for v in compilers if any(registry.within(coverage[r], v) for r in runtimes)]
             complete = bool(compilers)
             for runtime in runtimes:
-                pending = [v for v in compilers if (kotlin or issue_title(v, runtime, analysis) not in issues)
+                required = registry.kotlin_versions(compilers, coverage[runtime]) if analysis else compilers
+                pending = [v for v in required if (kotlin or issue_title(v, runtime, analysis) not in issues)
                            and available(v)]
-                complete &= pending == compilers
+                complete &= pending == required
                 if analysis and pending:
                     try:
                         verify_analysis(check, pending, runtime, analysis)
@@ -144,9 +154,15 @@ def scan(kotlin, java_installations):
                     pending = passed
                 passed_issues.update(issues[issue_title(v, runtime, analysis)]['number'] for v in pending
                                      if issue_title(v, runtime, analysis) in issues)
-            if complete and any(not registry.within(interval, v) for v in compilers):
+            if complete:
+                extends = any(not registry.within(interval, v) for v in compilers)
+                changed |= extends
+                if not analysis and not extends:
+                    continue
                 records.append({'result': 'pass', 'train': train, 'version': release, 'kotlin': compilers,
                                 **({'runtime': sorted(runtimes, key=registry.version)} if analysis else {})})
+    if not changed:
+        records = []
     certify.REPORTS.mkdir(parents=True, exist_ok=True)
     evidence = {'records': records, 'revision': check.revision}
     (certify.REPORTS / 'published.json').write_text(json.dumps(evidence, indent=2) + '\n')
@@ -165,12 +181,14 @@ def scan(kotlin, java_installations):
 
 def publish(evidence):
     repository = os.environ['GITHUB_REPOSITORY']
+    certified = json.loads(gh('api', f'repos/{repository}/contents/compatibility/registry.json?ref={evidence["revision"]}'))
+    source = registry.validate(json.loads(base64.b64decode(certified['content'])))
     for attempt in range(3):
         head = json.loads(gh('api', f'repos/{repository}/git/ref/heads/main'))['object']['sha']
         file = json.loads(gh('api', f'repos/{repository}/contents/compatibility/registry.json?ref={head}'))
         original = base64.b64decode(file['content']).decode()
         data = registry.validate(json.loads(original))
-        content = json.dumps(registry.apply_evidence(data, evidence, certify.central_versions()), indent=2) + '\n'
+        content = json.dumps(registry.apply_evidence(data, evidence, certify.central_versions(), source), indent=2) + '\n'
         registry.validate(json.loads(content))
         if content == original:
             print('Verified compatibility facts are already recorded')
