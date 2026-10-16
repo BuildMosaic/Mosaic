@@ -14,10 +14,10 @@ matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions within its
 Mosaic supports each Kotlin minor family for **18 months after its first stable release**, including stable patches.
 Kotlin range boundaries expand after verification; prereleases are excluded.
 
-The tables show inclusive Kotlin ranges, covering all published stable versions between their endpoints. Official
-support requires a recorded Runtime or Runtime–Analysis pairing within the 18-month window. Unrecorded pairings are
-uncertified. Historical verified ranges remain available after official support ends. Kotlin compiler certification is
-separate from Mosaic's own binary compatibility.
+The tables show inclusive ranges: every published stable version between the endpoints is supported. With optional
+Analysis, your Runtime must be in its Runtime range, and your Kotlin version must be in **both** releases' Kotlin
+ranges. The effective Kotlin range is their overlap. Official Kotlin support follows the 18-month window; historical
+compatibility ranges remain available afterward.
 
 <CompatibilityTables />
 
@@ -30,7 +30,7 @@ validator protects existing JVM signatures.
 
 Keep `mosaic-core`, `mosaic-test`, and `mosaic-opentelemetry` at the same Runtime version; the BOM aligns these modules.
 Analysis releases independently and is outside the BOM. Runtime and Analysis versions need not match when their
-combination is certified compatible.
+compatibility ranges overlap.
 
 ## Optional analysis
 

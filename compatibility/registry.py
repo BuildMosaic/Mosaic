@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Inclusive Kotlin compatibility ranges. Unrecorded release pairings are unknown."""
+"""Independent, inclusive Runtime and Analysis compatibility ranges."""
 
 import argparse
+from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -21,32 +23,36 @@ def versions(values):
     return values
 
 
-def bounds(interval):
-    if set(interval) != {'minKotlin', 'maxKotlin'}:
-        raise ValueError('Expected inclusive minKotlin and maxKotlin')
-    lower, upper = version(interval['minKotlin']), version(interval['maxKotlin'])
+def bounds(interval, kind='Kotlin'):
+    lower, upper = version(interval[f'min{kind}']), version(interval[f'max{kind}'])
     if lower > upper:
-        raise ValueError('Kotlin range is reversed')
+        raise ValueError(f'{kind} range is reversed')
     return lower, upper
+
+
+def within(interval, value, kind='Kotlin'):
+    lower, upper = bounds(interval, kind)
+    return lower <= version(value) <= upper
+
+
+def kotlin_versions(values, *intervals):
+    return [v for v in values if all(within(interval, v) for interval in intervals)]
 
 
 def validate(data):
     if set(data) != {'runtime', 'analysis'}:
         raise ValueError('Expected runtime and analysis release maps')
-    for release, interval in data['runtime'].items():
-        version(release)
-        bounds(interval)
-    for release, pairings in data['analysis'].items():
-        version(release)
-        if not pairings:
-            raise ValueError('Analysis requires a tested Runtime relationship')
-        for runtime, interval in pairings.items():
-            if runtime not in data['runtime']:
-                raise ValueError(f'Unknown Runtime release: {runtime}')
-            lower, upper = bounds(interval)
-            rlower, rupper = bounds(data['runtime'][runtime])
-            if not rlower <= lower <= upper <= rupper:
-                raise ValueError(f'Unverified Kotlin range for Analysis {release} and Runtime {runtime}')
+    for train, releases in data.items():
+        fields = {'minKotlin', 'maxKotlin'} | ({'minRuntime', 'maxRuntime'} if train == 'analysis' else set())
+        for release, interval in releases.items():
+            version(release)
+            if not isinstance(interval, dict) or set(interval) != fields:
+                raise ValueError(f'Expected {train} range fields: {sorted(fields)}')
+            bounds(interval)
+            if train == 'analysis':
+                bounds(interval, 'Runtime')
+                if any(interval[key] not in data['runtime'] for key in ('minRuntime', 'maxRuntime')):
+                    raise ValueError('Analysis Runtime endpoints must be published')
     return data
 
 
@@ -55,43 +61,115 @@ def load():
 
 
 def compatible(data, runtime, kotlin, analysis=None):
-    releases = data['runtime'] if analysis is None else data['analysis'].get(analysis, {})
-    interval = releases.get(runtime)
-    return interval is not None and version(interval['minKotlin']) <= version(kotlin) <= version(interval['maxKotlin'])
+    r = data['runtime'].get(runtime)
+    a = data['analysis'].get(analysis)
+    return (r is not None and within(r, kotlin) and
+            (analysis is None or (a is not None and within(a, runtime, 'Runtime') and within(a, kotlin))))
 
 
-def apply_evidence(data, evidence):
-    if 'records' in evidence:
-        records = evidence['records']
-        for result in records:
-            if result['result'] != 'pass' or result['runtime'] not in data['runtime'] or (result['analysis'] and
-                    result['runtime'] not in data['analysis'].get(result['analysis'], {})):
-                raise ValueError('Daily certification requires passing, established published relationships')
-        pairs = [(r['runtime'], r['analysis'], versions(r['kotlin'])) for r in records]
-    else:
-        train, release = evidence['train'], evidence['version']
-        if evidence['result'] != 'pass' or train not in ('runtime', 'analysis'):
-            raise ValueError('Expected a passing release certification')
-        version(release)
-        kotlin = versions(evidence['kotlin'])
-        if train == 'analysis' and not evidence['counterparts']:
-            raise ValueError('Analysis requires a tested published Runtime')
-        opposite = 'analysis' if train == 'runtime' else 'runtime'
-        pairs = [(release, None, kotlin)] if train == 'runtime' else []
-        for counterpart, compilers in evidence['counterparts'].items():
-            if counterpart not in data[opposite] or not set(versions(compilers)) <= set(kotlin):
-                raise ValueError('Expected a published counterpart and verified compilers')
-            runtime, analysis = (release, counterpart) if train == 'runtime' else (counterpart, release)
-            pairs.append((runtime, analysis, compilers))
-    # Merge only after all evidence is checked. Retries never replace certified bounds.
-    for runtime, analysis, kotlin in pairs:
-        releases = [data['runtime']]
-        if analysis:
-            releases.append(data['analysis'].setdefault(analysis, {}))
-        for entries in releases:
-            endpoints = kotlin + list(entries.get(runtime, {}).values())
-            entries[runtime] = {'minKotlin': min(endpoints, key=version), 'maxKotlin': max(endpoints, key=version)}
-    return data
+def fingerprint(data):
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+
+
+def event_plan(data, kotlin, previous):
+    """Select one publication against its preceding catalog, without persisting a plan."""
+    version(kotlin)
+    latest = max(previous, key=version) if previous else None
+    overall = latest is None or version(kotlin) > version(latest)
+    family = version(kotlin)[:2]
+    patches = [v for v in previous if version(v)[:2] == family]
+    frontier = latest if overall else (
+        max(patches, key=version) if patches else None)
+
+    def follows(interval):
+        if within(interval, kotlin):
+            return True
+        return (frontier is not None and version(interval['minKotlin']) <= version(kotlin)
+                and (within(interval, frontier) if overall else interval['maxKotlin'] == frontier))
+
+    updated = deepcopy(data)
+    runtimes = sorted((r for r, interval in data['runtime'].items() if follows(interval)), key=version)
+    for runtime in runtimes:
+        interval = updated['runtime'][runtime]
+        interval['maxKotlin'] = max(interval['maxKotlin'], kotlin, key=version)
+    batches = []
+    for analysis, interval in sorted(data['analysis'].items(), key=lambda item: version(item[0])):
+        if not follows(interval):
+            continue
+        for runtime, coverage in sorted(updated['runtime'].items(), key=lambda item: version(item[0])):
+            if within(interval, runtime, 'Runtime') and within(coverage, kotlin):
+                batches.append((runtime, analysis, [kotlin]))
+        updated['analysis'][analysis]['maxKotlin'] = max(interval['maxKotlin'], kotlin, key=version)
+    return validate(updated), [(r, [kotlin]) for r in runtimes], batches
+
+
+def release_policy(data, train, catalog, **requested):
+    """Resolve defaults once; explicit policy is never adjusted by verification."""
+    previous = data[train][max(data[train], key=version)] if data[train] else {}
+    if not data['runtime']:
+        raise ValueError('Release policy requires a published Runtime baseline')
+    latest_runtime = max(data['runtime'], key=version)
+    defaults = {'minKotlin': previous.get('minKotlin', data['runtime'][latest_runtime]['minKotlin']),
+                'maxKotlin': max(catalog, key=version)}
+    if train == 'analysis':
+        defaults.update(minRuntime=previous.get('minRuntime', min(data['runtime'], key=version)),
+                        maxRuntime=latest_runtime)
+    policy = {key: requested.get(key) or value for key, value in defaults.items()}
+    bounds(policy)
+    if any(policy[key] not in catalog for key in ('minKotlin', 'maxKotlin')):
+        raise ValueError('Kotlin endpoints must be available stable publications')
+    if train == 'analysis':
+        bounds(policy, 'Runtime')
+        if any(policy[key] not in data['runtime'] for key in ('minRuntime', 'maxRuntime')):
+            raise ValueError('Runtime endpoints must be published releases')
+    return policy
+
+
+def runtime_analyses(data, candidate):
+    previous = max(data['runtime'], key=version)
+    return sorted((a for a, interval in data['analysis'].items()
+                   if within(interval, candidate, 'Runtime') or
+                   (within(interval, previous, 'Runtime') and
+                    version(candidate) >= version(interval['minRuntime']))), key=version)
+
+
+def release_plan(data, train, release, catalog, policy):
+    version(release.split('-')[0])
+    compilers = kotlin_versions(catalog, policy)
+    versions(compilers)
+    if train == 'runtime':
+        if release.split('-')[0] in data['runtime']:
+            raise ValueError('Runtime candidate is already published')
+        analyses = runtime_analyses(data, release.split('-')[0])
+        batches = [(release, a, kotlin_versions(compilers, data['analysis'][a]))
+                   for a in sorted(analyses, key=version)]
+        return [(release, compilers)], [b for b in batches if b[2]]
+    if release.split('-')[0] in data['analysis']:
+        raise ValueError('Analysis candidate is already published')
+    batches = [(r, release, kotlin_versions(compilers, coverage))
+               for r, coverage in sorted(data['runtime'].items(), key=lambda item: version(item[0]))
+               if within(policy, r, 'Runtime')]
+    return [], [b for b in batches if b[2]]
+
+
+def apply_result(data, checkpoint, evidence):
+    """Only a complete passing operation can replace the serialized snapshot."""
+    if evidence['result'] != 'pass':
+        raise ValueError('Failed certification cannot update ranges or checkpoint')
+    if evidence['registryBefore'] != fingerprint(data) or evidence['checkpointBefore'] != checkpoint:
+        raise ValueError('Compatibility facts changed; retry against the latest registry and checkpoint')
+    updated = validate(deepcopy(evidence['registry']))
+    for train, releases in data.items():
+        for release, interval in releases.items():
+            replacement = updated[train][release]
+            for key, value in interval.items():
+                if key.startswith('min') and replacement[key] != value:
+                    raise ValueError('Automatic maintenance cannot change minima')
+                if key.startswith('max') and version(replacement[key]) < version(value):
+                    raise ValueError('Automatic maintenance cannot lower maxima')
+    if evidence['checkpoint'] < checkpoint:
+        raise ValueError('Checkpoint cannot move backwards')
+    return updated, evidence['checkpoint']
 
 
 if __name__ == '__main__':

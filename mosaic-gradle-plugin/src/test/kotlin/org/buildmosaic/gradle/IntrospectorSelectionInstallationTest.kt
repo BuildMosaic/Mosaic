@@ -141,10 +141,11 @@ class IntrospectorSelectionInstallationTest {
       assertTrue(app.resolve("build/reports/mosaic-analysis/main.txt").readText().contains("MISSING REQUIRED_LOOKUP"))
       workspace.resolve("results.txt").appendText("$compiler $api $id ${sha256(selectedJar)} PASS\n")
     }
-    if ("2.4.20" in versions && maven.resolve("org/buildmosaic/mosaic-gradle-plugin/$analysisVersion").isDirectory) {
+    if (System.getProperty("mosaic.test.compilerChanges", "true").toBoolean() && "2.4.20" in versions && maven.resolve("org/buildmosaic/mosaic-gradle-plugin/$analysisVersion").isDirectory) {
       verifyCompilerChanges(
         workspace.resolve("consumer-2.4.20"),
         analysisVersion,
+        versions,
       )
     }
   }
@@ -160,6 +161,7 @@ class IntrospectorSelectionInstallationTest {
   private fun verifyCompilerChanges(
     app: File,
     analysisVersion: String,
+    versions: List<String>,
   ) {
     app.resolve("settings.gradle.kts").appendText(
       "\nbuildCache { local { directory = file(\"${app.parentFile.resolve(
@@ -181,7 +183,7 @@ class IntrospectorSelectionInstallationTest {
     app.resolve("src/main/kotlin/Other.kt").writeText("package app\nclass Other")
     val selectableBuild = build.readText()
     // KGP owns its scripting plugin; cross-profile changes use matching KGP and compiler versions.
-    for (compiler in listOf("2.4.20", "2.3.20", "2.3.21")) {
+    for (compiler in listOf("2.4.20", "2.3.20", "2.3.21").filter { it in versions }) {
       build.writeText(
         selectableBuild.replace("kotlin(\"jvm\") version \"2.4.20\"", "kotlin(\"jvm\") version \"$compiler\""),
       )
@@ -198,59 +200,68 @@ class IntrospectorSelectionInstallationTest {
       assertCompilerProvenance(app, compiler)
       app.resolve("switch-$compiler.log").writeText(result.output)
     }
-    build.writeText(selectableBuild.replace("kotlin(\"jvm\") version \"2.4.20\"", "kotlin(\"jvm\") version \"2.3.20\""))
+    val restoredCompiler = if ("2.3.20" in versions) "2.3.20" else "2.4.20"
+    build.writeText(
+      selectableBuild.replace("kotlin(\"jvm\") version \"2.4.20\"", "kotlin(\"jvm\") version \"$restoredCompiler\""),
+    )
     val restored =
       runPublished(
         app,
         "clean",
         "verifyMosaicMain",
-        "-Pfixture.compiler=2.3.20",
+        "-Pfixture.compiler=$restoredCompiler",
         "--build-cache",
         "--configuration-cache",
       )
     assertEquals(TaskOutcome.FROM_CACHE, restored.task(":compileKotlin")?.outcome)
-    assertCompilerProvenance(app, "2.3.20")
+    assertCompilerProvenance(app, restoredCompiler)
     app.resolve("cache-restore.log").writeText(restored.output)
-    build.writeText(selectableBuild)
-    val effective =
-      runPublished(
-        app,
-        "verifyMosaicMain",
-        "run",
-        "-Pfixture.compiler=2.4.21",
-        "--build-cache",
-        "--configuration-cache",
-      )
-    assertCompilerProvenance(app, "2.4.21")
-    app.resolve("effective-compiler.log").writeText(effective.output)
-    val repeated =
-      runPublished(
-        app,
-        "verifyMosaicMain",
-        "run",
-        "-Pfixture.compiler=2.4.21",
-        "--build-cache",
-        "--configuration-cache",
-      )
-    assertTrue(repeated.output.contains("Configuration cache entry reused"), repeated.output)
-    assertCompilerProvenance(app, "2.4.21")
+    if ("2.4.21" in versions) {
+      build.writeText(selectableBuild)
+      val effective =
+        runPublished(
+          app,
+          "verifyMosaicMain",
+          "run",
+          "-Pfixture.compiler=2.4.21",
+          "--build-cache",
+          "--configuration-cache",
+        )
+      assertCompilerProvenance(app, "2.4.21")
+      app.resolve("effective-compiler.log").writeText(effective.output)
+      val repeated =
+        runPublished(
+          app,
+          "verifyMosaicMain",
+          "run",
+          "-Pfixture.compiler=2.4.21",
+          "--build-cache",
+          "--configuration-cache",
+        )
+      assertTrue(repeated.output.contains("Configuration cache entry reused"), repeated.output)
+      assertCompilerProvenance(app, "2.4.21")
+    }
     val unsupported = failedBuild(app, "-Pfixture.compiler=999.0.0")
     assertTrue(unsupported.contains("does not support Kotlin compiler 999.0.0"), unsupported)
-    build.writeText(selectableBuild.replace("kotlin(\"jvm\") version \"2.4.20\"", "kotlin(\"jvm\") version \"2.3.20\""))
-    build.appendText(
-      """
+    if ("2.3.20" in versions) {
+      build.writeText(
+        selectableBuild.replace("kotlin(\"jvm\") version \"2.4.20\"", "kotlin(\"jvm\") version \"2.3.20\""),
+      )
+      build.appendText(
+        """
 
-      configurations.named("kotlinCompilerPluginClasspathMain") {
-        resolutionStrategy.dependencySubstitution {
-          substitute(module("org.buildmosaic:mosaic-compiler-plugin-kotlin-2.3.20"))
-            .using(module("org.buildmosaic:mosaic-compiler-plugin:$analysisVersion"))
+        configurations.named("kotlinCompilerPluginClasspathMain") {
+          resolutionStrategy.dependencySubstitution {
+            substitute(module("org.buildmosaic:mosaic-compiler-plugin-kotlin-2.3.20"))
+              .using(module("org.buildmosaic:mosaic-compiler-plugin:$analysisVersion"))
+          }
         }
-      }
-      """.trimIndent(),
-    )
-    val wrongProfile = failedBuild(app, "-Pfixture.compiler=2.3.20")
-    assertTrue(wrongProfile.contains("compiler API 2.4.20 does not support Kotlin compiler 2.3.20"), wrongProfile)
-    app.resolve("wrong-profile.log").writeText(wrongProfile)
+        """.trimIndent(),
+      )
+      val wrongProfile = failedBuild(app, "-Pfixture.compiler=2.3.20")
+      assertTrue(wrongProfile.contains("compiler API 2.4.20 does not support Kotlin compiler 2.3.20"), wrongProfile)
+      app.resolve("wrong-profile.log").writeText(wrongProfile)
+    }
     build.writeText(original)
   }
 

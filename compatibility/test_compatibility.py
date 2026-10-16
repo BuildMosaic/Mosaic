@@ -1,145 +1,75 @@
-"""Registry claims and automation boundaries; Kotlin fixtures own compiler verification."""
+"""Independent range semantics and atomic certification failure boundaries."""
 
-import base64
 from copy import deepcopy
-import json
-import os
-from pathlib import Path
-import subprocess
-from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
 
-import certify
-import maintain
-from registry import apply_evidence, compatible, validate
-
-
-def interval(lower='2.2.0', upper='2.4.21'):
-    return {'minKotlin': lower, 'maxKotlin': upper}
+from maintain import verify_event
+from registry import apply_result, compatible, fingerprint, validate
 
 
 def published():
-    return {'runtime': {'1.0.0': interval(), '1.1.0': interval()},
-            'analysis': {'1.0.0': {'1.0.0': interval()}}}
+    return {'runtime': {'1.0.0': {'minKotlin': '2.2.0', 'maxKotlin': '2.4.21'}},
+            'analysis': {'1.0.0': {'minRuntime': '1.0.0', 'maxRuntime': '1.0.0',
+                                   'minKotlin': '2.3.0', 'maxKotlin': '2.5.0'}}}
 
 
 class CompatibilityClaimsTest(unittest.TestCase):
-    def test_inclusive_numeric_ranges_and_only_certified_pairs(self):
+    def test_inclusive_independent_ranges_and_numeric_comparison(self):
         data = validate(published())
-        for kotlin in ['2.2.0', '2.2.9', '2.3.99', '2.4.21']:
+        for kotlin in ['2.3.0', '2.3.99', '2.4.9', '2.4.21']:
             self.assertTrue(compatible(data, '1.0.0', kotlin, '1.0.0'))
-        for r, k, a in [('1.0.0', '2.1.99', None), ('1.0.0', '2.4.22', '1.0.0'),
-                        ('1.1.0', '2.2.0', '1.0.0'), ('9.0.0', '2.2.0', None),
-                        ('1.0.0', '2.2.0', '9.0.0')]:
-            self.assertFalse(compatible(data, r, k, a))
+        self.assertTrue(compatible(data, '1.0.0', '2.2.0'))
+        for runtime, kotlin, analysis in [('1.0.0', '2.2.0', '1.0.0'), ('1.0.0', '2.4.22', '1.0.0'),
+                                          ('1.1.0', '2.3.0', '1.0.0'), ('9.0.0', '2.3.0', None)]:
+            self.assertFalse(compatible(data, runtime, kotlin, analysis))
 
-    def test_independent_releases_record_only_the_exercised_pair_range(self):
-        data = published()
-        runtime = {'train': 'runtime', 'version': '1.2.0', 'result': 'pass',
-                   'kotlin': ['2.2.0', '2.3.0', '2.4.21'], 'counterparts': {'1.0.0': ['2.2.0', '2.3.0']}}
-        apply_evidence(data, runtime)
-        self.assertTrue(compatible(validate(data), '1.2.0', '2.4.21'))
-        self.assertTrue(compatible(data, '1.2.0', '2.3.0', '1.0.0'))
-        self.assertFalse(compatible(data, '1.2.0', '2.4.21', '1.0.0'))
-        self.assertFalse(compatible(data, '1.1.0', '2.2.0', '1.0.0'))
-
-    def test_daily_extension_preserves_historical_bounds_and_is_idempotent(self):
-        data = published()
-        evidence = {'records': [{'result': 'pass', 'runtime': '1.0.0', 'analysis': '1.0.0',
-                                 'kotlin': ['2.1.21', '2.4.22']}]}
-        apply_evidence(data, evidence)
-        self.assertEqual(validate(data)['analysis']['1.0.0']['1.0.0'], interval('2.1.21', '2.4.22'))
-        original = deepcopy(data)
-        apply_evidence(data, evidence)
-        apply_evidence(data, {'records': [{'result': 'pass', 'runtime': '1.0.0', 'analysis': None,
-                                         'kotlin': ['2.3.0']}]})
-        self.assertEqual(data, original)
-        self.assertEqual(data['runtime']['1.1.0'], interval())
-
-    def test_invalid_ranges_and_relationships_are_rejected(self):
-        for bounds in [interval('2.4.21', '2.2.0'), interval('2.2.0-RC1'),
-                       {'minKotlin': '2.2.0'}, ['2.2.0', '2.4.21']]:
-            with self.subTest(bounds=bounds), self.assertRaises(ValueError):
-                validate({'runtime': {'1.0.0': bounds}, 'analysis': {}})
-        for pairings in [{}, {'9.0.0': interval()}, {'1.0.0': interval('2.2.0', '2.5.0')}]:
-            with self.subTest(pairings=pairings), self.assertRaises(ValueError):
-                validate({**published(), 'analysis': {'1.0.0': pairings}})
-
-    def test_failed_or_untested_evidence_cannot_establish_support(self):
-        data = published()
-        release = {'train': 'analysis', 'version': '1.1.0', 'result': 'pass',
-                   'kotlin': ['2.2.0'], 'counterparts': {'1.0.0': ['2.2.0']}}
-        for changes in [{'result': 'fail'}, {'counterparts': {}},
-                        {'counterparts': {'9.0.0': ['2.2.0']}},
-                        {'counterparts': {'1.0.0': ['2.4.21']}}]:
+    def test_invalid_registry_ranges_are_rejected(self):
+        for changes in [{'minRuntime': '1.2.0'}, {'maxRuntime': '9.0.0'},
+                        {'minKotlin': '2.5.1'}, {'maxKotlin': '2.5.0-RC1'}, {'pairings': {}}]:
+            data = published()
+            data['analysis']['1.0.0'].update(changes)
             with self.subTest(changes=changes), self.assertRaises(ValueError):
-                apply_evidence(deepcopy(data), {**release, **changes})
-        daily = {'result': 'pass', 'runtime': '1.0.0', 'analysis': '1.0.0', 'kotlin': ['2.5.0']}
-        for changes in [{'result': 'fail'}, {'runtime': '9.0.0'}, {'runtime': '1.1.0'}, {'analysis': '9.0.0'}]:
-            with self.subTest(changes=changes), self.assertRaises(ValueError):
-                apply_evidence(deepcopy(data), {'records': [{**daily, **changes}]})
-        original = deepcopy(data)
-        with self.assertRaises(ValueError):
-            apply_evidence(data, {'records': [daily, {**daily, 'result': 'fail'}]})
-        self.assertEqual(data, original)
+                validate(data)
 
+    def test_failed_event_cannot_advance_ranges_or_checkpoint(self):
+        class FailingAnalysis:
+            def runtime(self, compilers, runtime):
+                pass
 
-class MaintenanceTest(unittest.TestCase):
-    def test_backport_sweep_batches_analysis_and_attributes_failures_without_advancing_pair(self):
-        versions = ['2.2.0', '2.2.1', '2.4.22']
-        for broken in [False, True]:
-            with self.subTest(broken=broken), TemporaryDirectory() as directory, \
-                    patch.object(maintain.registry, 'load', return_value=published()) as load, \
-                    patch.object(maintain, 'open_issues', return_value={}), \
-                    patch.object(certify, 'central_versions', return_value=versions), \
-                    patch.object(maintain, 'supported_versions', return_value=versions), \
-                    patch.object(maintain, 'available', return_value=True), \
-                    patch.object(certify, 'REPORTS', Path(directory)), \
-                    patch.object(certify, 'Certification') as factory, \
-                    patch.object(maintain, 'report_failure') as report:
-                check = factory.return_value
-                check.revision = 'source-sha'
-                def analysis(compilers, *_):
-                    if broken and '2.2.1' in compilers:
-                        raise RuntimeError('backport regression')
-                check.analysis.side_effect = analysis
-                if broken:
-                    with self.assertRaises(RuntimeError):
-                        maintain.scan('', '')
-                    self.assertEqual(report.call_args.args[:3], ('2.2.1', '1.0.0', '1.0.0'))
-                    report.assert_called_once()
-                else:
-                    maintain.scan('', '')
-                    check.analysis.assert_called_once_with(versions, '1.0.0', '1.0.0')
-                evidence = json.loads((Path(directory) / 'published.json').read_text())
-                data = apply_evidence(load.return_value, evidence)
-                self.assertTrue(compatible(validate(data), '1.0.0', '2.4.22'))
-                self.assertEqual(compatible(data, '1.0.0', '2.4.22', '1.0.0'), not broken)
-                self.assertFalse(compatible(data, '1.1.0', '2.4.22', '1.0.0'))
+            def analysis(self, compilers, runtime, analysis):
+                raise RuntimeError('installation failed')
 
+        data = published()
+        before = deepcopy(data)
+        checkpoint = '2026-10-08T09:25:15Z'
+        event = {'kotlin': '2.4.22', 'published': '2026-10-09T09:25:15Z'}
+        with self.assertRaisesRegex(RuntimeError, 'installation failed'):
+            verify_event(data, event, ['2.2.0', '2.3.0', '2.4.21'], FailingAnalysis())
+        self.assertEqual(data, before)
+        failed = {'result': 'fail', 'registryBefore': fingerprint(data), 'checkpointBefore': checkpoint,
+                  'registry': data, 'checkpoint': event['published']}
+        with self.assertRaisesRegex(ValueError, 'Failed certification'):
+            apply_result(data, checkpoint, failed)
+        self.assertEqual(data, before)
+        self.assertEqual(checkpoint, '2026-10-08T09:25:15Z')
 
-class RegistryPublicationTest(unittest.TestCase):
-    def test_concurrent_writer_reloads_latest_registry_before_merging_evidence(self):
-        data, latest = published(), published()
-        latest['runtime']['1.0.0'] = interval(upper='2.5.0')
-        latest['analysis']['1.1.0'] = {'1.1.0': interval()}
-        def file(records):
-            return json.dumps({'content': base64.b64encode(json.dumps(records).encode()).decode()})
-        with patch.dict(os.environ, {'GITHUB_REPOSITORY': 'BuildMosaic/Mosaic'}), \
-                patch.object(maintain, 'run_url', return_value='https://example.test/run'), \
-                patch.object(maintain, 'gh') as gh:
-            head = lambda sha: json.dumps({'object': {'sha': sha}})
-            conflict = subprocess.CalledProcessError(1, 'gh', output=json.dumps({'errors': [{'message': 'head changed'}]}))
-            gh.side_effect = [head('old'), file(data), conflict, head('new'), head('new'), file(latest),
-                              json.dumps({'data': {'createCommitOnBranch': {'commit': {'oid': 'committed'}}}})]
-            maintain.publish({'records': [{'result': 'pass', 'runtime': '1.1.0', 'analysis': None, 'kotlin': ['2.4.22']}]})
-            commit = gh.call_args.kwargs['payload']['variables']['input']
-            self.assertEqual(commit['expectedHeadOid'], 'new')
-            written = json.loads(base64.b64decode(commit['fileChanges']['additions'][0]['contents']))
-            self.assertEqual(validate(written)['runtime']['1.0.0'], interval(upper='2.5.0'))
-            self.assertEqual(written['runtime']['1.1.0'], interval(upper='2.4.22'))
-            self.assertEqual(written['analysis'], latest['analysis'])
+    def test_snapshot_guard_and_monotonic_automatic_updates(self):
+        data = published()
+        checkpoint = '2026-10-08T09:25:15Z'
+        evidence = {'result': 'pass', 'registryBefore': fingerprint(data), 'checkpointBefore': checkpoint,
+                    'registry': deepcopy(data), 'checkpoint': '2026-10-09T09:25:15Z'}
+        evidence['registry']['runtime']['1.0.0']['maxKotlin'] = '2.4.22'
+        updated, advanced = apply_result(data, checkpoint, evidence)
+        self.assertEqual(updated['runtime']['1.0.0']['minKotlin'], '2.2.0')
+        self.assertEqual(advanced, evidence['checkpoint'])
+        self.assertEqual(data, published())
+        with self.assertRaisesRegex(ValueError, 'facts changed'):
+            apply_result(updated, checkpoint, evidence)
+        for key, value in [('minKotlin', '2.1.0'), ('maxKotlin', '2.3.0')]:
+            evidence['registry'] = deepcopy(data)
+            evidence['registry']['runtime']['1.0.0'][key] = value
+            with self.assertRaisesRegex(ValueError, 'minima|lower maxima'):
+                apply_result(data, checkpoint, evidence)
 
 
 if __name__ == '__main__':

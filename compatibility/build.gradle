@@ -10,7 +10,7 @@ def requested = providers.gradleProperty('compat.kotlin').get()
 def baseline = providers.gradleProperty('compat.baseline').get()
 def workspace = file(providers.gradleProperty('compat.workspace').get())
 def evidence = new File(workspace, "$runtime/${analysis ?: 'runtime'}/$requested")
-def required = analysis ? ['compiler', 'controlCompiler', 'consumer', 'extractor', 'runner'] : ['compiler', 'consumer']
+def required = analysis ? ['compiler', 'consumer', 'extractor', 'runner'] : ['compiler', 'consumer']
 
 repositories {
     maven {
@@ -44,7 +44,6 @@ dependencies {
         consumer("org.buildmosaic:$it:$runtime") { version { strictly runtime } }
     }
     if (analysis) {
-        controlCompiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly baseline } }
         extractor("org.buildmosaic:${providers.gradleProperty('compat.extractor').orElse('mosaic-compiler-plugin').get()}:$analysis") { version { strictly analysis } }
         runner 'org.junit.platform:junit-platform-console-standalone:1.12.2'
         runner "org.jetbrains.kotlin:kotlin-test-junit5:$baseline"

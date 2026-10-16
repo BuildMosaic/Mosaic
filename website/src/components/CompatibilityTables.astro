@@ -4,7 +4,7 @@ import records from '../../../compatibility/registry.json';
 type KotlinRange = { minKotlin: string; maxKotlin: string };
 const { runtime, analysis } = records as {
   runtime: Record<string, KotlinRange>;
-  analysis: Record<string, Record<string, KotlinRange>>;
+  analysis: Record<string, KotlinRange & { minRuntime: string; maxRuntime: string }>;
 };
 const descending = ([a]: [string, unknown], [b]: [string, unknown]) => b.localeCompare(a, undefined, { numeric: true });
 ---
@@ -48,15 +48,13 @@ const descending = ([a]: [string, unknown], [b]: [string, unknown]) => b.localeC
       <tbody>
         {Object.entries(analysis)
           .sort(descending)
-          .flatMap(([release, entry]) =>
-            Object.entries(entry).map(([version, kotlin]) => (
-              <tr>
-                <td>{release}</td>
-                <td>{version}</td>
-                <td>{`${kotlin.minKotlin}–${kotlin.maxKotlin}`}</td>
-              </tr>
-            )),
-          )}
+          .map(([release, entry]) => (
+            <tr>
+              <td>{release}</td>
+              <td>{`${entry.minRuntime}–${entry.maxRuntime}`}</td>
+              <td>{`${entry.minKotlin}–${entry.maxKotlin}`}</td>
+            </tr>
+          ))}
       </tbody>
     </table>
   )

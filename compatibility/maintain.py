@@ -5,11 +5,12 @@ import argparse
 import base64
 import calendar
 from datetime import date, datetime, timezone
+from functools import cache
+from itertools import groupby
 import json
 import os
 from pathlib import Path
 import subprocess
-import sys
 import urllib.error
 import urllib.request
 
@@ -34,15 +35,14 @@ def open_issues():
 
 
 def issue_title(kotlin, runtime, analysis):
-    return f'Kotlin compatibility: {kotlin} / Runtime {runtime}' + (f' / Analysis {analysis}' if analysis else '')
+    return f'Kotlin compatibility: {kotlin}' + (f' / Runtime {runtime}' if runtime else ' / publication') + (f' / Analysis {analysis}' if analysis else '')
 
 
-def report_failure(kotlin, runtime, analysis, failure, issues):
-    title = issue_title(kotlin, runtime, analysis)
-    command = f'python3 compatibility/certify.py --kotlin {kotlin} --runtime {runtime}'
-    if analysis:
-        command += f' --analysis {analysis}'
-    body = (f'Published-artifact verification failed at `{os.environ["GITHUB_SHA"]}`.\n\n'
+def report_failure(kotlin, failure, issues):
+    title = issue_title(kotlin, None, None)
+    command = f'python3 compatibility/maintain.py scan --kotlin {kotlin}'
+    revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=certify.ROOT, text=True).strip()
+    body = (f'Published-artifact verification failed at `{revision}`.\n\n'
             f'[Diagnostics and artifact hashes]({run_url()})\n\n'
             f'```text\n{str(failure)[-4000:]}\n```\n\n'
             f'Reproduce with JDK 17 and 21 available:\n\n```bash\n{command}\n```\n\n'
@@ -56,6 +56,7 @@ def report_failure(kotlin, runtime, analysis, failure, issues):
     print(json.loads(result)['html_url'])
 
 
+@cache
 def available(version):
     for artifact in ('kotlin-compiler-embeddable', 'kotlin-gradle-plugin'):
         for extension in ('pom', 'jar'):
@@ -70,139 +71,175 @@ def available(version):
     return True
 
 
-def supported_versions(versions):
-    today = datetime.now(timezone.utc).date()
-    supported = set()
-    for family in {'.'.join(v.split('.')[:2]) + '.0' for v in versions}:
-        first = date.fromisoformat(json.loads(gh('api', f'repos/JetBrains/kotlin/releases/tags/v{family}'))['published_at'][:10])
-        year, month = divmod(first.year * 12 + first.month - 1 + 18, 12)
-        expiry = date(year, month + 1, min(first.day, calendar.monthrange(year, month + 1)[1]))
-        if first <= today < expiry:
-            supported.add(family.rsplit('.', 1)[0])
-    return [v for v in versions if v.rsplit('.', 1)[0] in supported]
+def publications():
+    pages = json.loads(gh('api', 'repos/JetBrains/kotlin/releases?per_page=100', '--paginate', '--slurp'))
+    result = []
+    for item in (item for page in pages for item in page):
+        if item['draft'] or item['prerelease'] or not item.get('published_at'):
+            continue
+        kotlin = item['tag_name'].removeprefix('v')
+        try:
+            registry.version(kotlin)
+        except ValueError:
+            continue
+        result.append({'kotlin': kotlin, 'published': item['published_at']})
+    return sorted(result, key=lambda item: (item['published'], registry.version(item['kotlin'])))
+
+
+def supported(event, catalog):
+    family = event['kotlin'].rsplit('.', 1)[0] + '.0'
+    first = next(item['published'] for item in catalog if item['kotlin'] == family)
+    first = date.fromisoformat(first[:10])
+    year, month = divmod(first.year * 12 + first.month - 1 + 18, 12)
+    expiry = date(year, month + 1, min(first.day, calendar.monthrange(year, month + 1)[1]))
+    return first <= datetime.now(timezone.utc).date() < expiry
+
+
+def verify_event(data, event, previous, check):
+    updated, standalone, batches = registry.event_plan(data, event['kotlin'], previous)
+    for runtime, compilers in standalone:
+        try:
+            check.runtime(compilers, runtime)
+        except Exception as error:
+            raise RuntimeError(f'Runtime {runtime} / Kotlin {compilers} failed: {error}') from error
+    for runtime, analysis, compilers in batches:
+        try:
+            check.analysis(compilers, runtime, analysis)
+        except Exception as error:
+            raise RuntimeError(f'Analysis {analysis} / Runtime {runtime} / Kotlin batch {compilers} failed: {error}') from error
+    return updated
 
 
 def scan(kotlin, java_installations):
     data = registry.load()
+    checkpoint = registry.PATH.with_name('kotlin-checkpoint.txt').read_text().strip()
+    catalog = publications()
+    pending = [item for item in catalog if item['published'] > checkpoint]
+    if kotlin:
+        registry.version(kotlin)
+        retry = next((item for item in catalog if item['kotlin'] == kotlin), None)
+        if retry is None:
+            raise ValueError('Retry must name a stable upstream Kotlin publication')
+        if retry not in pending:
+            pending.append(retry)
+    if not pending:
+        print(f'No Kotlin publications after {checkpoint}; no certification or writes', flush=True)
+        return
+    discovered = certify.central_versions()
     issues = open_issues()
-    if kotlin and registry.version(kotlin) < (2, 2, 0):
-        raise ValueError('Compatibility discovery starts at Kotlin 2.2.0')
-    discovered = certify.central_versions() if data['runtime'] else []
-    versions = [kotlin] if kotlin else supported_versions(discovered)
-    failures, passed_issues = [], []
-    check = certify.Certification(java_installations)
-    cases = [(r, None) for r in data['runtime']] + [
-        (r, a) for a, pairings in data['analysis'].items() for r in pairings]
-    required, passed = {}, {case: [] for case in cases}
-    for runtime, analysis in cases:
-        interval = data['runtime'][runtime] if analysis is None else data['analysis'][analysis][runtime]
-        endpoints = versions + list(interval.values())
-        # Check intervening releases too when an exact retry extends a boundary,
-        # or maintenance resumes after a family's support window has expired.
-        lower, upper = registry.version(min(endpoints, key=registry.version)), registry.version(max(endpoints, key=registry.version))
-        required[runtime, analysis] = set(versions) | {v for v in discovered
-            if lower <= registry.version(v) <= upper
-            and not registry.compatible(data, runtime, v, analysis)}
-    versions = sorted(set().union(*required.values()), key=registry.version)
-    for compiler in versions:
-        pending = [(r, a) for r, a in cases if compiler in required[r, a]
-                   and (kotlin or (issue_title(compiler, r, a) not in issues
-                                   and issue_title(compiler, r, None) not in issues))]
-        if not pending or not available(compiler):
-            continue
-        for runtime in data['runtime']:
-            analyses = [a for r, a in pending if r == runtime]
-            if not analyses:
-                continue
-            try:
-                check.runtime([compiler], runtime)
-            except Exception as failure:
-                failures.extend((compiler, runtime, a, failure) for a in analyses)
-                continue
-            for analysis in analyses:
-                passed[runtime, analysis].append(compiler)
-    for (runtime, analysis), compilers in passed.items():
-        if analysis and compilers:
-            try:
-                check.analysis(compilers, runtime, analysis)
-            except Exception as failure:
-                if len(compilers) == 1:
-                    failures.append((compilers.pop(), runtime, analysis, failure))
+    before = registry.fingerprint(data)
+    original_checkpoint = checkpoint
+    check = None
+    failure = None
+    # Publications sharing one timestamp form one checkpoint boundary.
+    for timestamp, events in groupby(pending, key=lambda item: item['published']):
+        group_data = data
+        passed_issues = set()
+        try:
+            for event in events:
+                compiler = event['kotlin']
+                print(f'Start Kotlin publication {compiler} ({timestamp})', flush=True)
+                if compiler != kotlin and not supported(event, catalog):
+                    print(f'Kotlin {compiler}: outside the 18-month maintenance window', flush=True)
                     continue
-                # A successful sweep shares setup and installation across versions.
-                # Only a failed batch needs individual retries for exact failure issues.
-                for compiler in compilers[:]:
-                    try:
-                        check.analysis([compiler], runtime, analysis)
-                    except Exception as failure:
-                        compilers.remove(compiler)
-                        failures.append((compiler, runtime, analysis, failure))
-        for compiler in compilers:
-            title = issue_title(compiler, runtime, analysis)
-            if title in issues:
-                passed_issues.append(issues[title]['number'])
-    # A failed, unavailable, or issue-blocked compiler holds this relationship's
-    # boundaries. Other relationships can still advance; historical ranges stay.
-    records = [{'result': 'pass', 'runtime': r, 'analysis': a, 'kotlin': compilers, 'revision': check.revision}
-               for (r, a), compilers in passed.items() if compilers and set(compilers) == required[r, a]
-               and any(not registry.compatible(data, r, v, a) for v in compilers)]
-    certify.REPORTS.mkdir(parents=True, exist_ok=True)
-    evidence = {'records': records}
-    (certify.REPORTS / 'published.json').write_text(json.dumps(evidence, indent=2) + '\n')
-    print(json.dumps(evidence), flush=True)
-    if os.environ.get('GITHUB_OUTPUT'):
-        with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-            output.write(f'evidence={str(bool(records)).lower()}\n')
-    for compiler, runtime, analysis, failure in failures:
-        print(f'{issue_title(compiler, runtime, analysis)}: {failure}', file=sys.stderr, flush=True)
-        report_failure(compiler, runtime, analysis, failure, issues)
-    for number in passed_issues:
-        gh('issue', 'close', str(number), '--comment', f'Published artifacts passed verification: {run_url()}')
-    if failures:
-        raise RuntimeError(f'{len(failures)} published-artifact compatibility checks failed')
+                if compiler not in discovered or not available(compiler):
+                    raise RuntimeError(f'Kotlin {compiler}: compiler/KGP artifacts are not all available; retry discovery')
+                previous = [item['kotlin'] for item in catalog[:catalog.index(event)]
+                            if item['kotlin'] in discovered]
+                _, standalone, batches = registry.event_plan(group_data, compiler, previous)
+                if standalone or batches:
+                    if check is None:
+                        check = certify.Certification(java_installations)
+                updated = verify_event(group_data, event, previous, check)
+                titles = [issue_title(compiler, r, None) for r, _ in standalone]
+                titles += [issue_title(compiler, r, a) for r, a, _ in batches]
+                passed_issues.update(issues[title]['number'] for title in titles if title in issues)
+                title = issue_title(compiler, None, None)
+                if title in issues:
+                    passed_issues.add(issues[title]['number'])
+                group_data = updated
+                print(f'Pass Kotlin {compiler}: {len(standalone)} Runtime checks, {len(batches)} Analysis batches', flush=True)
+        except Exception as error:
+            failure = error
+            report_failure(compiler, error, issues)
+            break
+        data = group_data
+        checkpoint = max(checkpoint, timestamp)
+        for number in passed_issues:
+            gh('issue', 'close', str(number), '--comment', f'Published artifacts passed verification: {run_url()}')
+    if checkpoint != original_checkpoint or registry.fingerprint(data) != before:
+        evidence = {'result': 'pass', 'registryBefore': before, 'checkpointBefore': original_checkpoint,
+                    'registry': data, 'checkpoint': checkpoint}
+        certify.REPORTS.mkdir(parents=True, exist_ok=True)
+        (certify.REPORTS / 'published.json').write_text(json.dumps(evidence, indent=2) + '\n')
+        if os.environ.get('GITHUB_OUTPUT'):
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+                output.write('evidence=true\n')
+        print(json.dumps(evidence), flush=True)
+    if failure:
+        raise RuntimeError(f'Kotlin publication {compiler} failed; its checkpoint and ranges were not advanced') from failure
+
+
+def main_snapshot():
+    repository = os.environ['GITHUB_REPOSITORY']
+    head = json.loads(gh('api', f'repos/{repository}/git/ref/heads/main'))['object']['sha']
+    files = {}
+    for name in ('registry.json', 'kotlin-checkpoint.txt'):
+        entry = json.loads(gh('api', f'repos/{repository}/contents/compatibility/{name}?ref={head}'))
+        files[name] = base64.b64decode(entry['content']).decode()
+    return head, files
+
+
+def refresh():
+    _, files = main_snapshot()
+    registry.validate(json.loads(files['registry.json']))
+    for name, content in files.items():
+        registry.PATH.with_name(name).write_text(content)
 
 
 def publish(evidence):
     repository = os.environ['GITHUB_REPOSITORY']
     for attempt in range(3):
-        head = json.loads(gh('api', f'repos/{repository}/git/ref/heads/main'))['object']['sha']
-        file = json.loads(gh('api', f'repos/{repository}/contents/compatibility/registry.json?ref={head}'))
-        original = base64.b64decode(file['content']).decode()
-        data = registry.validate(json.loads(original))
-        content = json.dumps(registry.apply_evidence(data, evidence), indent=2) + '\n'
-        registry.validate(json.loads(content))
-        if content == original:
+        head, files = main_snapshot()
+        data = registry.validate(json.loads(files['registry.json']))
+        checkpoint = files['kotlin-checkpoint.txt'].strip()
+        if data == evidence['registry'] and checkpoint == evidence['checkpoint'] and evidence['result'] == 'pass':
             print('Verified compatibility facts are already recorded')
-            break
+            # Release recovery may need to redeploy after an earlier failed deployment.
+            if evidence.get('train'):
+                gh('api', f'repos/{repository}/actions/workflows/website.yml/dispatches', payload={'ref': 'main'},
+                   token=os.environ.get('GH_WORKFLOW_TOKEN'))
+            return
+        updated, checkpoint = registry.apply_result(data, checkpoint, evidence)
+        contents = {'registry.json': files['registry.json'] if updated == data else json.dumps(updated, indent=2) + '\n',
+                    'kotlin-checkpoint.txt': checkpoint + '\n'}
+        additions = [{'path': 'compatibility/' + name, 'contents': base64.b64encode(content.encode()).decode()}
+                     for name, content in contents.items() if content != files[name]]
         commit = {
             'query': 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }',
             'variables': {'input': {'branch': {'repositoryNameWithOwner': repository, 'branchName': 'main'},
                 'expectedHeadOid': head, 'message': {'headline': 'Record verified Kotlin compatibility', 'body': run_url()},
-                'fileChanges': {'additions': [{'path': 'compatibility/registry.json',
-                                             'contents': base64.b64encode(content.encode()).decode()}]}}}}
+                'fileChanges': {'additions': additions}}}}
         try:
             response = json.loads(gh('api', 'graphql', payload=commit))
-        except subprocess.CalledProcessError as failure:
-            # gh exits nonzero even when GraphQL returns structured head-conflict errors.
-            response = json.loads(failure.output)
+        except subprocess.CalledProcessError as error:
+            response = json.loads(error.output)
             if not response.get('errors'):
                 raise
         if response.get('errors'):
             latest = json.loads(gh('api', f'repos/{repository}/git/ref/heads/main'))['object']['sha']
             if latest != head and attempt < 2:
-                continue
+                continue  # Recheck facts; only unrelated head movement is retryable.
             raise RuntimeError(response['errors'])
         print(response['data']['createCommitOnBranch']['commit']['oid'])
-        # An App-authenticated commit triggers the website's normal main push workflow.
+        # The website's path filter excludes checkpoint-only App commits.
         return
-    # No new push occurs on an idempotent retry; dispatch the website explicitly.
-    gh('api', f'repos/{repository}/actions/workflows/website.yml/dispatches', payload={'ref': 'main'},
-       token=os.environ.get('GH_WORKFLOW_TOKEN'))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('refresh')
     scan_command = commands.add_parser('scan')
     scan_command.add_argument('--kotlin', default='')
     scan_command.add_argument('--java-installations', default='')
@@ -214,7 +251,9 @@ if __name__ == '__main__':
     release.add_argument('--version', required=True)
     release.add_argument('--revision', required=True)
     args = parser.parse_args()
-    if args.command == 'scan':
+    if args.command == 'refresh':
+        refresh()
+    elif args.command == 'scan':
         scan(args.kotlin, args.java_installations)
     else:
         evidence = json.loads(args.evidence.read_text())
