@@ -57,8 +57,12 @@ enum class MosaicRule(
   }
 }
 
-/** Only participating Tile declarations own recursive suppressions; never a caller/root. */
-data class MosaicSuppression(val ruleId: String, val site: SourceLocation)
+/** Tile declaration scopes own suppressions; recursive rule suppressions require a participating Tile. */
+data class MosaicSuppression(val ruleId: String, val site: SourceLocation) {
+  companion object {
+    const val UNVERIFIED = "MOSAIC_UNVERIFIED"
+  }
+}
 
 /** Identity references only; Canvas availability remains a separate contract. */
 sealed interface MosaicProvenance {

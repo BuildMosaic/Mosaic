@@ -61,6 +61,66 @@ class ReportingAndPolicyTest {
   }
 
   @Test
+  fun `general suppression accepts uncertainty from any cause without changing certainty`() {
+    val suppression = MosaicSuppression(MosaicSuppression.UNVERIFIED, site("suppression"))
+    val alternatives =
+      CanvasExpression.Choice(
+        Guard.Opaque("runtime choice", site("choice")),
+        CanvasExpression.Empty,
+        CanvasExpression.Layer("provided", CanvasExpression.Empty, listOf(binding(metrics)), site = site("provided")),
+      )
+    val effects =
+      listOf(
+        Effect.Unknown("unknown", "unsupported dispatch", site("unknown")),
+        lookup("lookup", metrics, canvas = CanvasExpression.Unknown("runtime Canvas", site("canvas"))),
+        lookup("alternatives", metrics, canvas = alternatives),
+        compose("recursive", CanvasExpression.Current, "UncertainTile"),
+      )
+    for (effect in effects) {
+      val tile = tile("UncertainTile", effect).copy(multi = true)
+      val module =
+        ModuleContract(
+          "app",
+          tiles = listOf(tile),
+          callables = listOf(entry("entry", compose("compose", CanvasExpression.Empty, tile.id))),
+        )
+      val strict = report(module, policy = AnalysisPolicy.STRICT)
+      assertFalse(strict.policyDecision.passed, effect.toString())
+      for (policy in AnalysisPolicy.entries) {
+        val suppressed =
+          report(module.copy(tiles = listOf(tile.copy(suppressions = listOf(suppression)))), policy = policy)
+        assertTrue(suppressed.policyDecision.passed, suppressed.toString())
+        assertTrue(suppressed.policyDecision.warnings.isEmpty())
+        assertTrue(suppressed.findings.all { it.suppressedAt == listOf(suppression.site) })
+        assertTrue(suppressed.findings.all { it.certainty == Certainty.UNVERIFIED })
+        assertEquals(strict.findings, suppressed.findings.map { it.copy(suppressedAt = emptyList()) })
+      }
+    }
+  }
+
+  @Test
+  fun `general suppression leaves proven absence and uncertainty outside its scope enforcing`() {
+    val suppression = MosaicSuppression(MosaicSuppression.UNVERIFIED, site("suppression"))
+    val unknown = Effect.Unknown("unknown", "unsupported dispatch", site("unknown"))
+    val tile = tile("SuppressedTile", unknown, lookup("missing", metrics)).copy(suppressions = listOf(suppression))
+    val module =
+      ModuleContract(
+        "app",
+        tiles = listOf(tile),
+        callables = listOf(entry("entry", compose("compose", CanvasExpression.Empty, tile.id), unknown)),
+      )
+    val result = report(module, policy = AnalysisPolicy.STRICT)
+
+    assertFalse(result.policyDecision.passed)
+    assertEquals(listOf(Certainty.MISSING, Certainty.UNVERIFIED), result.policyDecision.errors.map { it.certainty })
+    assertTrue(result.policyDecision.errors.all { it.suppressedAt.isEmpty() })
+    assertEquals(1, result.findings.count { it.suppressedAt == listOf(suppression.site) })
+    val graph = MosaicGraph.render(AnalysisRequest(module, roots = listOf(SelectedRoot("root", "entry"))))
+    assertTrue(graph.contains("UNVERIFIED"))
+    assertTrue(graph.contains("Suppressed at suppression.kt:1"))
+  }
+
+  @Test
   fun `labeled positive assumptions require explicit strict approval and never prove absence`() {
     val assumption = ExternalAssumption("managed-canvas", setOf(metrics), site("assumption"))
     val assumedCanvas = CanvasExpression.Assumption(assumption.id, site("handler"))

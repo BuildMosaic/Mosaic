@@ -1243,9 +1243,16 @@ internal class RootEvaluator(
     context: EvaluationContext,
     finding: Finding,
   ) {
+    val suppressions =
+      if (finding.certainty == Certainty.UNVERIFIED) {
+        context.activeTiles.flatMap { it.contract.suppressions }
+          .filter { it.ruleId == MosaicSuppression.UNVERIFIED }.map { it.site }
+      } else {
+        emptyList()
+      }
     recordedFindings +=
       RecordedFinding(
-        finding,
+        finding.copy(suppressedAt = (finding.suppressedAt + suppressions).distinct()),
         context.feasibility,
         context.assignments.filterKeys { it.kind == PathConditionKind.SUPPORTED_ASSIGNMENT },
         context.conditions,
@@ -1292,6 +1299,7 @@ internal class RootEvaluator(
     }
     return first.copy(
       certainty = Certainty.UNVERIFIED,
+      suppressedAt = findings.flatMap { it.suppressedAt }.distinct(),
       bindingSite = null,
       bindingFactProvenance = null,
       bindingCapturedOrigins = findings.flatMapTo(mutableSetOf()) { it.bindingCapturedOrigins },
