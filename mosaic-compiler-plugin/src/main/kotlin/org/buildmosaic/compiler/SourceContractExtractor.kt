@@ -79,6 +79,7 @@ import org.jetbrains.kotlin.ir.expressions.IrSetField
 import org.jetbrains.kotlin.ir.expressions.IrSetValue
 import org.jetbrains.kotlin.ir.expressions.IrSpreadElement
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
+import org.jetbrains.kotlin.ir.expressions.IrStringConcatenation
 import org.jetbrains.kotlin.ir.expressions.IrThrow
 import org.jetbrains.kotlin.ir.expressions.IrTry
 import org.jetbrains.kotlin.ir.expressions.IrTypeOperatorCall
@@ -430,6 +431,15 @@ internal class SourceContractExtractor(
               Value()
             }
           is IrClassReference -> Value(keyClass = runtimeKeyClass(element.classType))
+          is IrStringConcatenation -> {
+            element.arguments.forEach { argument ->
+              evaluate(argument)
+              if (!scalarValue(argument)) {
+                unknown(argument, "Implicit toString callback is unsupported for string interpolation")
+              }
+            }
+            Value()
+          }
           is IrVararg -> {
             element.elements.forEach(::evaluate)
             Value()
@@ -953,7 +963,7 @@ internal class SourceContractExtractor(
           call.typeArguments.firstOrNull()?.let(::scalarType) == true ||
             actuals.all { it is IrVararg && it.elements.isEmpty() }
         } else {
-          actuals.all { scalarType(it.type) || it is IrConst && it.value == null }
+          actuals.all(::scalarValue)
         }
       return if (safe) {
         CallableEligibility.EffectFree
@@ -967,6 +977,9 @@ internal class SourceContractExtractor(
   }
 
   private fun scalarType(type: IrType): Boolean = type.classFqName?.asString() in scalarClasses
+
+  private fun scalarValue(expression: IrExpression): Boolean =
+    scalarType(expression.type) || expression is IrConst && expression.value == null
 
   private val scalarClasses =
     setOf("Int", "Long", "Float", "Double", "Short", "Byte", "Char", "Boolean", "String").map { "kotlin.$it" }.toSet()
@@ -1021,6 +1034,7 @@ internal class SourceContractExtractor(
     fun children(): Boolean = evaluatedChildren(element).all { provenHarmless(it, active) }
     return when (element) {
       is IrConst, is IrGetValue -> true
+      is IrStringConcatenation -> element.arguments.all(::scalarValue) && children()
       is IrFunctionExpression, is IrFunctionReference -> children() // evaluated captures only, never the body
       is IrFunctionAccessExpression -> {
         val function = element.symbol.owner
