@@ -10,9 +10,17 @@ on:
         options:
           - runtime
           - analysis
-      counterparts:
-        description: Published counterpart versions (comma-separated; blank uses latest; includes intervening Runtime releases)
-        required: false
+      minKotlin:
+        description: Intended Kotlin minimum (blank inherits previous release)
+        type: string
+      maxKotlin:
+        description: Intended Kotlin maximum (blank uses latest stable publication)
+        type: string
+      minRuntime:
+        description: Analysis Runtime minimum (blank inherits previous Analysis)
+        type: string
+      maxRuntime:
+        description: Analysis Runtime maximum (blank uses latest Runtime)
         type: string
       version:
         description: Version to release
@@ -20,8 +28,9 @@ on:
         type: string
 
 concurrency:
-  group: mosaic-release
+  group: mosaic-compatibility
   cancel-in-progress: false
+  queue: max
 
 jobs:
   release:
@@ -32,6 +41,7 @@ jobs:
     permissions:
       contents: write
       actions: write
+      issues: write
     steps:
       - name: Require dispatch from main
         env:
@@ -43,6 +53,49 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+
+      - name: Set up JDK 17 for compatibility consumers
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+
+      # Run the same discovery and event processing path while holding the shared slot.
+      - name: Process outstanding Kotlin publications
+        id: discover
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 compatibility/maintain.py scan --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+
+      - name: Authenticate the maintenance registry writer
+        if: ${{ !cancelled() && steps.discover.outputs.evidence == 'true' }}
+        id: maintenance-writer
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.KOTLIN_COMPATIBILITY_APP_ID }}
+          private-key: ${{ secrets.KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Record processed Kotlin publications
+        if: ${{ !cancelled() && steps.maintenance-writer.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ steps.maintenance-writer.outputs.token }}
+          GH_WORKFLOW_TOKEN: ${{ github.token }}
+        run: python3 compatibility/maintain.py publish --evidence build/reports/compatibility/published.json
+
+      - name: Keep current compatibility tooling and read latest policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp -R compatibility "$RUNNER_TEMP/mosaic-compatibility"
+          python3 "$RUNNER_TEMP/mosaic-compatibility/maintain.py" refresh
 
       - name: Fetch and validate the immutable tag
         id: release
@@ -73,19 +126,6 @@ jobs:
             echo "sha=$sha"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Set up JDK 17 for compatibility consumers
-        uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: '17'
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: '21'
-          cache: gradle
-
       - name: Check repository
         run: ./gradlew check
 
@@ -96,11 +136,15 @@ jobs:
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
-          COUNTERPARTS: ${{ inputs.counterparts }}
+          MIN_KOTLIN: ${{ inputs.minKotlin }}
+          MAX_KOTLIN: ${{ inputs.maxKotlin }}
+          MIN_RUNTIME: ${{ inputs.minRuntime }}
+          MAX_RUNTIME: ${{ inputs.maxRuntime }}
+          MOSAIC_SOURCE_ROOT: ${{ github.workspace }}
         run: |
-          args=()
-          if [ -n "$COUNTERPARTS" ]; then args+=("-Pcompat.counterparts=$COUNTERPARTS"); fi
-          ./gradlew certifyReleaseCompatibility -Pcompat.scope="$RELEASE_TRAIN" -Pcompat.release="$RELEASE_VERSION" "${args[@]}" --no-configuration-cache -Porg.gradle.java.installations.paths="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+          python3 "$RUNNER_TEMP/mosaic-compatibility/certify.py" --scope "$RELEASE_TRAIN" --release "$RELEASE_VERSION" \
+            --minKotlin "$MIN_KOTLIN" --maxKotlin "$MAX_KOTLIN" --minRuntime "$MIN_RUNTIME" --maxRuntime "$MAX_RUNTIME" \
+            --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
           cat "build/reports/compatibility/release-$RELEASE_TRAIN.json"
 
       - name: Publish Runtime
@@ -168,8 +212,9 @@ jobs:
           RELEASE_TRAIN: ${{ inputs.train }}
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          MOSAIC_SOURCE_ROOT: ${{ github.workspace }}
           GH_TOKEN: ${{ steps.writer.outputs.token }}
           GH_WORKFLOW_TOKEN: ${{ github.token }}
         run: |
           evidence="$GITHUB_WORKSPACE/build/reports/compatibility/release-$RELEASE_TRAIN.json"
-          python3 compatibility/maintain.py record --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"
+          python3 "$RUNNER_TEMP/mosaic-compatibility/maintain.py" record --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"

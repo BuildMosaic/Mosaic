@@ -6,12 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       kotlin:
-        description: Exact stable version to retry (blank verifies the supported window)
+        description: Exact stable version to retry (blank processes new publications)
         type: string
 
 concurrency:
-  group: kotlin-compatibility-maintenance
+  group: mosaic-compatibility
   cancel-in-progress: false
+  queue: max
 
 jobs:
   certify:
@@ -29,6 +30,7 @@ jobs:
         run: test "$WORKFLOW_REF" = refs/heads/main
       - uses: actions/checkout@v4
         with:
+          ref: main
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:

@@ -64,7 +64,7 @@ listOf(
 
 tasks.register<Exec>("certifyReleaseCompatibility") {
   group = "compatibility"
-  description = "Certify a release against every discovered stable Kotlin compiler (-Pcompat.scope=runtime|analysis, -Pcompat.release=VERSION)"
+  description = "Certify a release inside its intended compatibility ranges (-Pcompat.scope=runtime|analysis, -Pcompat.release=VERSION)"
   commandLine(
     "python3",
     layout.projectDirectory.file("compatibility/certify.py").asFile.absolutePath,
@@ -74,6 +74,8 @@ tasks.register<Exec>("certifyReleaseCompatibility") {
     providers.gradleProperty("org.gradle.java.installations.paths").getOrElse(""),
   )
   args("--release", providers.gradleProperty("compat.release").getOrElse(""))
-  providers.gradleProperty("compat.counterparts").orNull?.let { args("--counterparts", it) }
+  listOf("minKotlin", "maxKotlin", "minRuntime", "maxRuntime").forEach { bound ->
+    providers.gradleProperty("compat.$bound").orNull?.let { args("--$bound", it) }
+  }
   outputs.upToDateWhen { false }
 }
