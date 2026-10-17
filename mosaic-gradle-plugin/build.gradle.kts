@@ -59,6 +59,11 @@ tasks.jar {
 
 tasks.withType<Test>().configureEach {
   useJUnitPlatform()
+  javaLauncher.set(
+    javaToolchains.launcherFor {
+      languageVersion.set(JavaLanguageVersion.of(17))
+    },
+  )
   systemProperty(
     "mosaic.test.javaInstallations",
     providers.gradleProperty("org.gradle.java.installations.paths").getOrElse(""),
