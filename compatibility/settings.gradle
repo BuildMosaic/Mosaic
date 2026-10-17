@@ -1,1 +1,8 @@
-rootProject.name = 'mosaic-compatibility-resolution'
+pluginManagement {
+    repositories {
+        if (System.getenv('MOSAIC_COMPAT_REPOSITORY')) maven { url = uri(System.getenv('MOSAIC_COMPAT_REPOSITORY')) }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+rootProject.name = 'mosaic-consumer'

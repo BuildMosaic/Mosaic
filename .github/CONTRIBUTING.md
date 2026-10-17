@@ -14,7 +14,7 @@ Thanks for your interest in contributing! 🎉
 ## Development Setup
 1. Clone the repo and open in IntelliJ IDEA.
 2. Run `./gradlew clean build` and `./gradlew clean build -p examples`.
-3. Validate compatibility policies with `python3 -m unittest discover -s compatibility`.
+3. Validate compatibility records with `python3 compatibility/automation.py validate`.
 4. Run `git diff --check` and, after staging, `git diff --cached --check`.
 
 For website work, use [its development workflow](../website/README.md).

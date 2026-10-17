@@ -5,7 +5,8 @@ on:
     branches: [main, develop]
     paths:
       - 'website/**'
-      - 'compatibility/registry.*'
+      - 'compatibility/registry.json'
+      - 'compatibility/automation.py'
       - 'assets/**'
       - '.impeccable/BRAND.md'
       - '.github/images/order-architecture.png'
@@ -22,7 +23,8 @@ on:
     branches: [main]
     paths:
       - 'website/**'
-      - 'compatibility/registry.*'
+      - 'compatibility/registry.json'
+      - 'compatibility/automation.py'
       - 'assets/**'
       - '.impeccable/BRAND.md'
       - '.github/images/order-architecture.png'

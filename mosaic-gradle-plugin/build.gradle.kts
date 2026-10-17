@@ -63,26 +63,6 @@ tasks.withType<Test>().configureEach {
     "mosaic.test.javaInstallations",
     providers.gradleProperty("org.gradle.java.installations.paths").getOrElse(""),
   )
-  providers.gradleProperty(
-    "mosaic.test.kotlinVersions",
-  ).orNull?.let { systemProperty("mosaic.test.kotlinVersions", it) }
-  listOf("repository", "runtimeVersion", "analysisVersion", "compilerChanges").forEach { name ->
-    providers.gradleProperty("mosaic.test.$name").orNull?.let { systemProperty("mosaic.test.$name", it) }
-  }
-}
-
-tasks.test {
-  useJUnitPlatform { excludeTags("release-compatibility") }
-}
-
-tasks.register<Test>("releaseCompatibilityTest") {
-  group = "compatibility"
-  description = "Real Maven installation matrix and cross-compiler cache regressions for release certification"
-  testClassesDirs = sourceSets.test.get().output.classesDirs
-  classpath = sourceSets.test.get().runtimeClasspath
-  useJUnitPlatform { includeTags("release-compatibility") }
-  dependsOn(":mosaic-compiler-plugin:jar", ":mosaic-core:jar")
-  outputs.upToDateWhen { false }
 }
 
 tasks.named<PluginUnderTestMetadata>("pluginUnderTestMetadata") {
