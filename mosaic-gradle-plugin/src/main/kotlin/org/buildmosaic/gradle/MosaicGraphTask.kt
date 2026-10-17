@@ -23,9 +23,11 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import org.gradle.work.DisableCachingByDefault
 import java.io.IOException
 
 /** Renders contract structure and optional root findings without applying verification policy. */
+@DisableCachingByDefault(because = "Graph generation is inexpensive and uses local up-to-date checks")
 abstract class MosaicGraphTask : DefaultTask() {
   @get:InputFile
   @get:PathSensitive(PathSensitivity.NONE)
