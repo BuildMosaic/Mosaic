@@ -65,6 +65,7 @@ The canonical user guide is at **[BuildMosaic.org](https://BuildMosaic.org/start
 - [Shared work](https://BuildMosaic.org/concepts/shared-work/) and [MultiTile](https://BuildMosaic.org/concepts/multitile/)
 - [Kotlin API reference](https://BuildMosaic.org/api/mosaic-core/)
 
-KDoc owns API-level contracts, including the execution observation SPI.
+KDoc owns API-level contracts, including the external dependency resolver and
+execution observation SPIs.
 Optional [analysis tooling](../mosaic-gradle-plugin/README.md) has its own narrower
 compatibility boundary and is independent of runtime use.
