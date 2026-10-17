@@ -22,6 +22,12 @@ jobs:
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       run: git diff --check "$PR_BASE_SHA...$PR_HEAD_SHA"
 
+    - name: Set up JDK 17 for Maven consumers
+      uses: actions/setup-java@v4
+      with:
+        java-version: 17
+        distribution: zulu
+
     - name: Set up JDK 21
       uses: actions/setup-java@v4
       with:
@@ -30,7 +36,7 @@ jobs:
         cache: gradle
 
     - name: Run comprehensive PR validation
-      run: ./gradlew check --no-daemon
+      run: ./gradlew check --no-daemon -Porg.gradle.java.installations.paths="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
 
     - name: Validate compatibility facts
       run: |

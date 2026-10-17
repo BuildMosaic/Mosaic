@@ -2,13 +2,11 @@
 
 package org.buildmosaic.gradle
 
-import org.buildmosaic.analysis.SUMMARY_PATH
-import org.buildmosaic.analysis.SummaryCodec
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.jupiter.api.Tag
 import java.io.File
 import java.nio.file.Files
-import java.util.jar.JarFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -79,89 +77,24 @@ class PublishedInstallationTest {
       maven.resolve("org/buildmosaic/mosaic-compiler-plugin/$version/mosaic-compiler-plugin-$version.pom").readText()
     assertTrue(!compilerPom.contains("<artifactId>mosaic-analysis-core</artifactId>"), compilerPom)
     assertTrue(!compilerPom.contains("kotlin-compiler-embeddable"), compilerPom)
-    val consumer = workspace.resolve("app").apply { mkdirs() }
-    consumer.resolve("settings.gradle.kts").writeText(
-      """
-      pluginManagement { repositories { maven(url = uri("${maven.invariantSeparatorsPath}")); gradlePluginPortal() } }
-      dependencyResolutionManagement { repositories { maven(url = uri("${maven.invariantSeparatorsPath}")); mavenCentral() } }
-      rootProject.name = "app"
-      """.trimIndent(),
-    )
-    consumer.resolve("build.gradle.kts").writeText(
-      """
-      plugins {
-        kotlin("jvm") version "2.4.21"
-        id("org.buildmosaic.analysis") version "$version"
-      }
-      version = "99.0.0"
-      dependencies { implementation("org.buildmosaic:mosaic-core:$version") }
-      mosaicAnalysis {
-        role = org.buildmosaic.gradle.MosaicAnalysisRole.APPLICATION
-        enforcement = org.buildmosaic.gradle.MosaicAnalysisEnforcement.STANDARD
-        roots.add("app.entry()")
-      }
-      """.trimIndent(),
-    )
-    consumer.resolve("src/main/kotlin/Main.kt").apply {
-      parentFile.mkdirs()
-      writeText(
-        """
-        package app
-        import org.buildmosaic.core.*
-        import org.buildmosaic.core.injection.*
-        interface Service
-        class ExistingService : Service
-        val OrderKey = CanvasKey(String::class, "order")
-        suspend fun entry(): String = canvas {
-          instance("ready")
-          instance<Service>("primary", ExistingService())
-          instance("secondary", ExistingService())
-          instance(OrderKey, "order-1")
-        }.withMosaic {
-          source<Service>("primary"); source<ExistingService>("secondary")
-          source(OrderKey); source<String>()
-        }
-        """.trimIndent(),
-      )
-    }
-    val arguments =
-      arrayOf(
-        "build",
-        "mosaicGraph",
-        "dependencies",
-        "--configuration",
-        "kotlinCompilerPluginClasspathMain",
-        "--configuration-cache",
-        "--configuration-cache-problems=fail",
-      )
-    val result = runPublished(consumer, *arguments)
-    assertTrue(result.output.contains("Configuration cache entry stored"), result.output)
-    assertEquals(TaskOutcome.SUCCESS, result.task(":verifyMosaicMain")?.outcome)
-    assertEquals(TaskOutcome.SUCCESS, result.task(":mosaicGraph")?.outcome)
-    assertTrue(result.output.contains("org.buildmosaic:mosaic-compiler-plugin:$version"), result.output)
-    val report = consumer.resolve("build/reports/mosaic-analysis/main.txt").readText()
-    assertTrue(report.contains("Result: FULLY VERIFIED"), report)
-    assertTrue(report.contains("VERIFIED REQUIRED_LOOKUP"), report)
-    assertTrue(consumer.resolve("build/reports/mosaic-analysis/graph.md").readText().contains("## Root: app.entry()"))
-    val summary = SummaryCodec.decode(consumer.resolve("build/mosaic-analysis/main/summary.json").readBytes())
-    assertTrue(summary.module.callables.any { it.id == "app.entry()" && it.effects.isNotEmpty() })
-    JarFile(consumer.resolve("build/libs/app-99.0.0.jar")).use { archive ->
-      val packaged = SummaryCodec.decode(archive.getInputStream(archive.getJarEntry(SUMMARY_PATH)).readBytes())
-      assertEquals(summary, packaged)
-      assertEquals(6, packaged.contractVersion)
-      assertEquals(version, packaged.producer.analysisVersion)
-      assertEquals("2.4.21", packaged.producer.compilerVersion)
-    }
-
-    val repeated = runPublished(consumer, *arguments)
-    assertTrue(repeated.output.contains("Configuration cache entry reused"), repeated.output)
-    assertEquals(TaskOutcome.UP_TO_DATE, repeated.task(":verifyMosaicMain")?.outcome)
-    assertEquals(TaskOutcome.UP_TO_DATE, repeated.task(":mosaicGraph")?.outcome)
-    assertTrue(repeated.output.contains("org.buildmosaic:mosaic-compiler-plugin:$version"), repeated.output)
-    assertEquals(summary, SummaryCodec.decode(consumer.resolve("build/mosaic-analysis/main/summary.json").readBytes()))
-
+    verifyAnalysisConsumers(workspace, maven, version, version, listOf("2.4.21"))
     verifyRuntimeConsumer(workspace, maven, version, useBom = false)
     verifyRuntimeConsumer(workspace, maven, version, useBom = true)
+  }
+}
+
+/** Exact published Runtime consumer, shared with release certification. */
+@Tag("release-compatibility")
+class RuntimeInstallationTest {
+  @Test
+  fun `Runtime consumers run on Java 17`() {
+    verifyRuntimeConsumer(
+      Files.createTempDirectory("mosaic-runtime-").toFile(),
+      File(System.getProperty("mosaic.test.repository")),
+      System.getProperty("mosaic.test.runtimeVersion"),
+      useBom = false,
+      kotlinVersion = System.getProperty("mosaic.test.kotlinVersions"),
+    )
   }
 }
 
@@ -186,49 +119,26 @@ internal fun verifyRuntimeConsumer(
   val platform = if (useBom) "implementation(platform(\"org.buildmosaic:mosaic-bom:$version\"))" else ""
   consumer.resolve("build.gradle.kts").writeText(
     """
-    plugins { kotlin("jvm") version "$kotlinVersion" }
+    plugins { kotlin("jvm") version "$kotlinVersion"; application }
+    kotlin { jvmToolchain(17) }
+    application { mainClass.set("certification.RuntimeConsumerKt") }
     dependencies {
       $platform
       implementation("$core")
       implementation("$tracing")
-      testImplementation("$test")
-      testImplementation(kotlin("test"))
+      implementation("$test")
     }
-    tasks.test { useJUnitPlatform() }
     """.trimIndent(),
   )
-  consumer.resolve("src/test/kotlin/TileTest.kt").apply {
-    parentFile.mkdirs()
-    writeText(
-      """
-      import kotlinx.coroutines.test.runTest
-      import org.buildmosaic.core.singleTile
-      import org.buildmosaic.test.mosaicBuilder
-      import org.buildmosaic.core.injection.canvas
-      import org.buildmosaic.core.injection.withMosaic
-      import org.buildmosaic.opentelemetry.tracing
-      import io.opentelemetry.api.OpenTelemetry
-      import kotlin.test.Test
-
-      class TileTest {
-        @Test fun composes() = runTest {
-          val input by singleTile { "original" }
-          val response by singleTile { compose(input).uppercase() }
-          mosaicBuilder().withMockTile(input, "published").withMosaic {
-            assertEquals(response, "PUBLISHED")
-            kotlin.test.assertEquals("response", response.name)
-          }
-        }
-        @Test fun tracingInstalls() = runTest {
-          val configured = canvas { tracing { OpenTelemetry.noop() } }
-          kotlin.test.assertEquals("published", configured.withMosaic { compose(singleTile { "published" }) })
-        }
-      }
-      """.trimIndent(),
-    )
+  val repositoryRoot = File(System.getProperty("user.dir")).parentFile
+  val sources = consumer.resolve("src/main/kotlin").apply { mkdirs() }
+  repositoryRoot.resolve("compatibility/fixtures/RuntimeConsumer.kt").copyTo(sources.resolve("RuntimeConsumer.kt"))
+  for (name in listOf("observer-composite.kt", "public-api-keys.kt", "public-api-roots.kt", "execution-catalog.kt")) {
+    repositoryRoot.resolve("mosaic-compiler-plugin/src/test/resources/fixtures/$name").copyTo(sources.resolve(name))
   }
-  val result = runPublished(consumer, "test", "dependencies", "--configuration", "testRuntimeClasspath")
-  assertEquals(TaskOutcome.SUCCESS, result.task(":test")?.outcome)
+  val result = runPublished(consumer, "run", "dependencies", "--configuration", "runtimeClasspath")
+  assertEquals(TaskOutcome.SUCCESS, result.task(":run")?.outcome)
+  assertTrue(result.output.contains("Runtime public API consumer passed on JVM 17"), result.output)
   assertTrue(result.output.contains("org.buildmosaic:mosaic-core:$version"), result.output)
   assertTrue(result.output.contains("org.buildmosaic:mosaic-test:$version"), result.output)
   assertTrue(result.output.contains("org.buildmosaic:mosaic-opentelemetry:$version"), result.output)

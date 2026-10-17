@@ -12,7 +12,7 @@ Thanks for your interest in contributing! 🎉
 `main` owns the released code. Maintenance releases proceed directly from `main`, independently of features in progress on `develop`. Integrate ready new features from `develop` into `main` through a reviewed release PR, and carry applicable maintenance fixes back into `develop`.
 
 ## Development Setup
-1. Clone the repo and open in IntelliJ IDEA.
+1. Install JDK 21 for the build and JDK 17 for Maven consumer checks. Clone the repo and open in IntelliJ IDEA.
 2. Run `./gradlew clean build` and `./gradlew clean build -p examples`.
 3. Validate compatibility policies with `python3 -m unittest discover -s compatibility`.
 4. Run `git diff --check` and, after staging, `git diff --cached --check`.

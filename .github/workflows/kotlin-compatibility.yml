@@ -1,6 +1,7 @@
 name: Kotlin compatibility maintenance
 
 on:
+  workflow_call:
   schedule:
     - cron: '23 7 * * *'
   workflow_dispatch:
@@ -10,7 +11,8 @@ on:
         type: string
 
 concurrency:
-  group: mosaic-compatibility
+  # A Release caller already holds the shared queue; avoid waiting on itself.
+  group: ${{ github.workflow == 'Release' && format('discovery-{0}', github.run_id) || 'mosaic-compatibility' }}
   cancel-in-progress: false
   queue: max
 
@@ -46,7 +48,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REQUESTED_KOTLIN: ${{ inputs.kotlin }}
-        run: python3 compatibility/maintain.py scan --kotlin "$REQUESTED_KOTLIN" --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+        run: |
+          export MOSAIC_JAVA_INSTALLATIONS="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+          python3 compatibility/maintain.py scan --kotlin "$REQUESTED_KOTLIN"
       - name: Authenticate the registry writer
         if: ${{ !cancelled() && steps.verify.outputs.evidence == 'true' }}
         id: writer

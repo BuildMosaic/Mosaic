@@ -13,16 +13,33 @@ from pathlib import Path
 import subprocess
 import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
 
-import certify
 import registry
+
+ROOT = Path(__file__).resolve().parent.parent
+REPORTS = ROOT / 'build/reports/compatibility'
+
+
+def central_versions():
+    url = 'https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-compiler-embeddable/maven-metadata.xml'
+    with urllib.request.urlopen(url, timeout=60) as response:
+        nodes = ET.fromstring(response.read()).findall('./versioning/versions/version')
+    result = set()
+    for node in nodes:
+        try:
+            registry.version(node.text)
+            result.add(node.text)
+        except ValueError:
+            pass
+    return sorted(result, key=registry.version)
 
 
 def gh(*args, payload=None, token=None):
     return subprocess.check_output(['gh', *args, *(['--input', '-'] if payload is not None else [])],
                                    input=json.dumps(payload) if payload is not None else None,
                                    env={**os.environ, **({'GH_TOKEN': token} if token else {})},
-                                   cwd=certify.ROOT, text=True).strip()
+                                   cwd=ROOT, text=True).strip()
 
 
 def run_url():
@@ -41,9 +58,9 @@ def issue_title(kotlin, runtime, analysis):
 def report_failure(kotlin, failure, issues):
     title = issue_title(kotlin, None, None)
     command = f'python3 compatibility/maintain.py scan --kotlin {kotlin}'
-    revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=certify.ROOT, text=True).strip()
+    revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     body = (f'Published-artifact verification failed at `{revision}`.\n\n'
-            f'[Diagnostics and artifact hashes]({run_url()})\n\n'
+            f'[Actions diagnostics]({run_url()})\n\n'
             f'```text\n{str(failure)[-4000:]}\n```\n\n'
             f'Reproduce with JDK 17 and 21 available:\n\n```bash\n{command}\n```\n\n'
             'Implementation fixes require review. Dispatch Kotlin compatibility maintenance with '
@@ -95,22 +112,14 @@ def supported(event, catalog):
     return first <= datetime.now(timezone.utc).date() < expiry
 
 
-def verify_event(data, event, previous, check):
+def verify_event(data, event, previous):
     updated, standalone, batches = registry.event_plan(data, event['kotlin'], previous)
-    for runtime, compilers in standalone:
-        try:
-            check.runtime(compilers, runtime)
-        except Exception as error:
-            raise RuntimeError(f'Runtime {runtime} / Kotlin {compilers} failed: {error}') from error
-    for runtime, analysis, compilers in batches:
-        try:
-            check.analysis(compilers, runtime, analysis)
-        except Exception as error:
-            raise RuntimeError(f'Analysis {analysis} / Runtime {runtime} / Kotlin batch {compilers} failed: {error}') from error
+    for runtime, analysis in [(r, '-') for r, _ in standalone] + [(r, a) for r, a, _ in batches]:
+        subprocess.run([str(ROOT / 'compatibility/check.sh'), runtime, analysis, event['kotlin']], check=True)
     return updated
 
 
-def scan(kotlin, java_installations):
+def scan(kotlin):
     data = registry.load()
     checkpoint = registry.PATH.with_name('kotlin-checkpoint.txt').read_text().strip()
     catalog = publications()
@@ -125,11 +134,10 @@ def scan(kotlin, java_installations):
     if not pending:
         print(f'No Kotlin publications after {checkpoint}; no certification or writes', flush=True)
         return
-    discovered = certify.central_versions()
+    discovered = central_versions()
     issues = open_issues()
     before = registry.fingerprint(data)
     original_checkpoint = checkpoint
-    check = None
     failure = None
     # Publications sharing one timestamp form one checkpoint boundary.
     for timestamp, events in groupby(pending, key=lambda item: item['published']):
@@ -147,10 +155,7 @@ def scan(kotlin, java_installations):
                 previous = [item['kotlin'] for item in catalog[:catalog.index(event)]
                             if item['kotlin'] in discovered]
                 _, standalone, batches = registry.event_plan(group_data, compiler, previous)
-                if standalone or batches:
-                    if check is None:
-                        check = certify.Certification(java_installations)
-                updated = verify_event(group_data, event, previous, check)
+                updated = verify_event(group_data, event, previous)
                 titles = [issue_title(compiler, r, None) for r, _ in standalone]
                 titles += [issue_title(compiler, r, a) for r, a, _ in batches]
                 passed_issues.update(issues[title]['number'] for title in titles if title in issues)
@@ -170,8 +175,8 @@ def scan(kotlin, java_installations):
     if checkpoint != original_checkpoint or registry.fingerprint(data) != before:
         evidence = {'result': 'pass', 'registryBefore': before, 'checkpointBefore': original_checkpoint,
                     'registry': data, 'checkpoint': checkpoint}
-        certify.REPORTS.mkdir(parents=True, exist_ok=True)
-        (certify.REPORTS / 'published.json').write_text(json.dumps(evidence, indent=2) + '\n')
+        REPORTS.mkdir(parents=True, exist_ok=True)
+        (REPORTS / 'published.json').write_text(json.dumps(evidence, indent=2) + '\n')
         if os.environ.get('GITHUB_OUTPUT'):
             with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
                 output.write('evidence=true\n')
@@ -242,7 +247,6 @@ if __name__ == '__main__':
     commands.add_parser('refresh')
     scan_command = commands.add_parser('scan')
     scan_command.add_argument('--kotlin', default='')
-    scan_command.add_argument('--java-installations', default='')
     publication = commands.add_parser('publish')
     publication.add_argument('--evidence', type=Path, required=True)
     release = commands.add_parser('record')
@@ -254,7 +258,7 @@ if __name__ == '__main__':
     if args.command == 'refresh':
         refresh()
     elif args.command == 'scan':
-        scan(args.kotlin, args.java_installations)
+        scan(args.kotlin)
     else:
         evidence = json.loads(args.evidence.read_text())
         if args.command == 'record':

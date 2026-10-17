@@ -3,9 +3,12 @@ package org.buildmosaic.compiler
 import org.buildmosaic.analysis.ModuleContract
 import org.buildmosaic.analysis.SUMMARY_PATH
 import org.buildmosaic.analysis.SummaryCodec
+import org.jetbrains.kotlin.cli.common.ExitCode
+import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.PrintStream
 import java.security.MessageDigest
-import java.util.concurrent.TimeUnit
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import kotlin.test.assertEquals
@@ -70,21 +73,20 @@ private fun compileFixture(
   args += sources.map { it.absolutePath }
   // One marker per real compiler invocation keeps fixture cost auditable in JUnit output.
   System.err.println("MOSAIC_COMPILER_INVOCATION")
-  if (System.getProperty("mosaic.compat.compiler.classpath") != null) {
-    compileIsolated(args, sources, dependency, summary, moduleId)
-  } else {
-    compileInProcess(args)
-  }
+  val errors = ByteArrayOutputStream()
+  assertEquals(ExitCode.OK, K2JVMCompiler().exec(PrintStream(errors), *args.toTypedArray()), errors.toString())
+  val evidence = System.getProperty("mosaic.compat.evidence")
+  if (evidence != null && summary != null) recordSummary(File(evidence), sources, dependency, summary, moduleId)
 }
 
-/** Certification uses the same sources/assertions, with no compiler loaded in the test JVM. */
-private fun compileIsolated(
-  args: List<String>,
+private fun recordSummary(
+  directory: File,
   sources: List<File>,
   dependency: File?,
-  summary: File?,
+  summary: File,
   moduleId: String,
 ) {
+  directory.mkdirs()
   val caller =
     Throwable().stackTrace.first {
       it.className.contains("Test") && it.className.startsWith("org.buildmosaic.compiler.")
@@ -98,24 +100,8 @@ private fun compileIsolated(
       }
     }
   val key = MessageDigest.getInstance("SHA-256").digest(input.toByteArray()).joinToString("") { "%02x".format(it) }
-  val evidence = File(System.getProperty("mosaic.compat.evidence")).apply { mkdirs() }
-  val ordinal = evidence.listFiles().orEmpty().count { it.name.startsWith("$key-") && it.extension == "sources" }
-  val name = "$key-$ordinal"
-  File(evidence, "$name.sources").writeText(input)
-  val command =
-    listOf(
-      System.getProperty("mosaic.compat.java"), "-Xmx768m", "-cp",
-      System.getProperty("mosaic.compat.compiler.classpath"), "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler",
-    ) + args
-  File(evidence, "$name.command").writeText(command.joinToString("\n"))
-  val log = File(evidence, "$name.log")
-  val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log).start()
-  if (!process.waitFor(120, TimeUnit.SECONDS)) {
-    process.destroyForcibly()
-    error("Compiler timed out: ${log.absolutePath}")
-  }
-  assertEquals(0, process.exitValue(), log.readText())
-  summary?.let { it.copyTo(File(evidence, "$name.json")) }
+  val ordinal = directory.listFiles().orEmpty().count { it.name.startsWith("$key-") }
+  summary.copyTo(File(directory, "$key-$ordinal.json"))
 }
 
 internal fun compileSources(

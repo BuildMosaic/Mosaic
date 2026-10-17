@@ -1,71 +1,82 @@
-import groovy.json.JsonOutput
-import java.security.MessageDigest
+import java.util.jar.JarFile
 
-// Dependency resolution only. No Kotlin Gradle plugin, Mosaic Gradle plugin, or TestKit.
+// Reuse compiled repository fixtures; Gradle owns resolution, Java launchers and JUnit.
 plugins { id 'java' }
 
 def runtime = providers.gradleProperty('compat.runtime').get()
-def analysis = providers.gradleProperty('compat.analysis').getOrElse('')
-def requested = providers.gradleProperty('compat.kotlin').get()
-def baseline = providers.gradleProperty('compat.baseline').get()
-def workspace = file(providers.gradleProperty('compat.workspace').get())
-def evidence = new File(workspace, "$runtime/${analysis ?: 'runtime'}/$requested")
-def required = analysis ? ['compiler', 'consumer', 'extractor', 'runner'] : ['compiler', 'consumer']
+def analysis = providers.gradleProperty('compat.analysis').get()
+def compiler = providers.gradleProperty('compat.kotlin').get()
+def root = projectDir.parentFile
+def candidateRepository = file(System.getenv('MOSAIC_COMPAT_REPOSITORY') ?: "$root/build/compatibility-repository")
+def output = file("$root/build/reports/compatibility/$runtime/$analysis/$compiler")
+def baseline = (new File(root, 'gradle/libs.versions.toml').text =~ /(?m)^kotlin = "([^"]+)"/)[0][1]
 
 repositories {
-    maven {
-        url = uri(new File(workspace, 'repository'))
-        // Exercise published POM transitivity; candidates have unique versions.
-        metadataSources { mavenPom(); artifact() }
-    }
+    maven { url = uri(candidateRepository); metadataSources { mavenPom(); artifact() } }
     mavenCentral()
 }
-
-required.each { name ->
-    configurations.create(name) {
-        canBeConsumed = false
-        canBeResolved = true
-        resolutionStrategy.failOnDynamicVersions()
-        resolutionStrategy.failOnChangingVersions()
-    }
-}
-configurations.consumer {
-    attributes {
-        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
-        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
-        attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
-    }
-}
-if (analysis) configurations.extractor.transitive = false
-
+configurations { consumer; compilerRuntime; extractor { transitive = false }; runner }
 dependencies {
-    compiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly requested } }
-    ['mosaic-core', 'mosaic-test', 'mosaic-opentelemetry'].each {
-        consumer("org.buildmosaic:$it:$runtime") { version { strictly runtime } }
+    ['mosaic-core', 'mosaic-test', 'mosaic-opentelemetry'].each { consumer("org.buildmosaic:$it:$runtime") { version { strictly runtime } } }
+    compilerRuntime("org.jetbrains.kotlin:kotlin-compiler-embeddable:$compiler") { version { strictly compiler } }
+    runner "org.jetbrains.kotlin:kotlin-test-junit5:$baseline"
+    runner 'org.junit.platform:junit-platform-launcher:1.12.2'
+    runner gradleTestKit()
+}
+def extractorJar = null
+if (analysis != '-') {
+    // The published jar owns compiler ABI admission, independently of certification policy.
+    def defaultJar = configurations.detachedConfiguration(dependencies.create("org.buildmosaic:mosaic-compiler-plugin:$analysis"))
+    defaultJar.transitive = false
+    def profiles = new Properties()
+    new JarFile(defaultJar.singleFile).withCloseable { jar ->
+        jar.getInputStream(jar.getJarEntry('org/buildmosaic/analysis/compiler-profiles.properties')).withCloseable { profiles.load(it) }
     }
-    if (analysis) {
-        extractor("org.buildmosaic:${providers.gradleProperty('compat.extractor').orElse('mosaic-compiler-plugin').get()}:$analysis") { version { strictly analysis } }
-        runner 'org.junit.platform:junit-platform-console-standalone:1.12.2'
-        runner "org.jetbrains.kotlin:kotlin-test-junit5:$baseline"
+    def number = { value -> value.tokenize('.').collect { it.toInteger() } }
+    def compare = { a, b -> a[0] <=> b[0] ?: a[1] <=> b[1] ?: a[2] <=> b[2] }
+    def apis = profiles.stringPropertyNames().findAll { api ->
+        if (api == 'default') return false
+        def bounds = profiles.getProperty(api).split(',').collect(number)
+        compare(number(compiler), bounds[0]) >= 0 && compare(number(compiler), bounds[1]) < 0
     }
+    if (apis.size() != 1) throw new GradleException("No compatible introspector for Kotlin $compiler")
+    def artifact = 'mosaic-compiler-plugin' + (apis[0] == profiles.getProperty('default') ? '' : "-kotlin-${apis[0]}")
+    dependencies.add('extractor', "org.buildmosaic:$artifact:$analysis")
+    extractorJar = configurations.extractor.singleFile
 }
 
-tasks.register('resolveEvidence') {
-    doLast {
-        evidence.mkdirs()
-        def result = [gradle: gradle.gradleVersion, java: System.getProperty('java.version'), configurations: [:]]
-        def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }.get()
-        result.java17 = launcher.executablePath.asFile.absolutePath
-        result.java17Version = launcher.metadata.javaRuntimeVersion
-        configurations.findAll { it.name in required }.each { config ->
-            def artifacts = config.resolvedConfiguration.resolvedArtifacts.collect { artifact ->
-                def id = artifact.moduleVersion.id
-                def hash = MessageDigest.getInstance('SHA-256').digest(artifact.file.bytes).encodeHex().toString()
-                [coordinate: "$id.group:$id.name:$id.version", group: id.group, module: id.name,
-                 version: id.version, file: artifact.file.absolutePath, sha256: hash]
-            }.sort { it.coordinate }
-            result.configurations[config.name] = [artifacts: artifacts]
+def fixture = { name, module, pattern ->
+    tasks.register(name, Test) {
+        testClassesDirs = files("$root/$module/build/classes/kotlin/test")
+        classpath = testClassesDirs + files("$root/$module/build/resources/test") + configurations.runner + configurations.consumer + configurations.extractor
+        if (module == 'mosaic-compiler-plugin') classpath += configurations.compilerRuntime
+        include pattern
+        exclude '**/ObserverCompositionConsumerTest*'
+        useJUnitPlatform()
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+        maxHeapSize = '768m'
+        workingDir = file("$root/$module")
+        outputs.upToDateWhen { false }
+        testLogging { events 'failed', 'skipped'; exceptionFormat 'full'; showStandardStreams = true }
+        systemProperty 'mosaic.test.repository', candidateRepository.absolutePath
+        systemProperty 'mosaic.test.runtimeVersion', runtime
+        systemProperty 'mosaic.test.analysisVersion', analysis
+        systemProperty 'mosaic.test.kotlinVersions', compiler
+        systemProperty 'mosaic.test.compilerChanges', 'false'
+        systemProperty 'mosaic.test.javaInstallations', providers.gradleProperty('org.gradle.java.installations.paths').getOrElse('')
+        if (extractorJar) {
+            systemProperty 'mosaic.plugin.jar', extractorJar.absolutePath
+            systemProperty 'mosaic.fixture.classpath', configurations.consumer.asPath
+            systemProperty 'mosaic.compat.evidence', output.absolutePath
         }
-        new File(evidence, 'resolution.json').text = JsonOutput.prettyPrint(JsonOutput.toJson(result)) + '\n'
+        afterSuite { suite, result ->
+            if (!suite.parent && (!result.testCount || result.skippedTestCount)) throw new GradleException('Required tests absent or skipped')
+        }
+        doFirst { if (module == 'mosaic-compiler-plugin') { delete(output); output.mkdirs() } }
     }
+}
+tasks.check.dependsOn(fixture('runtimeTest', 'mosaic-gradle-plugin', '**/RuntimeInstallationTest*'))
+if (analysis != '-') {
+    tasks.check.dependsOn(fixture('installationTest', 'mosaic-gradle-plugin', '**/IntrospectorSelectionInstallationTest*'),
+        fixture('compilerTest', 'mosaic-compiler-plugin', '**/*Test*'), fixture('metadataTest', 'mosaic-analysis-core', '**/*Summary*Test*'))
 }

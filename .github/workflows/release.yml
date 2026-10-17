@@ -33,148 +33,293 @@ concurrency:
   queue: max
 
 jobs:
-  release:
-    name: Publish release
+  discover:
+    uses: ./.github/workflows/kotlin-compatibility.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+
+  prepare:
+    name: Prepare release
+    needs: discover
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    environment: release
     permissions:
-      contents: write
-      actions: write
-      issues: write
+      contents: read
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+      tag: ${{ steps.release.outputs.tag }}
+      tag_object: ${{ steps.release.outputs.tag_object }}
+      tooling: ${{ steps.release.outputs.tooling }}
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - name: Require dispatch from main
         env:
           WORKFLOW_REF: ${{ github.ref }}
-        run: |
-          test "$WORKFLOW_REF" = refs/heads/main
-
+        run: test "$WORKFLOW_REF" = refs/heads/main
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-
-      - name: Set up JDK 17 for compatibility consumers
-        uses: actions/setup-java@v4
+          persist-credentials: false
+      - uses: actions/setup-java@v4
         with:
           distribution: zulu
           java-version: '17'
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: zulu
           java-version: '21'
           cache: gradle
-
-      # Run the same discovery and event processing path while holding the shared slot.
-      - name: Process outstanding Kotlin publications
-        id: discover
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 compatibility/maintain.py scan --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
-
-      - name: Authenticate the maintenance registry writer
-        if: ${{ !cancelled() && steps.discover.outputs.evidence == 'true' }}
-        id: maintenance-writer
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ vars.KOTLIN_COMPATIBILITY_APP_ID }}
-          private-key: ${{ secrets.KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY }}
-          permission-contents: write
-
-      - name: Record processed Kotlin publications
-        if: ${{ !cancelled() && steps.maintenance-writer.outcome == 'success' }}
-        env:
-          GH_TOKEN: ${{ steps.maintenance-writer.outputs.token }}
-          GH_WORKFLOW_TOKEN: ${{ github.token }}
-        run: python3 compatibility/maintain.py publish --evidence build/reports/compatibility/published.json
-
-      - name: Keep current compatibility tooling and read latest policy
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cp -R compatibility "$RUNNER_TEMP/mosaic-compatibility"
-          python3 "$RUNNER_TEMP/mosaic-compatibility/maintain.py" refresh
-
-      - name: Fetch and validate the immutable tag
+      - name: Validate immutable signed tag on protected main
         id: release
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
           RELEASE_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           case "$RELEASE_TRAIN" in runtime|analysis) ;; *) exit 1 ;; esac
           [[ "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
-          RELEASE_TAG="${RELEASE_TRAIN}-${RELEASE_VERSION}"
-          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main' "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
-          sha="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
-          if ! git merge-base --is-ancestor "$sha" refs/remotes/origin/main; then
-            echo "::error::Release tag $RELEASE_TAG must point to a commit reachable from protected main"
-            exit 1
-          fi
-          git checkout --detach "$sha"
+          tag="${RELEASE_TRAIN}-${RELEASE_VERSION}"
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main' "refs/tags/$tag:refs/tags/$tag"
+          sha="$(git rev-parse "refs/tags/$tag^{commit}")"
+          git merge-base --is-ancestor "$sha" refs/remotes/origin/main
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$(git rev-parse "refs/tags/$tag")" --jq '.verification.verified')" = true
+          {
+            echo "sha=$sha"
+            echo "tag=$tag"
+            echo "tag_object=$(git rev-parse "refs/tags/$tag")"
+            echo "tooling=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Check release commit and examples
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          cd candidate
           entry="$(grep -F "## [$RELEASE_TAG] - " CHANGELOG.md)"
           [[ "$entry" =~ ^##\ \[$RELEASE_TAG\]\ -\ [0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
           entry_date="${entry##* - }"
           test "$(date -d "$entry_date" +%F)" = "$entry_date"
           test -s "docs/releases/$RELEASE_TAG.md"
-          test -z "$(git status --porcelain)"
-          echo "Validated $RELEASE_TAG at $sha"
-          {
-            echo "version=$RELEASE_VERSION"
-            echo "tag=$RELEASE_TAG"
-            echo "sha=$sha"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Check repository
-        run: ./gradlew check
-
-      - name: Check examples
-        run: ./gradlew check -p examples
-
-      - name: Certify release compatibility
+          ./gradlew check
+          ./gradlew check -p examples
+      - name: Plan exact compatibility intersections
+        id: plan
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TRAIN: ${{ inputs.train }}
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          TRAIN: ${{ inputs.train }}
+          VERSION: ${{ inputs.version }}
           MIN_KOTLIN: ${{ inputs.minKotlin }}
           MAX_KOTLIN: ${{ inputs.maxKotlin }}
           MIN_RUNTIME: ${{ inputs.minRuntime }}
           MAX_RUNTIME: ${{ inputs.maxRuntime }}
-          MOSAIC_SOURCE_ROOT: ${{ github.workspace }}
         run: |
-          python3 "$RUNNER_TEMP/mosaic-compatibility/certify.py" --scope "$RELEASE_TRAIN" --release "$RELEASE_VERSION" \
-            --minKotlin "$MIN_KOTLIN" --maxKotlin "$MAX_KOTLIN" --minRuntime "$MIN_RUNTIME" --maxRuntime "$MAX_RUNTIME" \
-            --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
-          cat "build/reports/compatibility/release-$RELEASE_TRAIN.json"
-
-      - name: Publish Runtime
-        if: ${{ success() && inputs.train == 'runtime' }}
+          python3 compatibility/maintain.py refresh
+          python3 compatibility/release.py plan --train "$TRAIN" --version "$VERSION" \
+            --minKotlin "$MIN_KOTLIN" --maxKotlin "$MAX_KOTLIN" --minRuntime "$MIN_RUNTIME" --maxRuntime "$MAX_RUNTIME"
+      - name: Install candidate Maven artifacts
         env:
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_PRIVATE_KEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
-        run: ./gradlew releaseRuntime -Pmosaic.runtime.version="$RELEASE_VERSION" --no-configuration-cache
+          TRAIN: ${{ inputs.train }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$TRAIN" == runtime ]]; then
+            modules=(mosaic-core mosaic-test mosaic-opentelemetry mosaic-bom)
+          else
+            modules=(mosaic-compiler-plugin mosaic-gradle-plugin)
+          fi
+          tasks=("${modules[@]/#/:}")
+          tasks=("${tasks[@]/%/:publishAllPublicationsToInstallTestRepository}")
+          candidate/gradlew -p candidate "${tasks[@]}" "-Pmosaic.$TRAIN.version=$VERSION" \
+            "-Pmosaic.installTestRepository=$GITHUB_WORKSPACE/build/compatibility-repository" --no-configuration-cache
+      - uses: actions/upload-artifact@v4
+        with:
+          overwrite: true
+          name: release-plan
+          path: |
+            release-plan.json
+            compatibility/registry.json
+            compatibility/kotlin-checkpoint.txt
+            build/compatibility-repository
+          if-no-files-found: error
 
-      - name: Publish Analysis
-        if: ${{ success() && inputs.train == 'analysis' }}
+  certify:
+    name: Kotlin ${{ matrix.kotlin }}
+    needs: prepare
+    if: ${{ needs.prepare.outputs.matrix != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tooling }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-plan
+      - name: Check exact Runtime and Analysis combinations
         env:
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          KOTLIN: ${{ matrix.kotlin }}
+          CHECKS: ${{ toJSON(matrix.checks) }}
+        run: |
+          export MOSAIC_JAVA_INSTALLATIONS="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+          mkdir -p build/reports/compatibility/optional-failures
+          while IFS=$'\t' read -r runtime analysis optional; do
+            if ! compatibility/check.sh "$runtime" "$analysis" "$KOTLIN"; then
+              if [[ "$optional" != true ]]; then exit 1; fi
+              touch "build/reports/compatibility/optional-failures/$analysis"
+              echo "::warning::Optional Analysis $analysis extension failed on Kotlin $KOTLIN; retaining its Runtime bound"
+            fi
+          done < <(jq -r '.[] | [.runtime, .analysis, .optional] | @tsv' <<< "$CHECKS")
+          echo "Kotlin $KOTLIN checks completed" > "build/reports/compatibility/kotlin-$KOTLIN.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          overwrite: true
+          name: certification-${{ matrix.kotlin }}
+          path: build/reports/compatibility
+          if-no-files-found: error
+      - name: Preserve test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          overwrite: true
+          name: test-logs-${{ matrix.kotlin }}
+          path: |
+            compatibility/build/reports
+            compatibility/build/test-results
+            mosaic-gradle-plugin/build/reports/introspector-installation
+
+  verify:
+    name: Cross-version verification
+    needs: [prepare, certify]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && (needs.certify.result == 'success' || needs.prepare.outputs.matrix == '[]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tooling }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-plan
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-plan
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: certification-*
+          path: certification
+          merge-multiple: true
+      - name: Compare summaries and check compiler switching and caches
+        run: |
+          export MOSAIC_JAVA_INSTALLATIONS="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
+          export MOSAIC_COMPAT_REPOSITORY="$GITHUB_WORKSPACE/build/compatibility-repository"
+          python3 compatibility/release.py finish
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          overwrite: true
+          name: cross-version-failure
+          path: mosaic-gradle-plugin/build/reports
+      - uses: actions/upload-artifact@v4
+        with:
+          overwrite: true
+          name: release-result
+          path: release-result.json
+          if-no-files-found: error
+
+  release:
+    name: Approve and publish release
+    needs: [prepare, verify]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.verify.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: release
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tooling }}
+          path: tooling
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+          cache: gradle
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-result
+      - name: Revalidate tag before publication
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+          TAG_OBJECT: ${{ needs.prepare.outputs.tag_object }}
+        run: |
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main' "+refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG")" = "$TAG_OBJECT"
+          git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main
+      - name: Publish selected train
+        env:
+          RELEASE_TRAIN: ${{ inputs.train }}
+          RELEASE_VERSION: ${{ inputs.version }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_PRIVATE_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
           GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
           GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
-        run: ./gradlew releaseAnalysis -Pmosaic.analysis.version="$RELEASE_VERSION" --no-configuration-cache
+        run: |
+          if [[ "$RELEASE_TRAIN" == runtime ]]; then task=releaseRuntime; else task=releaseAnalysis; fi
+          ./gradlew "$task" "-Pmosaic.$RELEASE_TRAIN.version=$RELEASE_VERSION" --no-configuration-cache
 
       - name: Create GitHub Release from checked-in release notes and changelog
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: |
           entry="$(grep -F "## [$RELEASE_TAG] - " CHANGELOG.md)"
@@ -198,7 +343,7 @@ jobs:
           fi
 
       - name: Authenticate the registry writer
-        if: success() && !contains(steps.release.outputs.version, '-')
+        if: success() && !contains(inputs.version, '-')
         id: writer
         uses: actions/create-github-app-token@v2
         with:
@@ -208,14 +353,12 @@ jobs:
 
       # Publication and GitHub Release creation must both succeed.
       - name: Record published compatibility on main and deploy the website
-        if: success() && !contains(steps.release.outputs.version, '-')
+        if: success() && !contains(inputs.version, '-')
         env:
           RELEASE_TRAIN: ${{ inputs.train }}
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-          RELEASE_SHA: ${{ steps.release.outputs.sha }}
-          MOSAIC_SOURCE_ROOT: ${{ github.workspace }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
           GH_TOKEN: ${{ steps.writer.outputs.token }}
           GH_WORKFLOW_TOKEN: ${{ github.token }}
         run: |
-          evidence="$GITHUB_WORKSPACE/build/reports/compatibility/release-$RELEASE_TRAIN.json"
-          python3 "$RUNNER_TEMP/mosaic-compatibility/maintain.py" record --evidence "$evidence" --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"
+          python3 tooling/compatibility/maintain.py record --evidence release-result.json --train "$RELEASE_TRAIN" --version "$RELEASE_VERSION" --revision "$RELEASE_SHA"
