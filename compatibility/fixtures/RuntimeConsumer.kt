@@ -58,6 +58,5 @@ fun main() = runBlocking {
             assertEquals(Value, "mock", "public overload")
             assertEquals(Values, listOf("a"), mapOf("a" to "test:a"))
         }
-    consumer.verifyComposite()
     println("Runtime public API consumer passed on JVM 17")
 }

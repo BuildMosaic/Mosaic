@@ -1,4 +1,5 @@
 import org.gradle.api.tasks.WriteProperties
+import org.gradle.plugin.compatibility.compatibility
 import org.gradle.plugin.devel.tasks.PluginUnderTestMetadata
 
 description = "Mosaic contract analysis for Kotlin/JVM Gradle builds"
@@ -58,30 +59,15 @@ tasks.jar {
 
 tasks.withType<Test>().configureEach {
   useJUnitPlatform()
+  javaLauncher.set(
+    javaToolchains.launcherFor {
+      languageVersion.set(JavaLanguageVersion.of(17))
+    },
+  )
   systemProperty(
     "mosaic.test.javaInstallations",
     providers.gradleProperty("org.gradle.java.installations.paths").getOrElse(""),
   )
-  providers.gradleProperty(
-    "mosaic.test.kotlinVersions",
-  ).orNull?.let { systemProperty("mosaic.test.kotlinVersions", it) }
-  listOf("repository", "runtimeVersion", "analysisVersion").forEach { name ->
-    providers.gradleProperty("mosaic.test.$name").orNull?.let { systemProperty("mosaic.test.$name", it) }
-  }
-}
-
-tasks.test {
-  useJUnitPlatform { excludeTags("release-compatibility") }
-}
-
-tasks.register<Test>("releaseCompatibilityTest") {
-  group = "compatibility"
-  description = "Real Maven installation matrix and cross-compiler cache regressions for release certification"
-  testClassesDirs = sourceSets.test.get().output.classesDirs
-  classpath = sourceSets.test.get().runtimeClasspath
-  useJUnitPlatform { includeTags("release-compatibility") }
-  dependsOn(":mosaic-compiler-plugin:jar", ":mosaic-core:jar")
-  outputs.upToDateWhen { false }
 }
 
 tasks.named<PluginUnderTestMetadata>("pluginUnderTestMetadata") {
@@ -97,6 +83,11 @@ gradlePlugin {
       description = "Kotlin/JVM Mosaic contract extraction and verification"
       tags.set(listOf("kotlin", "analysis"))
       implementationClass = "org.buildmosaic.gradle.MosaicAnalysisPlugin"
+      compatibility {
+        features {
+          configurationCache = true
+        }
+      }
     }
   }
 }

@@ -12,9 +12,14 @@ Thanks for your interest in contributing! 🎉
 `main` owns the released code. Maintenance releases proceed directly from `main`, independently of features in progress on `develop`. Integrate ready new features from `develop` into `main` through a reviewed release PR, and carry applicable maintenance fixes back into `develop`.
 
 ## Development Setup
+
+Install JDK 21 for the build and JDK 17 for the Analysis plugin's consumer tests.
+If Gradle does not discover them, pass
+`-Porg.gradle.java.installations.paths=/path/to/jdk17,/path/to/jdk21`.
+
 1. Clone the repo and open in IntelliJ IDEA.
 2. Run `./gradlew clean build` and `./gradlew clean build -p examples`.
-3. Validate compatibility policies with `python3 -m unittest discover -s compatibility`.
+3. Validate compatibility records with `python3 compatibility/automation.py validate`.
 4. Run `git diff --check` and, after staging, `git diff --cached --check`.
 
 For website work, use [its development workflow](../website/README.md).

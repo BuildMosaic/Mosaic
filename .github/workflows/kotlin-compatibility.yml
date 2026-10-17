@@ -6,22 +6,27 @@ on:
   workflow_dispatch:
     inputs:
       kotlin:
-        description: Exact stable version to retry (blank discovers uncertified combinations)
+        description: Exact stable version to retry (blank processes new publications)
         type: string
 
+permissions:
+  contents: read
 concurrency:
-  group: kotlin-compatibility-maintenance
+  group: mosaic-compatibility
   cancel-in-progress: false
+  queue: max
 
 jobs:
-  certify:
+  discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
-    environment: compatibility-writer
-    permissions:
-      contents: read
-      issues: write
-      actions: write
+    outputs:
+      pending: ${{ steps.plan.outputs.pending }}
+      tooling: ${{ steps.plan.outputs.tooling }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      registry: ${{ steps.plan.outputs.registry }}
+      before: ${{ steps.plan.outputs.before }}
+      checkpoint: ${{ steps.plan.outputs.checkpoint }}
+      beforeCheckpoint: ${{ steps.plan.outputs.beforeCheckpoint }}
     steps:
       - name: Require main
         env:
@@ -29,6 +34,29 @@ jobs:
         run: test "$WORKFLOW_REF" = refs/heads/main
       - uses: actions/checkout@v4
         with:
+          ref: main
+          persist-credentials: false
+      - name: Discover stable Kotlin publications and affected releases
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KOTLIN: ${{ inputs.kotlin }}
+        run: python3 compatibility/automation.py plan --kotlin "$KOTLIN"
+
+  compatibility:
+    name: Check ${{ matrix.runtime }} / ${{ matrix.analysis }} / ${{ matrix.kotlin }}
+    if: needs.discover.outputs.matrix != '[]'
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        include: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.discover.outputs.tooling }}
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
@@ -39,23 +67,63 @@ jobs:
           distribution: zulu
           java-version: '21'
           cache: gradle
-      - name: Certify published artifacts and report failures
-        id: verify
+      - name: Check the published combination
+        env:
+          RUNTIME: ${{ matrix.runtime }}
+          ANALYSIS: ${{ matrix.analysis }}
+          KOTLIN: ${{ matrix.kotlin }}
+        run: ./compatibility/check.sh "$RUNTIME" "$ANALYSIS" "$KOTLIN"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: consumer-${{ strategy.job-index }}
+          path: build/compatibility/
+          retention-days: 7
+
+  report:
+    if: ${{ !cancelled() && needs.discover.result == 'success' && needs.discover.outputs.pending == 'true' }}
+    needs: [discover, compatibility]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    outputs:
+      registry: ${{ steps.results.outputs.registry }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.discover.outputs.tooling }}
+          persist-credentials: false
+      - name: Report failures or accept the passing batch
+        id: results
         env:
           GH_TOKEN: ${{ github.token }}
-          REQUESTED_KOTLIN: ${{ inputs.kotlin }}
-        run: python3 compatibility/maintain.py scan --kotlin "$REQUESTED_KOTLIN" --java-installations "$JAVA_HOME_17_X64,$JAVA_HOME_21_X64"
-      - name: Authenticate the registry writer
-        if: ${{ !cancelled() && steps.verify.outputs.evidence == 'true' }}
+          MATRIX: ${{ needs.discover.outputs.matrix }}
+          REGISTRY: ${{ needs.discover.outputs.registry }}
+          BEFORE: ${{ needs.discover.outputs.before }}
+        run: python3 compatibility/automation.py results --maintenance
+
+  record:
+    needs: [discover, report]
+    runs-on: ubuntu-latest
+    environment: compatibility-writer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.discover.outputs.tooling }}
+          persist-credentials: false
+      - uses: actions/create-github-app-token@v2
         id: writer
-        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ vars.KOTLIN_COMPATIBILITY_APP_ID }}
           private-key: ${{ secrets.KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY }}
           permission-contents: write
-      - name: Record passing combinations on main and deploy the website
-        if: ${{ !cancelled() && steps.writer.outcome == 'success' }}
+      - name: Atomically record ranges and publication checkpoint
         env:
           GH_TOKEN: ${{ steps.writer.outputs.token }}
-          GH_WORKFLOW_TOKEN: ${{ github.token }}
-        run: python3 compatibility/maintain.py publish --evidence build/reports/compatibility/published.json
+          REGISTRY: ${{ needs.report.outputs.registry }}
+          BEFORE: ${{ needs.discover.outputs.before }}
+          CHECKPOINT: ${{ needs.discover.outputs.checkpoint }}
+          BEFORE_CHECKPOINT: ${{ needs.discover.outputs.beforeCheckpoint }}
+        run: python3 compatibility/automation.py record

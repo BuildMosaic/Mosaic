@@ -11,14 +11,35 @@ matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions within its
 
 ## Supported Kotlin versions
 
-Mosaic supports each Kotlin minor family for **18 months after its first stable release**, including stable patches. New
-versions become supported after verification; prereleases are excluded.
+Mosaic supports each Kotlin minor family for **18 months after its first stable release**, including stable patches.
+Kotlin range boundaries expand after verification; prereleases are excluded.
 
-The tables list exact verified combinations. Official support requires a listed combination within the 18-month window.
-Unlisted combinations are uncertified. Historical results remain available after official support ends. Kotlin compiler
-certification is separate from Mosaic's own binary compatibility.
+The tables show inclusive ranges: every published stable version between the endpoints is supported. With optional
+Analysis, your Runtime must be in its Runtime range, and your Kotlin version must be in **both** releases' Kotlin
+ranges. The effective Kotlin range is their overlap. Official Kotlin support follows the 18-month window; historical
+compatibility ranges remain available afterward.
 
 <CompatibilityTables />
+
+## Analysis Gradle compatibility
+
+The optional Analysis plugin supports consumer Gradle versions **8.2.1 through 9.7.1**, within the
+[Gradle range supported by your KGP version](https://kotlinlang.org/docs/gradle-configure-project.html). The Gradle JVM
+must be Java 17 or newer and supported by that Gradle distribution. Use Java 17 with Gradle 8.2.1; running Gradle on
+Java 21 requires Gradle 8.5 or newer.
+
+Real Kotlin DSL applications exercise these representative combinations using the published plugin marker and Maven
+artifacts:
+
+| Consumer Gradle | Kotlin / KGP |
+| --------------- | ------------ |
+| 8.2.1           | 2.4.21       |
+| 9.0.0           | 2.3.0        |
+| 9.7.1           | 2.4.21       |
+
+These checks cover application compilation and execution, compiler artifact selection, extraction, verification
+diagnostics, packaged summaries, and configuration-cache storage and reuse. The build wrapper used to produce Mosaic
+does not establish the consumer Gradle requirement. Isolated-project compatibility is not established.
 
 ## Runtime compatibility
 
@@ -29,7 +50,7 @@ validator protects existing JVM signatures.
 
 Keep `mosaic-core`, `mosaic-test`, and `mosaic-opentelemetry` at the same Runtime version; the BOM aligns these modules.
 Analysis releases independently and is outside the BOM. Runtime and Analysis versions need not match when their
-combination is certified compatible.
+compatibility ranges overlap.
 
 ## Optional analysis
 

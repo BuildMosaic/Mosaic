@@ -1,9 +1,10 @@
 ---
 import records from '../../../compatibility/registry.json';
 
+type KotlinRange = { minKotlin: string; maxKotlin: string };
 const { runtime, analysis } = records as {
-  runtime: Record<string, string[]>;
-  analysis: Record<string, { kotlin: string[]; runtime: Record<string, string[]> }>;
+  runtime: Record<string, KotlinRange>;
+  analysis: Record<string, KotlinRange & { minRuntime: string; maxRuntime: string }>;
 };
 const descending = ([a]: [string, unknown], [b]: [string, unknown]) => b.localeCompare(a, undefined, { numeric: true });
 ---
@@ -16,10 +17,8 @@ const descending = ([a]: [string, unknown], [b]: [string, unknown]) => b.localeC
       <caption>Runtime and Kotlin</caption>
       <thead>
         <tr>
-          <>
-            <th>Runtime release</th>
-            <th>Verified Kotlin versions</th>
-          </>
+          <th>Runtime</th>
+          <th>Kotlin</th>
         </tr>
       </thead>
       <tbody>
@@ -28,7 +27,7 @@ const descending = ([a]: [string, unknown], [b]: [string, unknown]) => b.localeC
           .map(([release, kotlin]) => (
             <tr>
               <td>{release}</td>
-              <td>{kotlin.join(', ')}</td>
+              <td>{`${kotlin.minKotlin}–${kotlin.maxKotlin}`}</td>
             </tr>
           ))}
       </tbody>
@@ -41,25 +40,21 @@ const descending = ([a]: [string, unknown], [b]: [string, unknown]) => b.localeC
       <caption>Analysis, Runtime, and Kotlin</caption>
       <thead>
         <tr>
-          <>
-            <th>Analysis release</th>
-            <th>Runtime release</th>
-            <th>Verified Kotlin/KGP versions</th>
-          </>
+          <th>Analysis</th>
+          <th>Runtime</th>
+          <th>Kotlin/KGP</th>
         </tr>
       </thead>
       <tbody>
         {Object.entries(analysis)
           .sort(descending)
-          .flatMap(([release, entry]) =>
-            Object.entries(entry.runtime).map(([version, kotlin]) => (
-              <tr>
-                <td>{release}</td>
-                <td>{version}</td>
-                <td>{kotlin.join(', ')}</td>
-              </tr>
-            )),
-          )}
+          .map(([release, entry]) => (
+            <tr>
+              <td>{release}</td>
+              <td>{`${entry.minRuntime}–${entry.maxRuntime}`}</td>
+              <td>{`${entry.minKotlin}–${entry.maxKotlin}`}</td>
+            </tr>
+          ))}
       </tbody>
     </table>
   )

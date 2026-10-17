@@ -1,72 +1,36 @@
-import groovy.json.JsonOutput
-import java.security.MessageDigest
-
-// Dependency resolution only. No Kotlin Gradle plugin, Mosaic Gradle plugin, or TestKit.
-plugins { id 'java' }
-
+// check.sh prepends the requested plugins DSL, so installation uses real plugin markers.
 def runtime = providers.gradleProperty('compat.runtime').get()
-def analysis = providers.gradleProperty('compat.analysis').getOrElse('')
-def requested = providers.gradleProperty('compat.kotlin').get()
-def baseline = providers.gradleProperty('compat.baseline').get()
-def workspace = file(providers.gradleProperty('compat.workspace').get())
-def evidence = new File(workspace, "$runtime/${analysis ?: 'runtime'}/$requested")
-def required = analysis ? ['compiler', 'controlCompiler', 'consumer', 'extractor', 'runner'] : ['compiler', 'consumer']
-
+def analysis = providers.gradleProperty('compat.analysis').get()
 repositories {
-    maven {
-        url = uri(new File(workspace, 'repository'))
-        // Exercise published POM transitivity; candidates have unique versions.
-        metadataSources { mavenPom(); artifact() }
-    }
+    if (System.getenv('MOSAIC_COMPAT_REPOSITORY')) maven { url = uri(System.getenv('MOSAIC_COMPAT_REPOSITORY')) }
     mavenCentral()
 }
-
-required.each { name ->
-    configurations.create(name) {
-        canBeConsumed = false
-        canBeResolved = true
-        resolutionStrategy.failOnDynamicVersions()
-        resolutionStrategy.failOnChangingVersions()
-    }
-}
-configurations.consumer {
-    attributes {
-        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
-        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
-        attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
-    }
-}
-if (analysis) configurations.extractor.transitive = false
-
+kotlin { jvmToolchain(17) }
 dependencies {
-    compiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly requested } }
-    ['mosaic-core', 'mosaic-test', 'mosaic-opentelemetry'].each {
-        consumer("org.buildmosaic:$it:$runtime") { version { strictly runtime } }
-    }
-    if (analysis) {
-        controlCompiler('org.jetbrains.kotlin:kotlin-compiler-embeddable') { version { strictly baseline } }
-        extractor("org.buildmosaic:${providers.gradleProperty('compat.extractor').orElse('mosaic-compiler-plugin').get()}:$analysis") { version { strictly analysis } }
-        runner 'org.junit.platform:junit-platform-console-standalone:1.12.2'
-        runner "org.jetbrains.kotlin:kotlin-test-junit5:$baseline"
-    }
+    implementation(enforcedPlatform("org.buildmosaic:mosaic-bom:$runtime"))
+    ['mosaic-core', 'mosaic-test', 'mosaic-opentelemetry'].each { implementation("org.buildmosaic:$it:$runtime") }
 }
-
-tasks.register('resolveEvidence') {
-    doLast {
-        evidence.mkdirs()
-        def result = [gradle: gradle.gradleVersion, java: System.getProperty('java.version'), configurations: [:]]
-        def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }.get()
-        result.java17 = launcher.executablePath.asFile.absolutePath
-        result.java17Version = launcher.metadata.javaRuntimeVersion
-        configurations.findAll { it.name in required }.each { config ->
-            def artifacts = config.resolvedConfiguration.resolvedArtifacts.collect { artifact ->
-                def id = artifact.moduleVersion.id
-                def hash = MessageDigest.getInstance('SHA-256').digest(artifact.file.bytes).encodeHex().toString()
-                [coordinate: "$id.group:$id.name:$id.version", group: id.group, module: id.name,
-                 version: id.version, file: artifact.file.absolutePath, sha256: hash]
-            }.sort { it.coordinate }
-            result.configurations[config.name] = [artifacts: artifacts]
-        }
-        new File(evidence, 'resolution.json').text = JsonOutput.prettyPrint(JsonOutput.toJson(result)) + '\n'
+application { mainClass = 'certification.RuntimeConsumerKt' }
+if (analysis != '-') {
+    mosaicAnalysis {
+        roots.add('certification.safe()')
+        roots.add('certification.unknown()')
+        if (providers.gradleProperty('compat.missing').isPresent()) roots.add('certification.missing()')
     }
+    tasks.register('checkAnalysis') {
+        dependsOn('mosaicGraph', 'jar')
+        doLast {
+            def summary = new groovy.json.JsonSlurper().parse(file('build/mosaic-analysis/main/summary.json'))
+            assert summary.producer.compilerVersion == providers.gradleProperty('compat.kotlin').get()
+            assert summary.producer.analysisVersion == analysis
+            def graph = file('build/reports/mosaic-analysis/graph.md').text
+            assert graph.contains('## Root: certification.safe()') && graph.contains('Status: VERIFIED')
+            assert graph.contains('## Root: certification.unknown()') && graph.contains('Status: UNVERIFIED')
+            def jar = tasks.jar.archiveFile.get().asFile
+            new java.util.jar.JarFile(jar).withCloseable { archive ->
+                assert archive.getJarEntry('META-INF/mosaic-analysis/v1/summary.json') != null
+            }
+        }
+    }
+    tasks.check { dependsOn('checkAnalysis') }
 }

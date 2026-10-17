@@ -1,98 +1,97 @@
-# Release and compatibility recovery
+# Releases and Kotlin compatibility
 
 For maintainers. Consumer guarantees belong in the
-[compatibility reference](https://BuildMosaic.org/reference/compatibility/);
-normal contributor setup belongs in [CONTRIBUTING.md](CONTRIBUTING.md).
+[compatibility reference](https://BuildMosaic.org/reference/compatibility/).
 
-## Release a train
+## Release Runtime or Analysis
 
-Prepare releases on protected `main`, bringing ready features from `develop`
-through review. Keep the development default in `gradle.properties`; the workflow
-overrides the selected train's version.
-
-1. Add a dated `CHANGELOG.md` entry and public notes at
-   `docs/releases/TRAIN-VERSION.md` on the release commit.
-2. Validate the commit and create its immutable `runtime-VERSION` or
-   `analysis-VERSION` tag. The tagged commit must be reachable from `main`.
-3. Dispatch **Release** from `main`, selecting the train and version:
+1. Prepare the release commit on protected `main`, with a dated
+   `CHANGELOG.md` entry and `docs/releases/TRAIN-VERSION.md`.
+2. Create and push a signed annotated `runtime-VERSION` or `analysis-VERSION`
+   tag. GitHub must verify its signature. Never move a release tag.
+3. Dispatch **Release** from `main`:
 
    ```bash
    gh workflow run release.yml --ref main -f train=runtime -f version=VERSION
+   gh workflow run release.yml --ref main -f train=analysis -f version=VERSION
    ```
 
-4. Confirm publication, the GitHub Release, the registry commit, and the website
-   deployment. Record Runtime before releasing dependent Analysis. Prereleases
-   do not establish registry records.
+Dispatch authorizes publication if verification passes. There is no second
+reviewer approval. The workflow checks the signed tag and protected-main ancestry,
+checks the product and examples, and runs exact compatibility combinations on up
+to twelve workers. Each worker builds the selected train into a temporary local
+Maven directory and runs a real Java 17 consumer. Publishing credentials are
+available only to the publishing job. It rechecks the tag and immutable
+coordinates, publishes the selected train, and creates the GitHub Release.
+Only then does the protected App writer update compatibility on `main`; that
+commit triggers the website. Prereleases do not add compatibility records.
 
-Release certification covers all discovered stable compilers from Kotlin 2.2.0,
-including historical families. Routine maintenance limits discovery to the
-supported window. This broader release gate is intentional regression coverage;
-it does not extend the official support period. The optional `counterparts`
-input selects published releases of the other train to verify; blank selects
-the latest recorded release. Only exercised relationships are recorded.
+Optional range inputs are `minKotlin`, `maxKotlin`, `minRuntime`, and `maxRuntime`.
+Kotlin minima inherit the previous release; the maximum defaults to the latest
+stable Kotlin publication. Analysis Runtime minima inherit the previous Analysis
+release and the maximum defaults to the latest Runtime. For the first Analysis,
+minima come from the oldest Runtime and the latest Runtime's Kotlin minimum.
+Explicit bounds are never narrowed to make verification pass. Checks use the
+Runtime/Analysis Kotlin intersections. A Runtime release may extend existing
+Analysis Runtime ranges; failed optional extensions retain their previous bounds.
+An empty intersection does not extend a range.
 
-Publication is not atomic. If a release fails, inspect Maven Central, the Plugin
-Portal, and GitHub before retrying. Never move a release tag or republish released
-coordinates. Complete only missing publication steps after understanding partial
-success; do not rerun the entire release blindly.
+## Daily Kotlin maintenance
 
-If publication succeeded but registry recording failed, recover the compact JSON
-from the certification step's Actions log into a local file. After confirming the
-matching GitHub Release is published, retry **only** recording from its tagged
-checkout, with `GH_TOKEN` set to the registry App installation token and
-`GH_WORKFLOW_TOKEN` set to a token authorized to dispatch the website.
+**Kotlin compatibility maintenance** discovers stable Kotlin publications by
+publication timestamp, including new patches on older minor families. Routine
+checks retain the rolling 18-month window from each family's first stable release.
+The workflow selects affected published releases and runs the same consumer
+checks. A passing batch atomically updates ranges and `kotlin-checkpoint.txt`.
+A failed batch raises an issue and leaves both unchanged. Publications outside
+the window are skipped, while their publication checkpoint is processed.
+Releases and maintenance share the `mosaic-compatibility` Actions concurrency queue.
 
-Also set `GITHUB_REPOSITORY=BuildMosaic/Mosaic`,
-`GITHUB_SERVER_URL=https://github.com`, and `GITHUB_RUN_ID` to the failed workflow
-run's numeric ID. The recovery commit uses this context to link to its evidence.
-
-```bash
-python3 compatibility/maintain.py record --evidence /path/to/result.json \
-  --train runtime --version VERSION --revision TAG_COMMIT
-```
-
-The evidence must match the train, version, and source commit. Do not substitute
-results from another checkout or edit the registry to manufacture success. An
-idempotent recording retry also requests website deployment.
-
-## Retry compatibility failures
-
-A failure issue contains the exact reproduction command and Actions diagnostics.
-After resolving the cause, retry the unchanged published artifacts with an exact
-compiler version, including historical compilers outside routine support:
+To retry an exact publication, including one outside routine support:
 
 ```bash
 gh workflow run kotlin-compatibility.yml --ref main -f kotlin=KOTLIN_VERSION
 ```
 
-A passing retry closes its issue. Existing successes are reused. Implementation
-fixes require normal review and, when needed, a new release.
+A passing retry closes its compatibility issue. Never advance the checkpoint by
+hand to skip a failed publication.
 
-For local checks without GitHub updates, use `compatibility/certify.py --help` or
-`./gradlew tasks --group compatibility`. Supply both JDK 17 and the repository
-build JDK through `--java-installations` (Gradle:
-`-Porg.gradle.java.installations.paths`). Logs and evidence are under
-`build/reports/compatibility/`; installation diagnostics are under
-`mosaic-gradle-plugin/build/reports/introspector-installation/`.
+## Local checks and recovery
 
-## Credentials and writer recovery
+With JDK 17 available, check published artifacts directly:
 
-The protected `release` environment holds `MAVEN_CENTRAL_USERNAME`,
-`MAVEN_CENTRAL_PASSWORD`, `SIGNING_PRIVATE_KEY`, and `SIGNING_PASSWORD`.
-Analysis also needs `GRADLE_PUBLISH_KEY` and `GRADLE_PUBLISH_SECRET`.
+```bash
+./compatibility/check.sh RUNTIME ANALYSIS_OR_DASH KOTLIN
+```
 
-The registry writer is a repository-installed GitHub App with Contents write
-permission and an **Always allow** bypass on the `main` ruleset. Its numeric ID is
-repository variable `KOTLIN_COMPATIBILITY_APP_ID`. Its PEM private key is the
-`KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY` environment secret in **both** `release`
-and `compatibility-writer`. Both environments must restrict deployment branches
-to exactly `main` (branch, not tag); compatibility maintenance has no approval
-gate. Preserve the release environment's other protections.
+For an unpublished candidate, use Gradle's
+`publishAllPublicationsToInstallTestRepository` tasks with
+`-Pmosaic.installTestRepository=/absolute/path/to/maven` and the selected train's
+`-Pmosaic.runtime.version=VERSION` or `-Pmosaic.analysis.version=VERSION` override.
+Set `MOSAIC_COMPAT_REPOSITORY` to that directory when running the checker.
+`JAVA_HOME_17_X64` and `JAVA_HOME_21_X64` can identify explicit JDK installations.
+Consumer workspaces and reports remain under `build/compatibility/`; failed matrix
+jobs upload them. Compatibility issues link logs and exact reproduction commands.
 
-When rotating or restoring the key, import the PEM file directly using
-`gh secret set ... --env ENVIRONMENT < /path/to/app.pem`, without printing it.
-Verify the secret exists in both environments before removing a previous copy.
-The built-in workflow token handles issues and website dispatch, independently
-of the App's registry writes. Keep repository Issues enabled. Diagnose access
-failures at these boundaries; do not broaden permissions or weaken protection
-for ordinary users or workflows. Never commit credentials or local evidence.
+Publication is non-atomic. On failure, inspect Maven Central, the Plugin Portal,
+and GitHub before retrying. Never move the tag or republish existing coordinates.
+Complete only the missing publication steps after establishing what succeeded.
+If registry recording failed after publication, rerun the failed recording job
+when its input snapshot is still current. If compatibility records changed,
+rerun the affected checker combinations and submit a compatibility-only PR with
+the verified bounds. Keep the checkpoint unchanged during release recovery.
+Website failures can be retried through **Website**. Recovery is manual; a normal release rerun refuses
+already published coordinates.
+
+## Credentials
+
+The existing `release` environment is restricted to branch `main` and contains
+`MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_PRIVATE_KEY`,
+`SIGNING_PASSWORD`, `GRADLE_PUBLISH_KEY`, and `GRADLE_PUBLISH_SECRET`.
+The `compatibility-writer` environment is also restricted to branch `main` and
+contains `KOTLIN_COMPATIBILITY_APP_PRIVATE_KEY`. Repository variable
+`KOTLIN_COMPATIBILITY_APP_ID` identifies the App with Contents write permission
+and the protected-main bypass. Its token is used only for the registry commit.
+
+Rotate PEM keys with `gh secret set ... --env ENVIRONMENT < /path/to/app.pem`,
+without printing credentials. Keep publication credentials out of matrix jobs.
