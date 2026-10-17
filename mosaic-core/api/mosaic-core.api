@@ -58,6 +58,7 @@ public final class org/buildmosaic/core/injection/Canvas : java/lang/AutoCloseab
 }
 
 public final class org/buildmosaic/core/injection/CanvasBuilder {
+	public final fun dependencyResolver (Lorg/buildmosaic/core/injection/CanvasDependencyResolver;)V
 	public final fun instance (Lorg/buildmosaic/core/injection/CanvasKey;Ljava/lang/Object;)V
 	public final fun provide (Lorg/buildmosaic/core/injection/CanvasKey;Lkotlin/jvm/functions/Function2;)V
 }
@@ -65,6 +66,10 @@ public final class org/buildmosaic/core/injection/CanvasBuilder {
 public final class org/buildmosaic/core/injection/CanvasBuilderKt {
 	public static final fun canvas (Lorg/buildmosaic/core/injection/Canvas;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun canvas$default (Lorg/buildmosaic/core/injection/Canvas;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class org/buildmosaic/core/injection/CanvasDependencyResolver {
+	public abstract fun resolve (Lorg/buildmosaic/core/injection/CanvasKey;)Ljava/lang/Object;
 }
 
 public final class org/buildmosaic/core/injection/CanvasFactory {
