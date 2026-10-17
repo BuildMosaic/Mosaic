@@ -3,6 +3,24 @@
 Significant user-facing changes to Mosaic are documented here. Earlier versions
 predate this maintained changelog; their release history is not reconstructed here.
 
+## [runtime-1.1.0] - 2026-10-17
+
+### Added
+
+- `CanvasDependencyResolver` and `CanvasBuilder.dependencyResolver(...)` allow
+  external dependency lookup for unchanged Tiles and Canvas constructors.
+  Explicit local and parent bindings take precedence; child layers inherit the
+  resolver. Canvas does not cache external results or misses.
+- Resolver lookups borrow values from their container. Existing `provide`
+  ownership remains unchanged; use `instance` for borrowed bindings and aliases.
+  Missing dependencies remain distinct from resolver failures.
+
+### Compatibility
+
+- Runtime 1.0 source and JVM binary compatibility are preserved. Framework
+  adapters are not included. Analysis remains independently versioned and
+  conservative about dynamic resolution.
+
 ## [analysis-1.0.1] - 2026-10-16
 
 ### Fixed

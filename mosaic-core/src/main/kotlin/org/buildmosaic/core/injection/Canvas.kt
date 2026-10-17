@@ -39,12 +39,12 @@ class Canvas internal constructor(
   private var closed = false
 
   /**
-   * Retrieves an instance of the registered object of the specified type and qualifier
+   * Retrieves a dependency of the specified type and qualifier
    *
    * @param T The type of the object to retrieve
    * @param type The [KClass] of the object
-   * @return The registered object
-   * @throws [MosaicMissingKeyException] if no instance is registered for the type
+   * @return The resolved dependency
+   * @throws [MosaicMissingKeyException] if neither explicit bindings nor the resolver supply the key
    */
   fun <T : Any> source(
     type: KClass<T>,
@@ -52,12 +52,12 @@ class Canvas internal constructor(
   ): T = source(CanvasKey(type, qualifier))
 
   /**
-   * Retrieves an instance of the registered object under the [CanvasKey]
+   * Retrieves a dependency identified by [CanvasKey]
    *
    * @param T the type of the registered object
    * @param key the key the object is registered under
-   * @return The registered object
-   * @throws [MosaicMissingKeyException] if no instance is registered for the type
+   * @return The resolved dependency
+   * @throws [MosaicMissingKeyException] if neither explicit bindings nor the resolver supply the key
    */
   fun <T : Any> source(key: CanvasKey<T>): T = sourceOrNull(key) ?: throw MosaicMissingKeyException(key)
 
@@ -68,7 +68,7 @@ class Canvas internal constructor(
    * @param T the type of the registered object
    * @param type The [KClass] of the object
    * @param qualifier an optional qualifier for the type
-   * @return The registered object
+   * @return The resolved dependency
    */
   fun <T : Any> sourceOrNull(
     type: KClass<T>,
@@ -76,15 +76,20 @@ class Canvas internal constructor(
   ): T? = sourceOrNull(CanvasKey(type, qualifier))
 
   /**
-   * Retrieves an instance of the registered object under the [CanvasKey]
-   * Returns null if the object isn't found
+   * Retrieves an instance under [CanvasKey], checking explicit local and ancestor bindings
+   * before the optional [CanvasDependencyResolver]. Returns null only when absent; resolver
+   * ambiguity, creation and scope failures propagate.
    *
    * @param T the type of the registered object
    * @param key the key the object is registered under
-   * @return The registered object
+   * @return The resolved dependency
    */
+  fun <T : Any> sourceOrNull(key: CanvasKey<T>): T? =
+    explicitSourceOrNull(key) ?: runtimeConfig.dependencyResolver?.resolve(key)
+
   @Suppress("UNCHECKED_CAST")
-  fun <T : Any> sourceOrNull(key: CanvasKey<T>): T? = instances[key] as T? ?: parent?.sourceOrNull(key)
+  internal fun <T : Any> explicitSourceOrNull(key: CanvasKey<T>): T? =
+    instances[key] as T? ?: parent?.explicitSourceOrNull(key)
 
   // Include shadowed ancestors: lookup visibility does not change resource ownership.
   internal fun containsInstance(instance: Any): Boolean =
@@ -143,7 +148,7 @@ class Canvas internal constructor(
  * @param T The type of the dependency to retrieve
  * @param qualifier An optional name distinguishing bindings of the same type
  * @return An instance of the requested type
- * @throws [MosaicMissingKeyException] if no instance is registered for the type
+ * @throws [MosaicMissingKeyException] if neither explicit bindings nor the resolver supply the key
  */
 inline fun <reified T : Any> Canvas.source(qualifier: String? = null): T = source(T::class, qualifier)
 
