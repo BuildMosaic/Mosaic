@@ -23,6 +23,22 @@ class CanvasBuilder internal constructor(inheritedConfig: MosaicRuntimeConfig = 
     if (inheritedConfig.executionObserver == null) ObserverState.ABSENT else ObserverState.CONFIGURED
   private var runtimeConfig = inheritedConfig
 
+  /**
+   * Installs an externally owned fallback for keys absent from all explicit Canvas layers.
+   * The resolver is inherited by children and cannot be replaced or installed twice in a lineage.
+   * Lookup does not transfer resource ownership; [provide] and [instance] retain their usual rules.
+   *
+   * ```kotlin
+   * val application = canvas {
+   *   dependencyResolver(containerResolver)
+   * }
+   * ```
+   */
+  fun dependencyResolver(resolver: CanvasDependencyResolver) {
+    check(runtimeConfig.dependencyResolver == null) { "Dependency resolver already installed" }
+    runtimeConfig = runtimeConfig.copy(dependencyResolver = resolver)
+  }
+
   // The supported installation extension lives with the integration SPI, outside the Canvas DSL members.
   internal fun configureExecutionObserver(factory: () -> ExecutionObserver) {
     check(observerState == ObserverState.ABSENT) { "Execution observer already installed or installing" }
@@ -44,8 +60,9 @@ class CanvasBuilder internal constructor(inheritedConfig: MosaicRuntimeConfig = 
   private enum class ObserverState { ABSENT, INSTALLING, CONFIGURED }
 
   /**
-   * Registers a dependency for eager Canvas-owned construction. Constructed [AutoCloseable] values
-   * are closed on Canvas close or construction rollback. Use [instance] to borrow a value.
+   * Registers a dependency for eager Canvas-owned construction. Returned [AutoCloseable] values
+   * are closed on Canvas close or construction rollback. Use [instance] for externally owned values,
+   * including aliases of dependencies obtained from a resolver.
    *
    * @param T The type of the dependency
    * @param key The [CanvasKey] associated with your dependency
@@ -57,8 +74,9 @@ class CanvasBuilder internal constructor(inheritedConfig: MosaicRuntimeConfig = 
   ) = check(bindings.putIfAbsent(key, SingleBinding(ctor)) == null) { "Duplicate binding for $key" }
 
   /**
-   * Registers a dependency for eager Canvas-owned construction. Constructed [AutoCloseable] values
-   * are closed on Canvas close or construction rollback. Use [instance] to borrow a value.
+   * Registers a dependency for eager Canvas-owned construction. Returned [AutoCloseable] values
+   * are closed on Canvas close or construction rollback. Use [instance] for externally owned values,
+   * including aliases of dependencies obtained from a resolver.
    *
    * @param T The type of the dependency
    * @param qualifier Optional qualifier to distinguish between multiple instances of the same type
@@ -198,7 +216,8 @@ class CanvasFactory internal constructor(
   /**
    * Resolves a required dependency during eager Canvas construction.
    * Local bindings are resolved first. If this canvas does not contain [key], lookup falls
-   * back through the parent canvas. Construction is eager, so parent-owned instances are
+   * back through explicit parent bindings, then the optional [CanvasDependencyResolver].
+   * Construction is eager, so parent-owned instances are
    * reused and child overrides do not rewire services already created by the parent.
    *
    * @param T The type of the dependency
@@ -209,7 +228,7 @@ class CanvasFactory internal constructor(
     @Suppress("UNCHECKED_CAST")
     val local = bindings[key] as SingleBinding<T>?
     if (local != null) return create(local)
-    return parent?.sourceOrNull(key) ?: missingKeyError(key)
+    return parent?.explicitSourceOrNull(key) ?: runtimeConfig.dependencyResolver?.resolve(key) ?: missingKeyError(key)
   }
 
   /**
