@@ -26,6 +26,14 @@ coordinates, publishes the selected train, and creates the GitHub Release.
 Only then does the protected App writer update compatibility on `main`; that
 commit triggers the website. Prereleases do not add compatibility records.
 
+The website reads the latest stable versions and release-note links from the
+registry during its normal build. No documentation commit is needed for a version
+bump. Review user-facing changes and intentional toolchain/example pins when
+preparing a release. Website checks flag Kotlin installation examples outside
+certified ranges; maintainers still own prose and pin changes. Check **Website**
+after recording certification and retry a failed deployment there. Website
+success is independent of publication and certification.
+
 Optional range inputs are `minKotlin`, `maxKotlin`, `minRuntime`, and `maxRuntime`.
 Kotlin minima inherit the previous release; the maximum defaults to the latest
 stable Kotlin publication. Analysis Runtime minima inherit the previous Analysis

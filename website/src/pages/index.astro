@@ -1,5 +1,6 @@
 ---
 import { Code } from '@astrojs/starlight/components';
+import { runtimeVersion } from '../data/releases';
 import orderPage from '../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/OrderPageTile.kt?raw';
 import orderSummary from '../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/OrderSummaryTile.kt?raw';
 import orderTotal from '../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/OrderTotalTile.kt?raw';
@@ -97,7 +98,7 @@ const description =
                 ></a
               ><a class="button secondary" href="https://github.com/BuildMosaic/Mosaic">GitHub</a>
             </div>
-            <a class="release-link" href="/reference/releases/">Runtime 1.0.0 <span>· Apache 2.0</span></a>
+            <a class="release-link" href="/reference/releases/">Runtime {runtimeVersion} <span>· Apache 2.0</span></a>
           </div>
           <div class="hero-composition">
             <Code code={example('OrderPageTile')} lang="kotlin" title="OrderPageTile.kt" />

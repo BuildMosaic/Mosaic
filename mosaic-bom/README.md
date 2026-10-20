@@ -7,6 +7,8 @@ The Mosaic BOM aligns `mosaic-core`, `mosaic-test`, and optional
 
 Import the BOM and omit versions on Mosaic runtime dependencies. Add only the
 libraries your application needs; importing the BOM does not install them.
+Replace `RUNTIME_VERSION` below with the Runtime version from the
+[installation guide](https://BuildMosaic.org/start/installation/#align-optional-modules).
 
 ### Gradle (Kotlin DSL)
 
@@ -15,7 +17,7 @@ libraries your application needs; importing the BOM does not install them.
 
 dependencies {
     // Import the BOM
-    implementation(platform("org.buildmosaic:mosaic-bom:1.0.0"))
+    implementation(platform("org.buildmosaic:mosaic-bom:RUNTIME_VERSION"))
 
     // Add Mosaic dependencies without version numbers
     implementation("org.buildmosaic:mosaic-core")
@@ -32,7 +34,7 @@ dependencies {
 
 dependencies {
     // Import the BOM
-    implementation platform('org.buildmosaic:mosaic-bom:1.0.0')
+    implementation platform('org.buildmosaic:mosaic-bom:RUNTIME_VERSION')
 
     // Add Mosaic dependencies without version numbers
     implementation 'org.buildmosaic:mosaic-core'
@@ -51,7 +53,7 @@ dependencies {
             <dependency>
                 <groupId>org.buildmosaic</groupId>
                 <artifactId>mosaic-bom</artifactId>
-                <version>1.0.0</version>
+                <version>RUNTIME_VERSION</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

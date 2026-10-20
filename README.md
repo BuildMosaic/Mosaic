@@ -18,8 +18,9 @@ Mosaic is a Kotlin library for building backends one response at a time. A **Til
 reusable piece of work that can read request or application data and compose other
 Tiles. A request-scoped Mosaic shares repeated Tile work automatically.
 
-**Runtime 1.0.0 · Analysis 1.0.0**. For upgrades from 0.7.0, read the
-[Runtime migration notes](docs/releases/runtime-1.0.0.md).
+Find the latest stable Runtime and Analysis versions in the
+[release reference](https://BuildMosaic.org/reference/releases/). For upgrades from
+0.7.0, read the [Runtime migration notes](docs/releases/runtime-1.0.0.md).
 
 ## 🚀 **Why Mosaic?**
 
@@ -106,13 +107,9 @@ boundaries depend on scheduling. Choose `perKeyTile` for individual fetches or
 
 ## 🏁 **Try It**
 
-Add Mosaic to a Kotlin/JVM project:
-
-```kotlin
-dependencies {
-  implementation("org.buildmosaic:mosaic-core:1.0.0")
-}
-```
+Add `org.buildmosaic:mosaic-core` to a Kotlin/JVM project using the
+[installation guide](https://BuildMosaic.org/start/installation/) for the latest
+stable dependency coordinates.
 
 No registration plugin or processor is needed. The optional
 [BOM](mosaic-bom/README.md) aligns the runtime library versions.
