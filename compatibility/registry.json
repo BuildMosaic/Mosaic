@@ -3,12 +3,16 @@
     "1.0.0": {
       "minKotlin": "2.2.0",
       "maxKotlin": "2.4.21"
+    },
+    "1.1.0": {
+      "minKotlin": "2.2.0",
+      "maxKotlin": "2.4.21"
     }
   },
   "analysis": {
     "1.0.0": {
       "minRuntime": "1.0.0",
-      "maxRuntime": "1.0.0",
+      "maxRuntime": "1.1.0",
       "minKotlin": "2.2.0",
       "maxKotlin": "2.4.21"
     },
@@ -16,7 +20,7 @@
       "minKotlin": "2.2.0",
       "maxKotlin": "2.4.21",
       "minRuntime": "1.0.0",
-      "maxRuntime": "1.0.0"
+      "maxRuntime": "1.1.0"
     }
   }
 }
