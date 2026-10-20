@@ -67,7 +67,10 @@ class PublishedInstallationTest {
     assertTrue(!compilerPom.contains("<artifactId>mosaic-analysis-core</artifactId>"), compilerPom)
     assertTrue(!compilerPom.contains("kotlin-compiler-embeddable"), compilerPom)
 
-    for ((gradle, kotlin) in listOf("8.2.1" to "2.4.21", "9.0.0" to "2.3.0", "9.7.1" to "2.4.21")) {
+    val consumers =
+      javaClass.getResourceAsStream("/consumer-matrix.csv")!!.bufferedReader().use { it.readLines().drop(1) }
+    for (consumer in consumers) {
+      val (gradle, kotlin) = consumer.split(',')
       verifyConsumer(workspace, maven, version, gradle, kotlin)
     }
   }

@@ -1,13 +1,15 @@
 ---
-title: 'Analyze architecture'
-description: 'Generate Tile architecture graphs and check Canvas bindings with optional build tooling.'
+title: 'Analyze and verify Tile architecture'
+description: 'Generate dependency graphs from Kotlin Tiles and verify Canvas bindings with the optional Mosaic Analysis Gradle plugin.'
 ---
 
 Turn composition into a dependency report, then use verification to find missing Canvas bindings and dangerous recursive Tile dependencies. Analysis is optional: the runtime works without it. The [analysis configuration reference](/reference/analysis-configuration/) covers the full DSL, rules, suppressions, enforcement, roots, tasks, reports, and supported project boundary.
 
 ## Install the plugin
 
-Install Analysis 1.0.0 separately from Runtime. The plugin selects the compiler integration automatically; use matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions from the [compatibility reference](/reference/compatibility/).
+<!-- current-releases:start -->
+
+Install Analysis 1.0.1 separately from Runtime. The plugin selects the compiler integration automatically; use matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions from the [compatibility reference](/reference/compatibility/).
 
 ```kotlin title="build.gradle.kts"
 import org.buildmosaic.gradle.MosaicAnalysisEnforcement
@@ -15,18 +17,20 @@ import org.buildmosaic.gradle.MosaicAnalysisRole
 
 plugins {
   kotlin("jvm") version "2.4.20"
-  id("org.buildmosaic.analysis") version "1.0.0"
+  id("org.buildmosaic.analysis") version "1.0.1"
 }
 
 repositories { mavenCentral() }
 
-dependencies { implementation("org.buildmosaic:mosaic-core:1.0.0") }
+dependencies { implementation("org.buildmosaic:mosaic-core:1.1.0") }
 
 mosaicAnalysis {
   role = MosaicAnalysisRole.APPLICATION
   enforcement = MosaicAnalysisEnforcement.STANDARD
 }
 ```
+
+<!-- current-releases:end -->
 
 In `settings.gradle.kts`, include `mavenCentral()` in `pluginManagement.repositories` alongside `gradlePluginPortal()`.
 

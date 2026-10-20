@@ -6,7 +6,11 @@ on:
     paths:
       - 'website/**'
       - 'compatibility/registry.json'
-      - 'compatibility/automation.py'
+      - 'compatibility/*.py'
+      - 'compatibility/consumer-matrix.csv'
+      - 'README.md'
+      - 'mosaic-bom/README.md'
+      - 'mosaic-opentelemetry/README.md'
       - 'assets/**'
       - '.impeccable/BRAND.md'
       - '.github/images/order-architecture.png'
@@ -24,7 +28,11 @@ on:
     paths:
       - 'website/**'
       - 'compatibility/registry.json'
-      - 'compatibility/automation.py'
+      - 'compatibility/*.py'
+      - 'compatibility/consumer-matrix.csv'
+      - 'README.md'
+      - 'mosaic-bom/README.md'
+      - 'mosaic-opentelemetry/README.md'
       - 'assets/**'
       - '.impeccable/BRAND.md'
       - '.github/images/order-architecture.png'
@@ -72,6 +80,10 @@ jobs:
       - name: Install locked dependencies
         working-directory: website
         run: pnpm install --frozen-lockfile
+      - name: Check release recommendations against publication and certification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 compatibility/documentation.py --check-publications
       - name: Check authored content, types, and formatting
         working-directory: website
         run: |

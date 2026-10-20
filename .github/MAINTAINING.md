@@ -24,7 +24,27 @@ Maven directory and runs a real Java 17 consumer. Publishing credentials are
 available only to the publishing job. It rechecks the tag and immutable
 coordinates, publishes the selected train, and creates the GitHub Release.
 Only then does the protected App writer update compatibility on `main`; that
-commit triggers the website. Prereleases do not add compatibility records.
+commit refreshes marked current-release recommendations and triggers the website.
+Prereleases do not add compatibility records. Publication succeeds before recording;
+a failed `record` job leaves documentation unchanged and `recording-status` reports
+that recovery is needed. Never rerun publication to repair documentation.
+
+`compatibility/registry.json` owns stable certified release versions and inclusive
+compatibility ranges, not publication timestamps. `compatibility/documentation.py`
+selects each train by semantic version and checks their Runtime/Kotlin intersection.
+Only its marked current-release blocks are refreshed; migration examples stay pinned.
+An incompatible latest pair, or a pinned setup Kotlin version outside its intersection,
+fails refresh for review rather than silently selecting older versions or changing
+certification.
+After an intentional documentation or consumer-fixture edit, run
+`python3 compatibility/documentation.py --write`, then the same command without
+`--write` to check freshness. `compatibility/consumer-matrix.csv` feeds the published
+consumer test and the marked compatibility table. Java/Kotlin support policy is
+explicit documentation, not inferred from this fixture or the build toolchain.
+The website's `--check-publications` gate compares stable GitHub Releases with the
+registry and fails on missing records in either direction; it does not certify them.
+Release links lead to GitHub's actual publication metadata. Changelog dates are
+release-note dates and are not presented as publication dates.
 
 Optional range inputs are `minKotlin`, `maxKotlin`, `minRuntime`, and `maxRuntime`.
 Kotlin minima inherit the previous release; the maximum defaults to the latest

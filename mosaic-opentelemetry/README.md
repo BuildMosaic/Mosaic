@@ -5,13 +5,15 @@ application's existing OpenTelemetry traces.
 
 ## Installation and setup
 
+<!-- current-releases:start -->
 ```kotlin
 dependencies {
-  implementation("org.buildmosaic:mosaic-opentelemetry:1.0.0")
+  implementation("org.buildmosaic:mosaic-opentelemetry:1.1.0")
 }
 ```
+<!-- current-releases:end -->
 
-The adapter includes core and OpenTelemetry API 1.66.0. Use the same Mosaic version
+The adapter includes core and OpenTelemetry API. Use the same Mosaic version
 across runtime modules, or the [BOM](../mosaic-bom/README.md).
 Your application owns the SDK or agent, sampling, export, and shutdown.
 

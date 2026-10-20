@@ -21,7 +21,7 @@ pnpm check:links
 pnpm format:check
 ```
 
-`pnpm api` generates Dokka and copies its output. `prepare:assets` copies the canonical logo SVGs from `assets/` and the architecture graphic. Edit their sources; generated API, assets, and `dist` stay uncommitted. The homepage imports runnable Kotlin examples.
+`pnpm api` generates Dokka and copies its output. `prepare:assets` copies the canonical logo SVGs from `assets/` and the architecture graphic. Edit their sources; generated API, assets, and `dist` stay uncommitted. The homepage imports runnable Kotlin examples. Current release recommendations are marked blocks refreshed by `../compatibility/documentation.py` from the certified registry; see the maintainer runbook for ownership and recovery. `site.mjs` owns the site origin and the four Dokka entry pages receiving static metadata and sitemap entries during API assembly. Symbol pages retain native Dokka metadata and layout; the website omits the source-build fallback version label.
 
 Teaching belongs in `src/content/docs/`; API contracts belong in KDoc. Keep maintainer procedures out of both. Root and module READMEs provide GitHub orientation rather than duplicating the teaching guides.
 

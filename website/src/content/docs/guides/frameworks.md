@@ -1,6 +1,6 @@
 ---
-title: 'Use your HTTP framework'
-description: 'Run the shared order response behind Spring Boot, Ktor, or Micronaut.'
+title: 'Mosaic with Spring Boot, Ktor, and Micronaut'
+description: 'Run the same Kotlin order Tiles behind Spring Boot controllers, Ktor routes, and Micronaut dependency injection.'
 ---
 
 Mosaic composes application logic; your HTTP framework owns routing, serialization, status codes, and server lifecycle. The repository has runnable Spring Boot, Ktor, and Micronaut examples using the same order Tile library.

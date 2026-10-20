@@ -1,13 +1,14 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
+import { siteOrigin, apiEntries } from './site.mjs';
 
 export default defineConfig({
-  site: 'https://BuildMosaic.org',
+  site: siteOrigin,
   trailingSlash: 'always',
   devToolbar: { enabled: false },
   integrations: [
-    sitemap(),
+    sitemap({ customPages: Object.keys(apiEntries).map((path) => new URL(path, siteOrigin).href) }),
     starlight({
       title: 'Mosaic',
       favicon: '/brand/mosaic-mark.svg',
@@ -19,9 +20,9 @@ export default defineConfig({
       customCss: ['./src/styles/theme.css', './src/styles/docs.css'],
       editLink: { baseUrl: 'https://github.com/BuildMosaic/Mosaic/edit/main/website/' },
       head: [
-        { tag: 'meta', attrs: { property: 'og:image', content: 'https://BuildMosaic.org/social-preview.png' } },
+        { tag: 'meta', attrs: { property: 'og:image', content: new URL('/social-preview.png', siteOrigin).href } },
         { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
-        { tag: 'meta', attrs: { name: 'twitter:image', content: 'https://BuildMosaic.org/social-preview.png' } },
+        { tag: 'meta', attrs: { name: 'twitter:image', content: new URL('/social-preview.png', siteOrigin).href } },
       ],
       sidebar: [
         {

@@ -107,3 +107,8 @@ tasks.named("publishPlugins") {
     "publishAndReleaseToMavenCentral",
   )
 }
+
+// One fixture feeds the published consumer checks and the compatibility reference.
+tasks.processTestResources {
+  from(rootProject.file("compatibility/consumer-matrix.csv"))
+}

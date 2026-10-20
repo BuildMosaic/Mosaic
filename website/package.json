@@ -9,8 +9,8 @@
   "scripts": {
     "dev": "astro dev --host 127.0.0.1",
     "prepare:assets": "node scripts/prepare-assets.mjs",
-    "predev": "python3 ../compatibility/automation.py validate && pnpm prepare:assets",
-    "prebuild": "python3 ../compatibility/automation.py validate && pnpm prepare:assets",
+    "predev": "python3 ../compatibility/automation.py validate && python3 ../compatibility/documentation.py && pnpm prepare:assets",
+    "prebuild": "python3 ../compatibility/automation.py validate && python3 ../compatibility/documentation.py && pnpm prepare:assets",
     "build": "astro build --force",
     "preview": "astro preview --host 127.0.0.1",
     "check": "astro check",

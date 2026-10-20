@@ -258,6 +258,14 @@ def record():
     contents = {'registry.json': json.dumps(data, indent=2) + '\n', 'kotlin-checkpoint.txt': os.environ['CHECKPOINT'] + '\n'}
     additions = [{'path': 'compatibility/' + name, 'contents': base64.b64encode(value.encode()).decode()}
                  for name, value in contents.items() if value != files[name]]
+    # Keep ordinary Markdown recommendations in the same atomic commit as certification.
+    from documentation import TARGETS, refresh
+    for name in TARGETS:
+        entry = gh('api', f'repos/{{owner}}/{{repo}}/contents/{name}?ref={head}')
+        before = base64.b64decode(entry['content']).decode()
+        after = refresh(before, data)
+        if after != before:
+            additions.append({'path': name, 'contents': base64.b64encode(after.encode()).decode()})
     if not additions:
         print('No compatibility changes')
         return

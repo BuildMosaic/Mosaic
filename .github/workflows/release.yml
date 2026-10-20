@@ -260,3 +260,14 @@ jobs:
           CHECKPOINT: ${{ needs.prepare.outputs.checkpoint }}
           BEFORE_CHECKPOINT: ${{ needs.prepare.outputs.checkpoint }}
         run: python3 compatibility/automation.py record
+
+  recording-status:
+    if: ${{ always() && needs.publish.result == 'success' && !contains(inputs.version, '-') && needs.record.result != 'success' }}
+    needs: [publish, record]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report published release awaiting certification recording
+        run: |
+          echo '::error::Publication succeeded but registry/documentation recording did not. Recover recording using .github/MAINTAINING.md; do not rerun artifact publication.'
+          echo 'Publication succeeded. Registry/documentation recording requires recovery; do not retry publication. See .github/MAINTAINING.md.' >> "$GITHUB_STEP_SUMMARY"
+          exit 1

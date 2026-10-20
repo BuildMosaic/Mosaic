@@ -1,6 +1,6 @@
 ---
-title: 'Trace execution'
-description: 'Add Tile executions, shared producers, and batch callers to OpenTelemetry traces.'
+title: 'Trace Tile execution with OpenTelemetry'
+description: 'Connect Mosaic to your OpenTelemetry provider and understand execution spans, shared dependencies, context propagation, and privacy.'
 ---
 
 See which work ran and which callers shared it. The optional OpenTelemetry adapter adds Mosaic execution to your application's existing trace pipeline.
@@ -9,19 +9,23 @@ See which work ran and which callers shared it. The optional OpenTelemetry adapt
 
 Add the adapter to your Kotlin/JVM application:
 
+<!-- current-releases:start -->
+
 ```kotlin
 repositories {
   mavenCentral()
 }
 
 dependencies {
-  implementation("org.buildmosaic:mosaic-opentelemetry:1.0.0")
+  implementation("org.buildmosaic:mosaic-opentelemetry:1.1.0")
 }
 ```
 
+<!-- current-releases:end -->
+
 Use the same Mosaic version across runtime modules. With the [BOM](https://github.com/BuildMosaic/Mosaic/blob/main/mosaic-bom/README.md), omit the adapter's dependency version.
 
-The adapter includes Mosaic core and OpenTelemetry API 1.66.0. Your application supplies the SDK or Java agent, sampling policy, processors, exporters, resources, and shutdown. Mosaic neither installs an SDK nor registers global telemetry. Provider callbacks run synchronously and must return promptly. Use an asynchronous export path, normally the SDK's `BatchSpanProcessor`, for network exporters; Mosaic does not create an export worker or make blocking exporters asynchronous.
+The adapter includes Mosaic core and OpenTelemetry API. Your application supplies the SDK or Java agent, sampling policy, processors, exporters, resources, and shutdown. Mosaic neither installs an SDK nor registers global telemetry. Provider callbacks run synchronously and must return promptly. Use an asynchronous export path, normally the SDK's `BatchSpanProcessor`, for network exporters; Mosaic does not create an export worker or make blocking exporters asynchronous.
 
 ## Configure tracing
 

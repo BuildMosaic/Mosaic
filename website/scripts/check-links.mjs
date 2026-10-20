@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { resolve, join, relative } from 'node:path';
 import { load } from 'cheerio';
+import { siteOrigin, apiEntries } from '../site.mjs';
 
 const root = resolve('dist');
 async function files(dir) {
@@ -16,7 +17,7 @@ const documents = new Map(await Promise.all(html.map(async (file) => [file, load
 const errors = [];
 let checked = 0;
 for (const [file, $] of documents) {
-  const from = new URL('/' + relative(root, file), 'https://buildmosaic.org');
+  const from = new URL('/' + relative(root, file), siteOrigin);
   for (const node of $('a[href], img[src], script[src], link[href]').toArray()) {
     const raw = $(node).attr('href') ?? $(node).attr('src');
     if (node.tagName === 'link' && $(node).attr('rel') === 'canonical' && relative(root, file) === '404.html') continue;
@@ -53,6 +54,39 @@ for (const [file, $] of documents) {
 }
 if (!documents.has(join(root, 'api/index.html')))
   errors.push('API is missing: run pnpm api before a complete production build.');
+// Check authored pages and a deliberately small set of API landing pages.
+const sitemapFiles = (await files(root)).filter((file) => /sitemap-\d+\.xml$/.test(file));
+const sitemapUrls = [];
+for (const file of sitemapFiles) {
+  const $ = load(await readFile(file, 'utf8'), { xmlMode: true });
+  sitemapUrls.push(
+    ...$('url > loc')
+      .toArray()
+      .map((node) => $(node).text()),
+  );
+}
+if (new Set(sitemapUrls).size !== sitemapUrls.length) errors.push('Duplicate sitemap URLs');
+if (sitemapUrls.some((url) => url.endsWith('/index.html'))) errors.push('Sitemap contains index.html aliases');
+const titles = new Set();
+const descriptions = new Set();
+for (const [file, $] of documents) {
+  const path = '/' + relative(root, file).replace(/index\.html$/, '');
+  if (path === '/404.html' || (path.startsWith('/api/') && !apiEntries[path])) continue;
+  const title = $('title').text().trim();
+  const description = $('meta[name="description"]').attr('content')?.trim();
+  const canonical = new URL(path, siteOrigin).href;
+  if (!title || titles.has(title)) errors.push(`${path}: missing or duplicate title`);
+  if (!description || descriptions.has(description)) errors.push(`${path}: missing or duplicate description`);
+  titles.add(title);
+  descriptions.add(description);
+  if ($('link[rel="canonical"]').length !== 1 || $('link[rel="canonical"]').attr('href') !== canonical)
+    errors.push(`${path}: expected one canonical ${canonical}`);
+  if (!sitemapUrls.includes(canonical)) errors.push(`${path}: missing from sitemap`);
+  if (apiEntries[path]) {
+    if (title !== apiEntries[path].title || description !== apiEntries[path].description)
+      errors.push(`${path}: API entry metadata differs from site configuration`);
+  }
+}
 if (errors.length) {
   console.error(errors.join('\n'));
   process.exitCode = 1;

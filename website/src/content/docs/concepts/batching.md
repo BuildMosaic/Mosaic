@@ -1,6 +1,6 @@
 ---
-title: 'Choose a batching strategy'
-description: 'Use bulk, per-key, or chunked fetching without changing consumers.'
+title: 'Data fetching and batching strategies'
+description: 'Choose bulk, per-key, or chunked fetching with MultiTile while preserving keyed reuse and the same consumer API.'
 ---
 
 All three keyed factories return a MultiTile. Callers use the same [composition API](/concepts/multitile/), regardless of how your backend fetches.

@@ -1,13 +1,15 @@
 ---
-title: 'Compatibility'
-description: 'Runtime, test, tracing, and optional analysis requirements.'
+title: 'Mosaic compatibility and requirements'
+description:
+  'Check Java, Kotlin, Gradle, and certified Runtime and Analysis combinations before installing or upgrading Mosaic.'
 ---
 
 import CompatibilityTables from '../../../components/CompatibilityTables.astro';
 
-Runtime 1.0.0 supports Kotlin/JVM on **Java 17+**, using Kotlin language/API level 2.2. Optional Analysis 1.0.0 requires
-matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions within its
+{/* current-releases:start */} Runtime 1.1.0 supports Kotlin/JVM on **Java 17+**, using Kotlin language/API level 2.2.
+Optional Analysis 1.0.1 requires matching Kotlin compiler and Kotlin Gradle Plugin (KGP) versions within its
 [supported project boundary](/reference/analysis-configuration/#supported-project-boundary).
+{/* current-releases:end */}
 
 ## Supported Kotlin versions
 
@@ -31,11 +33,17 @@ Java 21 requires Gradle 8.5 or newer.
 Real Kotlin DSL applications exercise these representative combinations using the published plugin marker and Maven
 artifacts:
 
+{/* consumer-matrix:start */}
+
 | Consumer Gradle | Kotlin / KGP |
 | --------------- | ------------ |
 | 8.2.1           | 2.4.21       |
 | 9.0.0           | 2.3.0        |
 | 9.7.1           | 2.4.21       |
+
+{/* consumer-matrix:end */}
+
+Representative checks do not establish compatibility for every intermediate Gradle/KGP combination.
 
 These checks cover application compilation and execution, compiler artifact selection, extraction, verification
 diagnostics, packaged summaries, and configuration-cache storage and reuse. The build wrapper used to produce Mosaic

@@ -25,9 +25,11 @@ const example = (name: string) =>
     .split(/\n(?=val )/)
     .at(-1)!
     .trim();
-const title = 'Mosaic — Composable backend orchestration for Kotlin';
+const title = 'Mosaic — Kotlin framework for backend application logic';
+const canonical = new URL(Astro.url.pathname, Astro.site!);
+const socialImage = new URL('/social-preview.png', Astro.site!);
 const description =
-  'Think from the response up. Compose backend application logic with Kotlin Tiles, request-scoped shared work, and natural batching.';
+  'Compose backend application logic with a Kotlin framework for reusable Tiles, shared work, and batching. Complements Spring Boot, Ktor, and Micronaut.';
 ---
 
 <!doctype html>
@@ -35,27 +37,21 @@ const description =
   <head>
     <Analytics />
     <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title}</title><meta name="description" content={description} /><link
-      rel="canonical"
-      href="https://BuildMosaic.org/"
-    />
+    <title>{title}</title><meta name="description" content={description} /><link rel="canonical" href={canonical} />
     <meta property="og:type" content="website" /><meta property="og:title" content={title} /><meta
       property="og:description"
       content={description}
-    /><meta property="og:url" content="https://BuildMosaic.org/" /><meta
-      property="og:site_name"
-      content="Mosaic"
-    /><meta property="og:image" content="https://BuildMosaic.org/social-preview.png" /><meta
-      property="og:image:width"
-      content="1200"
-    /><meta property="og:image:height" content="630" /><meta
+    /><meta property="og:url" content={canonical} /><meta property="og:site_name" content="Mosaic" /><meta
+      property="og:image"
+      content={socialImage}
+    /><meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" /><meta
       property="og:image:alt"
       content="Mosaic. Think from the response up. BuildMosaic.org."
     />
     <meta name="twitter:card" content="summary_large_image" /><meta name="twitter:title" content={title} /><meta
       name="twitter:description"
       content={description}
-    /><meta name="twitter:image" content="https://BuildMosaic.org/social-preview.png" />
+    /><meta name="twitter:image" content={socialImage} />
     <meta name="theme-color" content="#0d192a" /><link
       rel="icon"
       type="image/svg+xml"
@@ -88,7 +84,8 @@ const description =
               the work.
             </p>
             <p class="hero-context">
-              Mosaic is a Kotlin library for application logic and response data. Bring your own HTTP framework.
+              Mosaic is a Kotlin framework for backend application logic and response data. Bring your own HTTP
+              framework.
             </p>
             <div class="actions">
               <a class="button primary" href="/start/quick-start/"
@@ -97,7 +94,9 @@ const description =
                 ></a
               ><a class="button secondary" href="https://github.com/BuildMosaic/Mosaic">GitHub</a>
             </div>
-            <a class="release-link" href="/reference/releases/">Runtime 1.0.0 <span>· Apache 2.0</span></a>
+            <!-- current-releases:start -->
+            <a class="release-link" href="/reference/releases/">Runtime 1.1.0 <span>· Apache 2.0</span></a>
+            <!-- current-releases:end -->
           </div>
           <div class="hero-composition">
             <Code code={example('OrderPageTile')} lang="kotlin" title="OrderPageTile.kt" />

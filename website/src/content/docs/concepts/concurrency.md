@@ -1,6 +1,6 @@
 ---
-title: 'Concurrent work'
-description: 'Start independent branches with composeAsync and await values when needed.'
+title: 'Concurrent composition in Kotlin'
+description: 'Start independent Tile branches with composeAsync, await their results, and keep coroutine work within its owning scope.'
 ---
 
 `compose(tile)` suspends until the result is available. `composeAsync(tile)` returns a `Deferred<V>` so you can start independent branches before awaiting their results. Sequential `compose` calls remain sequential.
