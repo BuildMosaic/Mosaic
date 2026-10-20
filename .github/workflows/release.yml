@@ -268,6 +268,6 @@ jobs:
     steps:
       - name: Report published release awaiting certification recording
         run: |
-          echo '::error::Publication succeeded but registry/documentation recording did not. Recover recording using .github/MAINTAINING.md; do not rerun artifact publication.'
-          echo 'Publication succeeded. Registry/documentation recording requires recovery; do not retry publication. See .github/MAINTAINING.md.' >> "$GITHUB_STEP_SUMMARY"
+          echo '::error::Publication succeeded but registry recording did not. Recover recording using .github/MAINTAINING.md; do not rerun artifact publication.'
+          echo 'Publication succeeded. Registry recording requires recovery; do not retry publication. See .github/MAINTAINING.md.' >> "$GITHUB_STEP_SUMMARY"
           exit 1

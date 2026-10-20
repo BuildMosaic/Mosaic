@@ -23,19 +23,25 @@ to twelve workers. Each worker builds the selected train into a temporary local
 Maven directory and runs a real Java 17 consumer. Publishing credentials are
 available only to the publishing job. It rechecks the tag and immutable
 coordinates, publishes the selected train, and creates the GitHub Release.
-Only then does the protected App writer update compatibility on `main`; that
-commit refreshes marked current-release recommendations and triggers the website.
+Only then does the protected App writer atomically record verified compatibility
+and its checkpoint on `main`. It then attempts a separate commit refreshing marked
+current-release recommendations. Both commits use the existing website workflow.
 Prereleases do not add compatibility records. Publication succeeds before recording;
-a failed `record` job leaves documentation unchanged and `recording-status` reports
-that recovery is needed. Never rerun publication to repair documentation.
+a failed registry commit is reported by `recording-status` and needs recording
+recovery. Never rerun publication to repair documentation.
 
 `compatibility/registry.json` owns stable certified release versions and inclusive
 compatibility ranges, not publication timestamps. `compatibility/documentation.py`
 selects each train by semantic version and checks their Runtime/Kotlin intersection.
 Only its marked current-release blocks are refreshed; migration examples stay pinned.
-An incompatible latest pair, or a pinned setup Kotlin version outside its intersection,
-fails refresh for review rather than silently selecting older versions or changing
-certification.
+An incompatible latest pair, a pinned setup Kotlin version outside its intersection,
+or any documentation update failure preserves every existing recommendation. The
+record job reports `documentation=review-required`, an Actions warning, and a step
+summary; the verified registry and checkpoint remain recorded, and the job succeeds.
+No older pair is selected silently and no certification is changed to fit examples.
+The website freshness gate still fails until the recommendations are reviewed, so
+the deployed site keeps its last validated snippets. Submit a documentation-only
+PR to resolve that warning; do not retry publication or certification recording.
 After an intentional documentation or consumer-fixture edit, run
 `python3 compatibility/documentation.py --write`, then the same command without
 `--write` to check freshness. `compatibility/consumer-matrix.csv` feeds the published

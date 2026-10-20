@@ -246,6 +246,19 @@ def run_url():
     return f'{os.environ["GITHUB_SERVER_URL"]}/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}'
 
 
+def commit(head, additions, headline):
+    result = gh('api', 'graphql', payload={
+        'query': 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }',
+        'variables': {'input': {'branch': {'repositoryNameWithOwner': os.environ['GITHUB_REPOSITORY'], 'branchName': 'main'},
+            'expectedHeadOid': head, 'message': {'headline': headline, 'body': run_url()},
+            'fileChanges': {'additions': additions}}}})
+    if result.get('errors'):
+        raise RuntimeError(result['errors'])
+    sha = result['data']['createCommitOnBranch']['commit']['oid']
+    print(sha)
+    return sha
+
+
 def record():
     data = validate(json.loads(os.environ['REGISTRY']))
     head = gh('api', 'repos/{owner}/{repo}/git/ref/heads/main')['object']['sha']
@@ -258,25 +271,35 @@ def record():
     contents = {'registry.json': json.dumps(data, indent=2) + '\n', 'kotlin-checkpoint.txt': os.environ['CHECKPOINT'] + '\n'}
     additions = [{'path': 'compatibility/' + name, 'contents': base64.b64encode(value.encode()).decode()}
                  for name, value in contents.items() if value != files[name]]
-    # Keep ordinary Markdown recommendations in the same atomic commit as certification.
-    from documentation import TARGETS, refresh
-    for name in TARGETS:
-        entry = gh('api', f'repos/{{owner}}/{{repo}}/contents/{name}?ref={head}')
-        before = base64.b64decode(entry['content']).decode()
-        after = refresh(before, data)
-        if after != before:
-            additions.append({'path': name, 'contents': base64.b64encode(after.encode()).decode()})
-    if not additions:
+    if additions:
+        head = commit(head, additions, 'Record verified Kotlin compatibility')
+    else:
         print('No compatibility changes')
-        return
-    result = gh('api', 'graphql', payload={
-        'query': 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }',
-        'variables': {'input': {'branch': {'repositoryNameWithOwner': os.environ['GITHUB_REPOSITORY'], 'branchName': 'main'},
-            'expectedHeadOid': head, 'message': {'headline': 'Record verified Kotlin compatibility', 'body': run_url()},
-            'fileChanges': {'additions': additions}}}})
-    if result.get('errors'):
-        raise RuntimeError(result['errors'])
-    print(result['data']['createCommitOnBranch']['commit']['oid'])
+
+    # Recommendations are a separate decision; they must never prevent recording verified facts.
+    try:
+        from documentation import TARGETS, refresh
+        additions = []
+        for name in TARGETS:
+            entry = gh('api', f'repos/{{owner}}/{{repo}}/contents/{name}?ref={head}')
+            before = base64.b64decode(entry['content']).decode()
+            after = refresh(before, data)
+            if after != before:
+                additions.append({'path': name, 'contents': base64.b64encode(after.encode()).decode()})
+        if additions:
+            commit(head, additions, 'Refresh current release recommendations')
+        output(documentation='updated' if additions else 'current')
+    except Exception as error:
+        # Retain every existing recommendation if any read, selection, rendering, or commit fails.
+        reason = ' '.join(str(error).splitlines())
+        print(f'::warning::Certification recorded; documentation recommendations need review: {reason}')
+        output(documentation='review-required')
+        if os.environ.get('GITHUB_STEP_SUMMARY'):
+            with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as target:
+                target.write(f'\nCertification recorded. Documentation recommendations need review: {reason}\n\n'
+                             'Existing recommendations were preserved. Review the documentation and run '
+                             '`python3 compatibility/documentation.py --write` in a documentation PR. '
+                             'Do not retry artifact publication or certification recording.\n')
 
 
 if __name__ == '__main__':
