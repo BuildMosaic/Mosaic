@@ -1,14 +1,72 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import registry from '../../compatibility/registry.json' with { type: 'json' };
 declare global {
   interface Window {
     mosaicLayoutShift: number;
   }
 }
 
+test('release labels, notes, and copyable install snippets follow certification', async ({ page, context }) => {
+  const newest = (versions: string[]) =>
+    versions.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).at(-1)!;
+  const runtime = newest(Object.keys(registry.runtime));
+  const analysis = newest(Object.keys(registry.analysis)) as keyof typeof registry.analysis;
+  const analysisRuntime = registry.analysis[analysis].maxRuntime;
+
+  await page.goto('/');
+  await expect(page.locator('.release-link')).toContainText(`Runtime ${runtime}`);
+  await page.goto('/reference/releases/');
+  for (const [train, version] of [
+    ['Runtime', runtime],
+    ['Analysis', analysis],
+  ]) {
+    const tag = `${train.toLowerCase()}-${version}`;
+    await expect(page.getByRole('link', { name: `${train} ${version} notes`, exact: true }).first()).toHaveAttribute(
+      'href',
+      `https://github.com/BuildMosaic/Mosaic/blob/${tag}/docs/releases/${tag}.md`,
+    );
+  }
+  await expect(page.getByRole('link', { name: 'Runtime migration table' })).toHaveAttribute(
+    'href',
+    /runtime-1\.0\.0\/docs\/releases\/runtime-1\.0\.0\.md#upgrade-from-070$/,
+  );
+
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  for (const [route, snippets] of [
+    ['/start/installation/', [`mosaic-core:${runtime}`, `mosaic-bom:${runtime}`]],
+    ['/start/quick-start/', [`mosaic-core:${runtime}`]],
+    ['/guides/tracing/', [`mosaic-opentelemetry:${runtime}`]],
+    ['/guides/analysis/', [`id("org.buildmosaic.analysis") version "${analysis}"`, `mosaic-core:${analysisRuntime}`]],
+  ] as const) {
+    await page.goto(route);
+    for (const snippet of snippets) {
+      const block = page.locator('.expressive-code').filter({ hasText: snippet }).first();
+      await expect(block.locator('pre')).toContainText(snippet);
+      await block.getByRole('button', { name: /copy/i }).click();
+      expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(snippet);
+    }
+    if (route === '/start/quick-start/' || route === '/guides/analysis/') {
+      const code = await page.locator('.expressive-code pre').first().innerText();
+      const kotlin = code.match(/kotlin\("jvm"\) version "([\d.]+)"/)![1];
+      const selectedRuntime = route === '/guides/analysis/' ? analysisRuntime : runtime;
+      const ranges = [registry.runtime[selectedRuntime as keyof typeof registry.runtime]];
+      if (route === '/guides/analysis/') ranges.push(registry.analysis[analysis]);
+      for (const { minKotlin, maxKotlin } of ranges) {
+        expect(kotlin.localeCompare(minKotlin, undefined, { numeric: true })).toBeGreaterThanOrEqual(0);
+        expect(kotlin.localeCompare(maxKotlin, undefined, { numeric: true })).toBeLessThanOrEqual(0);
+      }
+    }
+  }
+});
+
 const routes = [
   '/',
   '/start/quick-start/',
+  '/start/installation/',
+  '/guides/analysis/',
+  '/guides/tracing/',
+  '/reference/releases/',
   '/concepts/shared-work/',
   '/guides/testing/',
   '/reference/compatibility/',

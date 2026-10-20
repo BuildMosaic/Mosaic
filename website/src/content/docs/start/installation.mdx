@@ -1,0 +1,46 @@
+---
+title: 'Installation'
+description: 'Add Mosaic to a Kotlin/JVM application and align optional runtime modules.'
+---
+
+import { runtimeVersion } from '../../../data/releases';
+import { Code } from '@astrojs/starlight/components';
+
+Mosaic Runtime {runtimeVersion} supports Kotlin/JVM on Java 17 or later. Use Maven Central and a
+[supported Kotlin version](/reference/compatibility/).
+
+Add core to your Gradle Kotlin DSL build:
+
+export const coreDependencies = `repositories {
+  mavenCentral()
+}
+dependencies {
+  implementation("org.buildmosaic:mosaic-core:${runtimeVersion}")
+}`;
+
+<Code lang="kotlin" title="build.gradle.kts" code={coreDependencies} />
+
+Core exposes the coroutine APIs it uses. Runtime installation needs no compiler plugin, KSP processor, or Tile
+registration.
+
+## Align optional modules
+
+Use the BOM when adding testing or tracing:
+
+export const alignedDependencies = `dependencies {
+  implementation(platform("org.buildmosaic:mosaic-bom:${runtimeVersion}"))
+  implementation("org.buildmosaic:mosaic-core")
+  // Optional execution tracing:
+  implementation("org.buildmosaic:mosaic-opentelemetry")
+  testImplementation(platform("org.buildmosaic:mosaic-bom:${runtimeVersion}"))
+  testImplementation("org.buildmosaic:mosaic-test")
+  testImplementation(kotlin("test"))
+}`;
+
+<Code lang="kotlin" title="build.gradle.kts" code={alignedDependencies} />
+
+The BOM aligns core, test, and OpenTelemetry modules. It does not add those libraries, install tracing, or align
+analysis tooling. The tracing adapter exposes OpenTelemetry API; your application provides its SDK or Java agent.
+
+Continue with the [Quick Start](/start/quick-start/). Install optional build analysis separately using the
+[architecture guide](/guides/analysis/).
