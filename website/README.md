@@ -23,6 +23,8 @@ pnpm format:check
 
 `pnpm api` generates Dokka and copies its output. `prepare:assets` copies the canonical logo SVGs from `assets/` and the architecture graphic. Edit their sources; generated API, assets, and `dist` stay uncommitted. The homepage imports runnable Kotlin examples.
 
+Latest stable Runtime and Analysis versions come from `compatibility/registry.json` through `src/data/releases.ts`. Use MDX expressions for release labels and Starlight’s `Code` component for versioned installation snippets. The Analysis example uses its certified Runtime maximum. Keep historical release links, example tags, and toolchain pins explicit. GitHub READMEs link to these installation pages or use a labeled version placeholder.
+
 Teaching belongs in `src/content/docs/`; API contracts belong in KDoc. Keep maintainer procedures out of both. Root and module READMEs provide GitHub orientation rather than duplicating the teaching guides.
 
 ## Browser checks
