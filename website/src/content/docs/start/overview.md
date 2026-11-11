@@ -23,6 +23,8 @@ Mosaic fits responses assembled from multiple services, graphs with shared depen
 
 For a single service call, ordinary suspending Kotlin may already be sufficient. Mosaic adds a runtime cost that depends on the graph; inspect the [performance evidence](/reference/performance/) for your workload.
 
+Follow [a Kotlin API aggregation example](/guides/kotlin-api-aggregation/) to build one response from multiple services and share dependencies across its branches.
+
 ## Runtime first, tooling optional
 
 No registration plugin or processor is needed for runtime use. Add the core library and write ordinary Kotlin. Testing and OpenTelemetry support are optional runtime modules. Compiler analysis is separate build tooling with a narrower [compatibility boundary](/reference/compatibility/#optional-analysis).

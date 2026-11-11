@@ -1,6 +1,6 @@
 ---
-title: 'Shared work and identity'
-description: 'Understand request-scoped caching, in-flight reuse, and stable Tile identity.'
+title: 'Request-scoped caching and shared work in Kotlin'
+description: 'Reuse in-flight work and completed results within one Mosaic request, with stable Tile identity and keyed MultiTile caching.'
 ---
 
 Reuse belongs to one Mosaic instance. Calls using the same Tile instance share its in-flight work and completed result. Create a Mosaic per request to keep that reuse scoped to the request.
