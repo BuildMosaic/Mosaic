@@ -1,4 +1,4 @@
-description = "OpenTelemetry tracing for Mosaic execution"
+description = "OpenTelemetry tracing for Mosaic backend orchestration in Kotlin"
 
 plugins {
   id("kotlin.convention")
