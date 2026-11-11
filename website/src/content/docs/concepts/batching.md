@@ -48,3 +48,31 @@ These snippets use `org.buildmosaic.core.*` and the shared order example's produ
 All strategies reuse the same MultiTile instance and equal keys within one Mosaic. Pending uncached keys may combine before scheduled execution begins, without an intentional wait. A started batch is fixed. Later callers may form another batch, and batches can execute concurrently.
 
 Choose a strategy based on your backend API. Do not make response logic depend on how many batches happen to form. The [performance page](/reference/performance/) includes observed overlapping-key behavior, with its scheduling limitations.
+
+## Use a DataLoader-style lookup
+
+For request-scoped keyed lookups, think of a MultiTile as a reusable loader declaration and the Mosaic as the owner of this request's cache. Reuse that declaration across callers rather than constructing a loader for each branch.
+
+Using the order example's `ProductsByIdTile` and an application Canvas that binds `ProductService`:
+
+```kotlin
+import org.buildmosaic.core.injection.withMosaic
+import org.buildmosaic.library.tile.ProductsByIdTile
+
+// Inside a suspending request handler:
+applicationCanvas.withMosaic {
+  val cart = composeAsync(ProductsByIdTile, listOf("product-1"))
+  val recommendationIds = listOf("product-2", "product-1", "product-2")
+  val recommendations = composeAsync(ProductsByIdTile, recommendationIds)
+
+  println(cart.getValue("product-1").await().name) // Coffee Mug
+  val names = recommendationIds.map { recommendations.getValue(it).await().name }
+  println(names) // [Tea Kettle, Coffee Mug, Tea Kettle]
+}
+```
+
+`product-1` is fetched once even though both callers request it. `product-2` is fetched once even though it appears twice in the recommendations. Iterating `recommendationIds` preserves the response's order and repeated entries; the result map has one entry per distinct key.
+
+There is no explicit dispatch step. `composeAsync` schedules work; awaiting retrieves its result. These calls can produce one or two backend invocations, depending on whether the first batch has started. The shared-key guarantee holds either way. A later `withMosaic` invocation starts with a fresh cache.
+
+Use the [MultiTile reference](/concepts/multitile/) for missing keys, retained failures, and cancellation semantics.
