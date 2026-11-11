@@ -1,0 +1,120 @@
+---
+title: 'Combine multiple backend API calls in Kotlin with Mosaic'
+description:
+  'Build a Kotlin endpoint from multiple services, run independent work concurrently, and reuse shared dependencies
+  within one request.'
+---
+
+import { Code } from '@astrojs/starlight/components';
+import orderPage from '../../../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/OrderPageTile.kt?raw';
+import orderSummary from '../../../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/OrderSummaryTile.kt?raw';
+import lineItems from '../../../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/LineItemsTile.kt?raw';
+import products from '../../../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/ProductsByIdTile.kt?raw';
+
+export const declaration = (source) =>
+  source
+    .split(/\n(?=val )/)
+    .at(-1)
+    .trim();
+
+An order endpoint needs customer details, products, prices, and shipping quotes. Those values come from several
+services, and more than one branch needs the same order. Mosaic lets each part of the response ask for its own
+dependencies while sharing repeated work within the request.
+
+This guide follows the repository's
+[order example](https://github.com/BuildMosaic/Mosaic/tree/main/examples/tile-library). Its services use in-memory data
+so you can run it without external accounts. In an application, service methods can call your existing backend APIs.
+Mosaic handles composition; your clients still own HTTP requests, timeouts, and retries.
+
+If you are new to the library, complete the [Quick Start](/start/quick-start/) first. The snippets below use the order
+example's models, service bindings, and Tile declarations.
+
+## Start with the response
+
+The response has two parts: an order summary and logistics. Write a Tile for each, then compose them into the page:
+
+<Code code={declaration(orderPage)} lang="kotlin" title="OrderPageTile.kt" />
+
+Both branches start before either result is awaited. Use `composeAsync` for independent work and `compose` when the next
+operation needs a result before it can proceed. [Concurrent work](/concepts/concurrency/) explains the execution and
+failure boundaries.
+
+Each branch can follow the same pattern. The summary needs the order, customer, and line items:
+
+<Code code={declaration(orderSummary)} lang="kotlin" title="OrderSummaryTile.kt" />
+
+The page Tile does not need to know which services the summary calls. It depends on the response part it needs.
+
+## Share dependencies across branches
+
+`OrderSummaryTile` asks for `OrderTile` directly. `CustomerTile` and `LineItemsTile` also need that order. Because they
+use the same Tile instance in one Mosaic, they share its in-flight work and completed result.
+
+Keep reusable Tiles in stable declarations, as this example does. Creating a new Tile inside each caller creates
+separate cache identities. Reuse is local to the Mosaic instance, not an application-wide or distributed cache. See
+[request-scoped caching and identity](/concepts/shared-work/).
+
+## Fetch products and prices by key
+
+The line-item branch first needs the order's product IDs and SKUs. Once it has them, product and pricing fetches can
+start independently:
+
+<Code code={declaration(lineItems)} lang="kotlin" title="LineItemsTile.kt" />
+
+`composeAsync` with a MultiTile returns a map of deferred values, one for each key. The loop awaits the product and
+price for each line item, then constructs the response model.
+
+Wrap a service's bulk fetch in a MultiTile:
+
+<Code code={declaration(products)} lang="kotlin" title="ProductsByIdTile.kt" />
+
+Repeated requests for equal keys share their work within the same Mosaic. Newly pending keys can join a batch before
+execution starts, but Mosaic does not intentionally wait to collect more keys. Exact batch boundaries depend on
+scheduling. Choose [bulk, per-key, or chunked fetching](/concepts/batching/) to fit the service's API and limits.
+
+## Create one Mosaic per request
+
+Register your existing service instances in an application Canvas. At the request boundary, bind the order ID in a child
+Canvas and compose the page inside one `withMosaic` block:
+
+```kotlin
+val page = applicationCanvas.withLayer {
+  instance(OrderKey, orderId)
+}.withMosaic { compose(OrderPageTile) }
+```
+
+Use this inside a suspending handler with the example's declarations and `org.buildmosaic.core.injection.withMosaic`
+imported. Your HTTP framework serializes `page` and handles routing, status codes, and server lifecycle. The same
+composition works in the [Spring Boot, Ktor, and Micronaut examples](/guides/frameworks/).
+
+If the handler also needs the order total, start both results inside that same block. Calling `withMosaic` twice creates
+separate caches. Leaving the block cancels unfinished Tile work and waits for cleanup; it does not close the Canvas.
+Follow [resource ownership](/guides/resources/) when a Canvas creates closeable services.
+
+## Run and check the result
+
+Follow the [framework example setup](/guides/frameworks/#run-an-example), start one application, then request:
+
+```bash
+curl http://localhost:8080/orders/order-1
+```
+
+The response contains `summary` and `logistics`. In the sample data, the summary contains Jane Doe's order for two
+Coffee Mugs and one Tea Kettle. Logistics contains the address and carrier quotes. This checks the composed response,
+not production network performance or the timing of individual branches.
+
+Test composition separately from HTTP. The
+[order-page tests](https://github.com/BuildMosaic/Mosaic/blob/main/examples/tile-library/src/test/kotlin/org/buildmosaic/library/tile/OrderPageTileTest.kt)
+replace summary and logistics Tiles with fixtures, verify the resulting page, and check a failed logistics dependency.
+Use the [testing guide](/guides/testing/) to add equivalent success and failure cases for your response.
+
+## Decide whether Mosaic fits
+
+Ordinary suspending functions and coroutine `async` calls can be enough for a small, fixed fan-out. Mosaic is useful
+when independent branches repeatedly discover shared dependencies, keyed fetches need reuse, or the response graph needs
+isolated tests and execution tracing.
+
+It adds Tile and Canvas abstractions and runtime overhead. Review the [measured costs](/reference/performance/) for the
+published workloads and measure your own application. Concurrency overlaps suspending work; it does not make blocking
+clients non-blocking. Failed results remain cached in the request Mosaic, so another `compose` call is not a retry. Keep
+deliberate retries, timeouts, and fallback behavior in your service boundary or Tile.

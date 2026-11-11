@@ -62,6 +62,8 @@ val OrderSummaryTile by singleTile {
 spills into the page Tile. [Follow the complete order example](examples/tile-library/src/main/kotlin/org/buildmosaic/library)
 or see [how the composition works](https://BuildMosaic.org/concepts/tiles/).
 
+[Combine multiple backend API calls in Kotlin →](https://BuildMosaic.org/guides/kotlin-api-aggregation/)
+
 ## ⚡ **Ask Twice. Share the Work.**
 
 The page needs line items. So does the order total:

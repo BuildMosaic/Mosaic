@@ -50,6 +50,7 @@ export default defineConfig({
           label: 'Build and inspect',
           collapsed: true,
           items: [
+            { label: 'Combine backend API calls', slug: 'guides/kotlin-api-aggregation' },
             { label: 'Test compositions', slug: 'guides/testing' },
             { label: 'Trace execution', slug: 'guides/tracing' },
             { label: 'Analyze architecture', slug: 'guides/analysis' },

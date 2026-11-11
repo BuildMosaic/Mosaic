@@ -1,6 +1,6 @@
 ---
-title: 'Concurrent work'
-description: 'Start independent branches with composeAsync and await values when needed.'
+title: 'Run concurrent backend work in Kotlin'
+description: 'Compose independent backend work concurrently with Mosaic, share dependencies, and understand coroutine cancellation and failures.'
 ---
 
 `compose(tile)` suspends until the result is available. `composeAsync(tile)` returns a `Deferred<V>` so you can start independent branches before awaiting their results. Sequential `compose` calls remain sequential.
