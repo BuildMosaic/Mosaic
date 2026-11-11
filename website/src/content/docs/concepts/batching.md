@@ -73,6 +73,8 @@ applicationCanvas.withMosaic {
 
 `product-1` is fetched once even though both callers request it. `product-2` is fetched once even though it appears twice in the recommendations. Iterating `recommendationIds` preserves the response's order and repeated entries; the result map has one entry per distinct key.
 
-There is no explicit dispatch step. `composeAsync` schedules work; awaiting retrieves its result. These calls can produce one or two backend invocations, depending on whether the first batch has started. The shared-key guarantee holds either way. A later `withMosaic` invocation starts with a fresh cache.
+There is no explicit dispatch step. `composeAsync` schedules work; awaiting retrieves its result. These calls can produce one or two batches, depending on whether the first has started: either one batch contains both product keys, or the first contains only `product-1` and the second only `product-2`.
+
+**Within one Mosaic, each equal key for the same MultiTile instance can appear in only one batch, never both.** Mosaic calls that Tile's fetch block for a key at most once; later callers reuse its in-flight work or retained outcome, including failures. A later `withMosaic` invocation starts with a fresh cache.
 
 Use the [MultiTile reference](/concepts/multitile/) for missing keys, retained failures, and cancellation semantics.
