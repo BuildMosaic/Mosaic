@@ -1,7 +1,8 @@
 import { cp, mkdir, access, readdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { load } from 'cheerio';
+import { addApiMetadata } from './api-metadata.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
 await mkdir(publicDir, { recursive: true });
@@ -18,18 +19,18 @@ if (process.argv.includes('--api')) {
   await cp(apiSource, `${publicDir}api`, { recursive: true, force: true });
   // Dokka 2.2 emits inherited-overload fragment links without corresponding IDs.
   // Add aliases beside the native declaration-group anchor; preserve its HTML/layout.
-  async function repairInheritedLinks(dir) {
+  async function prepareApiPages(dir) {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const file = join(dir, entry.name);
       if (entry.isDirectory()) {
-        await repairInheritedLinks(file);
+        await prepareApiPages(file);
         continue;
       }
-      if (entry.name !== 'index.html') continue;
+      if (!entry.name.endsWith('.html') || entry.name === 'navigation.html') continue;
       let html = await readFile(file, 'utf8');
       const $ = load(html);
       const aliases = new Map();
-      for (const link of $('a[href^="index.html#"]').toArray()) {
+      for (const link of entry.name === 'index.html' ? $('a[href^="index.html#"]').toArray() : []) {
         const fragment = $(link).attr('href').slice('index.html#'.length);
         if (
           $('[id]')
@@ -45,8 +46,10 @@ if (process.argv.includes('--api')) {
         if (!/^[A-Za-z0-9%/-]+$/.test(fragment)) throw new Error('Unexpected Dokka fragment');
         html = html.replace(`<a data-name="${group}"`, `<a id="${fragment}"></a><a data-name="${group}"`);
       }
-      if (aliases.size) await writeFile(file, html);
+      const document = load(html);
+      addApiMetadata(document, relative(`${publicDir}api`, file).split(sep).join('/'));
+      await writeFile(file, document.html());
     }
   }
-  await repairInheritedLinks(`${publicDir}api`);
+  await prepareApiPages(`${publicDir}api`);
 }

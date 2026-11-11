@@ -1,13 +1,14 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
+import { apiSitemapPages } from './scripts/api-metadata.mjs';
 
 export default defineConfig({
   site: 'https://BuildMosaic.org',
   trailingSlash: 'always',
   devToolbar: { enabled: false },
   integrations: [
-    sitemap(),
+    sitemap({ customPages: apiSitemapPages }),
     starlight({
       title: 'Mosaic',
       favicon: '/brand/mosaic-mark.svg',
