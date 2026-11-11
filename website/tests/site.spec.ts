@@ -62,6 +62,7 @@ test('release labels, notes, and copyable install snippets follow certification'
 
 const routes = [
   '/',
+  '/start/overview/',
   '/start/quick-start/',
   '/start/installation/',
   '/guides/analysis/',
