@@ -1,6 +1,17 @@
 ---
 title: 'Tiles and composition'
-description: 'Build responses from stable, reusable suspending Kotlin work.'
+description: "Compose Kotlin backend work with Mosaic's dynamic DAG scheduler. Discover dependencies at runtime and share work within one request."
+head:
+  - tag: title
+    content: 'Kotlin Tiles and dynamic DAG scheduling | Mosaic'
+  - tag: meta
+    attrs:
+      property: og:title
+      content: 'Kotlin Tiles and dynamic DAG scheduling'
+  - tag: meta
+    attrs:
+      name: twitter:title
+      content: 'Kotlin Tiles and dynamic DAG scheduling | Mosaic'
 ---
 
 A Tile produces one value. Its suspending block has a Mosaic receiver, so it can compose dependencies and read Canvas input. Declare reusable Tiles as stable `val`s; each declaration supplies the identity used for request reuse.
@@ -19,7 +30,11 @@ val OrderSummaryTile by singleTile {
 }
 ```
 
-Dependencies can themselves compose other Tiles. The checked-in [LineItemsTile](https://github.com/BuildMosaic/Mosaic/blob/runtime-1.0.0/examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/LineItemsTile.kt) gets product IDs and SKUs from `order.items`, starts both batches, then awaits each item's values:
+## Compose a dynamic dependency graph
+
+Mosaic acts as a **dynamic DAG scheduler** for this composition. A directed acyclic graph (DAG) describes the dependency structure you compose. The graph emerges from the `compose` and `composeAsync` calls your Kotlin code reaches: a Tile can read a value, choose a branch, or discover new keys before requesting more work. Kotlin coroutines run that work, and branches in the same Mosaic can [share a Tile's in-flight execution and result](/concepts/shared-work/).
+
+The checked-in [LineItemsTile](https://github.com/BuildMosaic/Mosaic/blob/runtime-1.0.0/examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/LineItemsTile.kt) gets product IDs and SKUs from `order.items`, starts both batches, then awaits each item's values:
 
 ```kotlin
 val LineItemsTile by singleTile {

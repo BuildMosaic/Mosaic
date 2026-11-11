@@ -19,9 +19,8 @@ The first screen must explain the library and put the Quick Start within reach.
 
 ## Product truth
 
-Mosaic is a dynamic DAG scheduler for Kotlin backend orchestration. Tile composition
-discovers dependencies at runtime, and Kotlin coroutines execute the work.
-Canvas binds application services and request input. A Mosaic executes
+Mosaic is a Kotlin library for composable backend orchestration, not an HTTP
+framework. Canvas binds application services and request input. A Mosaic executes
 Tiles and owns request-scoped reuse. The same Tile instance shares in-flight work
 and results within one Mosaic. MultiTile adds equal-key reuse and opportunistic
 batching, with scheduling-dependent batch boundaries. Runtime use is independent
@@ -43,7 +42,7 @@ tied to shipped behavior and measured evidence; avoid a duplicated long-form man
 Concise, factual, technically specific. Use Mosaic, Tile, MultiTile, and Canvas.
 Canonical identity and usage come from .impeccable/BRAND.md; logo SVGs live in assets/.
 Positioning: Think from the response up, not the database down.
-Descriptor: Dynamic DAG scheduler for Kotlin.
+Descriptor: Composable backend orchestration for Kotlin.
 Branded destination: BuildMosaic.org.
 Mature framework sites Micronaut, Ktor, and Quarkus establish the professional bar,
 without copying their wording or layouts. Code and architecture are the visual

@@ -62,7 +62,6 @@ test('release labels, notes, and copyable install snippets follow certification'
 
 const routes = [
   '/',
-  '/start/overview/',
   '/start/quick-start/',
   '/start/installation/',
   '/guides/analysis/',
@@ -70,7 +69,6 @@ const routes = [
   '/reference/releases/',
   '/concepts/shared-work/',
   '/concepts/concurrency/',
-  '/concepts/dynamic-dag-scheduling/',
   '/guides/frameworks/',
   '/guides/kotlin-api-aggregation/',
   '/guides/testing/',

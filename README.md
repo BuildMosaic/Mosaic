@@ -14,12 +14,9 @@
 
 **[Get started at BuildMosaic.org](https://BuildMosaic.org/start/quick-start/) · [Documentation](https://BuildMosaic.org/start/overview/) · [Kotlin API](https://BuildMosaic.org/api/)**
 
-Mosaic is a **dynamic DAG scheduler for Kotlin backends**. Build a response from
-reusable **Tiles** that discover their dependencies as they run. Kotlin coroutines
-execute independent work concurrently, and a request-scoped Mosaic shares repeated
-Tile work automatically.
-
-[How dynamic DAG scheduling works →](https://BuildMosaic.org/concepts/dynamic-dag-scheduling/)
+Mosaic is a Kotlin library for building backends one response at a time. A **Tile** is a
+reusable piece of work that can read request or application data and compose other
+Tiles. A request-scoped Mosaic shares repeated Tile work automatically.
 
 Find the latest stable Runtime and Analysis versions in the
 [release reference](https://BuildMosaic.org/reference/releases/). For upgrades from
@@ -64,6 +61,11 @@ val OrderSummaryTile by singleTile {
 `LineItemsTile` goes deeper, fetching products and prices. None of that wiring
 spills into the page Tile. [Follow the complete order example](examples/tile-library/src/main/kotlin/org/buildmosaic/library)
 or see [how the composition works](https://BuildMosaic.org/concepts/tiles/).
+
+Mosaic acts as a **dynamic DAG scheduler** for this work: Tiles discover their
+dependencies as they run, Kotlin coroutines execute the requested work, and repeated
+dependencies share results within one request-scoped Mosaic.
+[How the dependency graph forms →](https://BuildMosaic.org/concepts/tiles/#compose-a-dynamic-dependency-graph)
 
 [Combine multiple backend API calls in Kotlin →](https://BuildMosaic.org/guides/kotlin-api-aggregation/)
 

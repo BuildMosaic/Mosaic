@@ -40,7 +40,6 @@ export default defineConfig({
           collapsed: true,
           items: [
             { label: 'Tiles and composition', slug: 'concepts/tiles' },
-            { label: 'Dynamic DAG scheduling', slug: 'concepts/dynamic-dag-scheduling' },
             { label: 'Concurrent work', slug: 'concepts/concurrency' },
             { label: 'Shared work and identity', slug: 'concepts/shared-work' },
             { label: 'Canvas and dependencies', slug: 'concepts/canvas' },

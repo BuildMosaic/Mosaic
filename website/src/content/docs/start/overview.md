@@ -1,11 +1,9 @@
 ---
-title: 'Mosaic: a dynamic DAG scheduler for Kotlin'
-description: 'Discover how Mosaic schedules runtime-composed dependencies with Kotlin coroutines and request-scoped shared work.'
+title: 'What is Mosaic?'
+description: 'Compose backend application logic from reusable Kotlin Tiles.'
 ---
 
-Mosaic is a **dynamic DAG scheduler for Kotlin backends**. Start with the data your endpoint returns, then compose the work that produces it. The dependency graph emerges as your code runs: each piece asks for the inputs it needs, independent work runs with Kotlin coroutines, and branches share repeated work within one request.
-
-Mosaic works alongside any HTTP framework, including Spring Boot, Ktor, and Micronaut. Your framework still owns routing, serialization, and server lifecycle; see the [runnable framework examples](/guides/frameworks/).
+Mosaic is a Kotlin library for building backends one response at a time. Start with the data your endpoint returns, then compose the work that produces it. Mosaic works alongside any HTTP framework, including Spring Boot, Ktor, and Micronaut. Your framework still owns routing, serialization, and server lifecycle; see the [runnable framework examples](/guides/frameworks/).
 
 A **Tile** is a reusable piece of suspending work. It can read dependencies and compose other Tiles. A **Mosaic** executes those Tiles, sharing repeated work within that instance. A **Canvas** supplies application services and request input. A **MultiTile** does keyed work with reuse and opportunistic batching.
 
@@ -19,7 +17,7 @@ val OrderPageTile by singleTile {
 
 The example uses the models and dependencies in the [shared order library](https://github.com/BuildMosaic/Mosaic/tree/runtime-1.0.0/examples/tile-library). Summary and logistics can run concurrently. Each branch asks for its own requirements; repeated requests for the same Tile share one execution.
 
-Read [how dynamic DAG scheduling works](/concepts/dynamic-dag-scheduling/) to follow the dependency graph from a response to its shared inputs.
+Learn how [Tiles form a dynamic dependency graph](/concepts/tiles/#compose-a-dynamic-dependency-graph) as the response is composed.
 
 ## When it helps
 
