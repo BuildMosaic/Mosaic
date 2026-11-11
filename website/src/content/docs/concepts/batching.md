@@ -73,6 +73,6 @@ applicationCanvas.withMosaic {
 
 Iterating `recommendationIds` preserves the response's order and repeated entries; the result map has one entry per distinct key.
 
-`composeAsync` schedules work without an explicit dispatch step. These calls may form one or two batches, but `ProductsByIdTile` includes each key in at most one batch within this Mosaic. A new `withMosaic` invocation starts with a fresh cache.
+`composeAsync` schedules work without an explicit dispatch step. With [opportunistic batching](#separate-reuse-from-batch-shape), these calls may form one or two batches depending on timing, but `ProductsByIdTile` includes each key in at most one batch within this Mosaic. A new `withMosaic` invocation starts with a fresh cache.
 
 Use the [MultiTile reference](/concepts/multitile/) for missing keys, retained failures, and cancellation semantics.
