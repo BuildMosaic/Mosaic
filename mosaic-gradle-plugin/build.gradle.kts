@@ -2,7 +2,7 @@ import org.gradle.api.tasks.WriteProperties
 import org.gradle.plugin.compatibility.compatibility
 import org.gradle.plugin.devel.tasks.PluginUnderTestMetadata
 
-description = "Mosaic contract analysis for Kotlin/JVM Gradle builds"
+description = "Optional contract verification and architecture graphs for Mosaic Kotlin/JVM backend orchestration"
 
 plugins {
   id("kotlin.convention")
@@ -80,7 +80,7 @@ gradlePlugin {
     create("mosaicAnalysis") {
       id = "org.buildmosaic.analysis"
       displayName = "Mosaic Analysis"
-      description = "Kotlin/JVM Mosaic contract extraction and verification"
+      description = project.description
       tags.set(listOf("kotlin", "analysis"))
       implementationClass = "org.buildmosaic.gradle.MosaicAnalysisPlugin"
       compatibility {
@@ -93,7 +93,7 @@ gradlePlugin {
 }
 
 gradlePlugin {
-  website = "https://github.com/BuildMosaic/Mosaic"
+  website = "https://BuildMosaic.org/guides/analysis/"
   vcsUrl = "https://github.com/BuildMosaic/Mosaic.git"
 }
 

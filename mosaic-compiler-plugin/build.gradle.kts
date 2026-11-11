@@ -26,7 +26,7 @@ abstract class CompilerFixtureArguments : CommandLineArgumentProvider {
     )
 }
 
-description = "Experimental Kotlin IR extraction for Mosaic"
+description = "Kotlin compiler plugin for contract extraction in Mosaic backend orchestration"
 
 plugins {
   id("kotlin.convention")

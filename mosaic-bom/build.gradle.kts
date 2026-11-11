@@ -1,4 +1,4 @@
-description = "Bill of Materials for Mosaic"
+description = "Bill of Materials for the Mosaic Kotlin backend orchestration runtime"
 
 plugins {
     `java-platform`
