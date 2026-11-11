@@ -10,6 +10,7 @@ import orderPage from '../../../../../examples/tile-library/src/main/kotlin/org/
 import orderSummary from '../../../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/OrderSummaryTile.kt?raw';
 import lineItems from '../../../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/LineItemsTile.kt?raw';
 import products from '../../../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/ProductsByIdTile.kt?raw';
+import orderTotal from '../../../../../examples/tile-library/src/main/kotlin/org/buildmosaic/library/tile/OrderTotalTile.kt?raw';
 
 export const declaration = (source) =>
   source
@@ -90,6 +91,97 @@ composition works in the [Spring Boot, Ktor, and Micronaut examples](/guides/fra
 If the handler also needs the order total, start both results inside that same block. Calling `withMosaic` twice creates
 separate caches. Leaving the block cancels unfinished Tile work and waits for cleanup; it does not close the Canvas.
 Follow [resource ownership](/guides/resources/) when a Canvas creates closeable services.
+
+## Compare with plain coroutines
+
+Suppose the response also needs the order total. Both the summary and total use the same line items. Plain Kotlin
+coroutines can share that work too: create one `Deferred` and pass it to both consumers.
+
+This version uses the same in-memory services and models as the order Tiles. Product and pricing calls start
+independently, and both consumers await the same `lineItems` value:
+
+```kotlin
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import org.buildmosaic.library.model.LineItemDetail
+import org.buildmosaic.library.model.OrderSummary
+import org.buildmosaic.library.service.CustomerService
+import org.buildmosaic.library.service.OrderService
+import org.buildmosaic.library.service.PricingService
+import org.buildmosaic.library.service.ProductService
+
+suspend fun coroutineSummaryAndTotal(
+  orderId: String,
+  orders: OrderService,
+  customers: CustomerService,
+  products: ProductService,
+  pricing: PricingService,
+): Pair<OrderSummary, Double> = coroutineScope {
+  val order = orders.getOrder(orderId)
+  val customer = async { customers.getCustomer(order.customerId) }
+  val lineItems = async {
+    val productValues = async {
+      products.getProducts(order.items.map { it.productId }.distinct())
+    }
+    val priceValues = async {
+      pricing.getPrices(order.items.map { it.sku }.distinct())
+    }
+    val byId = productValues.await()
+    val bySku = priceValues.await()
+    order.items.map { item ->
+      LineItemDetail(byId.getValue(item.productId), bySku.getValue(item.sku), item.quantity)
+    }
+  }
+  val summary = async { OrderSummary(order, customer.await(), lineItems.await()) }
+  val total = async { lineItems.await().sumOf { it.price.amount * it.quantity } }
+  summary.await() to total.await()
+}
+```
+
+There is one order fetch, one product fetch, and one pricing fetch. Sharing works because the enclosing function knows
+both consumers need `lineItems` and gives them the same Deferred. Extracting these branches into functions still works,
+provided you keep passing the shared work or its result where needed.
+
+With Mosaic, each consumer declares that dependency itself. `OrderSummaryTile` already composes `LineItemsTile`;
+`OrderTotalTile` does the same without receiving the summary's Deferred:
+
+<Code code={declaration(orderTotal)} lang="kotlin" title="OrderTotalTile.kt" />
+
+Compose both through one request Mosaic:
+
+```kotlin
+import org.buildmosaic.core.injection.Canvas
+import org.buildmosaic.core.injection.withMosaic
+import org.buildmosaic.library.OrderKey
+import org.buildmosaic.library.model.OrderSummary
+import org.buildmosaic.library.tile.OrderSummaryTile
+import org.buildmosaic.library.tile.OrderTotalTile
+
+suspend fun mosaicSummaryAndTotal(
+  applicationCanvas: Canvas,
+  orderId: String,
+): Pair<OrderSummary, Double> = applicationCanvas.withLayer {
+  instance(OrderKey, orderId)
+}.withMosaic {
+  val summary = composeAsync(OrderSummaryTile)
+  val total = composeAsync(OrderTotalTile)
+  summary.await() to total.await()
+}
+```
+
+Both versions return Jane Doe's summary and a total of `55.97` for `order-1`. The Mosaic version uses the same service
+bindings as the endpoint above. `LineItemsTile` runs once even though the two consumers ask for it separately. The
+request boundary only names the results it needs; it does not wire their shared dependencies.
+
+Plain coroutines are a good fit when the dependency wiring is small and stays local. Mosaic becomes useful when
+independently reusable response parts discover overlapping dependencies deeper in the graph. It supplies request-scoped
+identity and reuse on top of coroutines, rather than making the service calls faster. The
+[performance reference](/reference/performance/) describes its measured overhead.
+
+Failure handling also needs a deliberate choice. A child failure normally cancels sibling work in `coroutineScope`;
+Mosaic supervises Tile producers and retains their outcomes. An exception that escapes the `withMosaic` block still ends
+the request and cancels unfinished work. See [concurrent work](/concepts/concurrency/) and
+[retained failures](/concepts/shared-work/#failures-are-retained-too) before adapting either version's recovery policy.
 
 ## Run and check the result
 
