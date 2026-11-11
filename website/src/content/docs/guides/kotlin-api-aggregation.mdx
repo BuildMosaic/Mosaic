@@ -107,14 +107,3 @@ Test composition separately from HTTP. The
 [order-page tests](https://github.com/BuildMosaic/Mosaic/blob/main/examples/tile-library/src/test/kotlin/org/buildmosaic/library/tile/OrderPageTileTest.kt)
 replace summary and logistics Tiles with fixtures, verify the resulting page, and check a failed logistics dependency.
 Use the [testing guide](/guides/testing/) to add equivalent success and failure cases for your response.
-
-## Decide whether Mosaic fits
-
-Ordinary suspending functions and coroutine `async` calls can be enough for a small, fixed fan-out. Mosaic is useful
-when independent branches repeatedly discover shared dependencies, keyed fetches need reuse, or the response graph needs
-isolated tests and execution tracing.
-
-It adds Tile and Canvas abstractions and runtime overhead. Review the [measured costs](/reference/performance/) for the
-published workloads and measure your own application. Concurrency overlaps suspending work; it does not make blocking
-clients non-blocking. Failed results remain cached in the request Mosaic, so another `compose` call is not a retry. Keep
-deliberate retries, timeouts, and fallback behavior in your service boundary or Tile.
