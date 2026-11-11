@@ -26,9 +26,9 @@ const example = (name: string) =>
     .split(/\n(?=val )/)
     .at(-1)!
     .trim();
-const title = 'Mosaic — Composable backend orchestration for Kotlin';
+const title = 'Mosaic | Dynamic DAG scheduler for Kotlin';
 const description =
-  'Think from the response up. Compose backend application logic with Kotlin Tiles, request-scoped shared work, and natural batching.';
+  'Mosaic is a dynamic DAG scheduler for Kotlin backends. Compose dependencies at runtime, run work with coroutines, and share results within each request.';
 ---
 
 <!doctype html>
@@ -83,13 +83,15 @@ const description =
         <h1 id="hero-heading">Think from the <span>response up.</span></h1>
         <div class="hero-body">
           <div class="hero-intro">
-            <p class="hero-descriptor">Composable backend orchestration for Kotlin</p>
+            <p class="hero-descriptor">Dynamic DAG scheduler for Kotlin</p>
             <p class="hero-copy">
-              Start with what your endpoint returns. Build it from small, reusable Tiles. Let independent branches share
-              the work.
+              Start with what your endpoint returns. Build it from reusable Tiles that discover their dependencies as
+              they run.
             </p>
             <p class="hero-context">
-              Mosaic is a Kotlin library for application logic and response data. Bring your own HTTP framework.
+              Run the graph with Kotlin coroutines and request-scoped sharing. <a
+                href="/concepts/dynamic-dag-scheduling/">How scheduling works</a
+              >.
             </p>
             <div class="actions">
               <a class="button primary" href="/start/quick-start/"

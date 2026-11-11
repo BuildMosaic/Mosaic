@@ -69,6 +69,7 @@ const routes = [
   '/reference/releases/',
   '/concepts/shared-work/',
   '/concepts/concurrency/',
+  '/concepts/dynamic-dag-scheduling/',
   '/guides/frameworks/',
   '/guides/kotlin-api-aggregation/',
   '/guides/testing/',

@@ -37,7 +37,7 @@ accents.
 
 Primary positioning: **Think from the response up, not the database down.**
 
-Short descriptor: **Composable backend orchestration for Kotlin**
+Short descriptor: **Dynamic DAG scheduler for Kotlin**
 
 General branded destination: **BuildMosaic.org**. Preserve that capitalization.
 Use `github.com/BuildMosaic/Mosaic` only in specifically GitHub contexts, such as

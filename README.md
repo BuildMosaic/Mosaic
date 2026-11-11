@@ -14,9 +14,12 @@
 
 **[Get started at BuildMosaic.org](https://BuildMosaic.org/start/quick-start/) · [Documentation](https://BuildMosaic.org/start/overview/) · [Kotlin API](https://BuildMosaic.org/api/)**
 
-Mosaic is a Kotlin library for building backends one response at a time. A **Tile** is a
-reusable piece of work that can read request or application data and compose other
-Tiles. A request-scoped Mosaic shares repeated Tile work automatically.
+Mosaic is a **dynamic DAG scheduler for Kotlin backends**. Build a response from
+reusable **Tiles** that discover their dependencies as they run. Kotlin coroutines
+execute independent work concurrently, and a request-scoped Mosaic shares repeated
+Tile work automatically.
+
+[How dynamic DAG scheduling works →](https://BuildMosaic.org/concepts/dynamic-dag-scheduling/)
 
 Find the latest stable Runtime and Analysis versions in the
 [release reference](https://BuildMosaic.org/reference/releases/). For upgrades from
