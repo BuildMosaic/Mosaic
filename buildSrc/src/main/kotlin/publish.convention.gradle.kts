@@ -24,7 +24,7 @@ mavenPublishing {
   pom {
     name.set(project.name)
     description.set(project.description)
-    url.set("https://github.com/BuildMosaic/Mosaic/tree/main/${project.name}")
+    url.set("https://BuildMosaic.org/")
 
     licenses {
       license {

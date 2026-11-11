@@ -1,4 +1,4 @@
-description = "The core tile composition library for Mosaic"
+description = "Composable backend orchestration for Kotlin with request-scoped reuse and batching"
 
 plugins {
   id("kotlin.convention")
