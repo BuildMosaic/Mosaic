@@ -99,6 +99,8 @@ gradlePlugin {
 
 tasks.test {
   dependsOn(":mosaic-compiler-plugin:jar", ":mosaic-core:jar")
+  // PublishedInstallationTest builds publications from the entire live repository.
+  doNotTrackState("Exercises publication and TestKit builds against the live repository")
 }
 
 tasks.named("publishPlugins") {

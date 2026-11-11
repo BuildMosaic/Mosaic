@@ -12,6 +12,12 @@ dependencies {
   implementation(libs.kotlinx.serialization.json)
 }
 
+tasks.test {
+  // RuleReferenceTest checks the authored reference against the rule registry.
+  inputs.file(rootProject.layout.projectDirectory.file("website/src/content/docs/reference/analysis-configuration.md"))
+    .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
 // Kept with the bundled Analysis code in both compiler and Gradle artifacts.
 tasks.processResources {
   val analysisArtifactVersion = project.version.toString()

@@ -1,7 +1,36 @@
-# Releases and Kotlin compatibility
+# Validation, releases, and Kotlin compatibility
 
 For maintainers. Consumer guarantees belong in the
 [compatibility reference](https://BuildMosaic.org/reference/compatibility/).
+
+## Pull request validation
+
+The README's **PR checks** badge reports the latest pull-request validation run,
+not a separate test run of `main`. **Validate Pull Request** is the required check
+and runs for every PR to a configured development target. Code, build, workflow,
+compatibility, and unknown-file changes run the complete root and example checks,
+including coverage, ABI, compiler, and Gradle integration tests.
+
+Only changes confined to the root README/changelog, Markdown under `docs/`,
+`website/`, `assets/`, and `.github/images/` skip the product/example Gradle checks.
+The website's Analysis configuration reference is an exception: a product test
+checks it against the rule registry, so edits run the full checks.
+Whitespace, compatibility facts, and benchmark harness tests still run. Website
+validation and deployment retain their own workflow. Superseded runs of the same
+PR are cancelled; unrelated PRs do not cancel each other.
+
+Gradle task caching is enabled, and the PR cache is refreshed between runs.
+GitHub scopes those caches to the PR merge ref, so they cannot be restored
+by `main`. The examples build enables its own task cache explicitly.
+Compiler and rule-reference tests declare their external source/document inputs.
+The Gradle plugin's live-repository publication/TestKit suite always runs; its
+results are not reused from the task cache.
+
+`main` requires an up-to-date passing **Validate Pull Request** check before merge.
+The compatibility writer is the only bypass and changes registry/checkpoint data,
+not product code. There is no second full test run after merge; the **Build** badge
+reports main compilation. If protection or bypass scope changes to permit direct
+code pushes, add independent main validation before allowing that workflow.
 
 ## Release Runtime or Analysis
 

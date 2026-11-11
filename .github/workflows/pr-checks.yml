@@ -4,8 +4,16 @@ on:
   pull_request:
     branches: [ main, develop, feature/tracing-rebuild, 'release/*' ]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   validate-pr:
+    # Required by branch protection, including documentation-only PRs.
     name: Validate Pull Request
     runs-on: ubuntu-latest
 
@@ -14,22 +22,55 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Check PR diff whitespace
-      id: whitespace
       env:
         PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       run: git diff --check "$PR_BASE_SHA...$PR_HEAD_SHA"
 
+    - name: Select validation scope
+      id: scope
+      env:
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: |
+        # Fail closed: a failed diff must not become an empty docs-only change.
+        git diff --name-only --no-renames -z "$PR_BASE_SHA...$PR_HEAD_SHA" > "$RUNNER_TEMP/pr-files"
+        gradle=false
+        while IFS= read -r -d '' path; do
+          case "$path" in
+            # RuleReferenceTest reads this document as a product test fixture.
+            website/src/content/docs/reference/analysis-configuration.md) gradle=true ;;
+            README.md|CHANGELOG.md|docs/*.md|website/*|assets/*|.github/images/*) ;;
+            *) gradle=true ;;
+          esac
+        done < "$RUNNER_TEMP/pr-files"
+        if [ ! -s "$RUNNER_TEMP/pr-files" ]; then
+          gradle=true
+        fi
+        echo "gradle=$gradle" >> "$GITHUB_OUTPUT"
+        if [ "$gradle" = false ]; then
+          echo "Documentation/website-only change: Gradle product and example checks are not needed. Website validation runs in the Website workflow." >> "$GITHUB_STEP_SUMMARY"
+        fi
+
     - name: Set up JDK 21
+      if: steps.scope.outputs.gradle == 'true'
       uses: actions/setup-java@v4
       with:
         java-version: 21
         distribution: zulu
-        cache: gradle
+
+    - name: Set up Gradle cache
+      if: steps.scope.outputs.gradle == 'true'
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        # GitHub isolates PR caches to their merge ref; main cannot restore them.
+        cache-read-only: false
 
     - name: Run comprehensive PR validation
+      if: steps.scope.outputs.gradle == 'true'
       run: ./gradlew check --no-daemon
 
     - name: Validate compatibility facts
@@ -39,18 +80,9 @@ jobs:
       run: python3 -m unittest discover -s performance/benchmark/tests -v
 
     - name: Verify examples
-      run: ./gradlew check --no-daemon -p examples
-
-    - name: Generate XML coverage report (for debugging)
-      if: failure() && steps.whitespace.outcome == 'success'
-      run: ./gradlew koverXmlReport --no-daemon
-
-    - name: Verify build artifacts
-      if: failure()
-      run: |
-        echo "Verifying build artifacts..."
-        find . -path "**/build/reports/*" -type d | grep -E "(detekt|kover|ktlint|tests)" | wc -l
-        echo "Build verification complete"
+      if: steps.scope.outputs.gradle == 'true'
+      # This separate build does not inherit root gradle.properties.
+      run: ./gradlew check --no-daemon --build-cache -p examples
 
     - name: Upload build reports (only on failure)
       uses: actions/upload-artifact@v4
