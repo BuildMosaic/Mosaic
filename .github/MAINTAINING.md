@@ -5,7 +5,7 @@ For maintainers. Consumer guarantees belong in the
 
 ## Pull request validation
 
-The README's **PR checks** badge reports the latest pull-request validation run,
+The README's **Tests** badge reports the latest pull-request validation run,
 not a separate test run of `main`. **Validate Pull Request** is the required check
 and runs for every PR to a configured development target. Code, build, workflow,
 compatibility, and unknown-file changes run the complete root and example checks,

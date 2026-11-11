@@ -5,7 +5,7 @@
   <img alt="Mosaic logo" src="./.github/images/mosaic-logo-light.png" width="240" height="120">
 </picture>
 
-[![PR checks](https://github.com/BuildMosaic/Mosaic/actions/workflows/pr-checks.yml/badge.svg?event=pull_request)](https://github.com/BuildMosaic/Mosaic/actions/workflows/pr-checks.yml?query=event%3Apull_request)
+[![Tests](https://github.com/BuildMosaic/Mosaic/actions/workflows/pr-checks.yml/badge.svg?event=pull_request)](https://github.com/BuildMosaic/Mosaic/actions/workflows/pr-checks.yml?query=event%3Apull_request)
 [![Build](https://github.com/BuildMosaic/Mosaic/workflows/Build%20Badge/badge.svg)](https://github.com/BuildMosaic/Mosaic/actions?query=workflow%3A%22Build+Badge%22)
 [![Kotlin](https://img.shields.io/badge/kotlin-JVM-blue.svg)](https://kotlinlang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
