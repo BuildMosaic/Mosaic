@@ -1,8 +1,8 @@
 ---
 title: 'Combine multiple backend API calls in Kotlin with Mosaic'
 description:
-  'Compose a Kotlin backend-for-frontend (BFF) API from multiple services, run independent work concurrently, and
-  deduplicate calls within each request.'
+  'Build a Kotlin endpoint from multiple services, run independent work concurrently, and reuse shared dependencies
+  within one request.'
 ---
 
 import { Code } from '@astrojs/starlight/components';
@@ -18,10 +18,9 @@ export const declaration = (source) =>
     .at(-1)
     .trim();
 
-A backend for frontend (BFF) assembles data into responses tailored to a web or mobile client. For example, an order
-page needs customer details, products, prices, and shipping quotes. Those values come from several backend services, and
-more than one branch needs the same order. Mosaic lets each part of the response ask for its own dependencies while
-sharing repeated work within the request.
+An order endpoint needs customer details, products, prices, and shipping quotes. Those values come from several
+services, and more than one branch needs the same order. Mosaic lets each part of the response ask for its own
+dependencies while sharing repeated work within the request.
 
 This guide follows the repository's
 [order example](https://github.com/BuildMosaic/Mosaic/tree/main/examples/tile-library). Its services use in-memory data

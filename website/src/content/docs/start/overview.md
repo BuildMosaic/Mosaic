@@ -21,7 +21,9 @@ Learn how [Tiles form a dynamic dependency graph](/concepts/tiles/#compose-a-dyn
 
 ## When it helps
 
-Mosaic fits backend-for-frontend (BFF) APIs that assemble data for a web or mobile client from multiple services. It also fits other responses with shared dependencies and keyed fetches used by independent branches. It keeps that orchestration close to the response logic and makes the same compositions easy to test in isolation.
+Mosaic fits responses assembled from multiple services, graphs with shared dependencies, and keyed fetches used by independent branches. It keeps that orchestration close to the response logic and makes the same compositions easy to test in isolation.
+
+A backend-for-frontend (BFF) API is one such use case: compose data for a web or mobile client from several backend services without duplicating work shared by different response parts.
 
 For a single service call, ordinary suspending Kotlin may already be sufficient. Mosaic adds a runtime cost that depends on the graph; inspect the [performance evidence](/reference/performance/) for your workload.
 
