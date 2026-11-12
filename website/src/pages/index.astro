@@ -250,18 +250,17 @@ const description =
           <div class="benchmark">
             <table>
               <caption>Additional CPU per request</caption><thead
-                ><tr><th scope="col">Workload</th><th scope="col">Mosaic − direct Kotlin</th></tr></thead
+                ><tr><th scope="col">Workload</th><th scope="col">Mosaic CPU overhead</th></tr></thead
               ><tbody
-                ><tr><th scope="row">Light / batching</th><td>14–21 µs</td></tr><tr
-                  ><th scope="row">Aggregate graph</th><td>48–115 µs</td></tr
-                ><tr><th scope="row">Sibling coalescing</th><td>61–78 µs</td></tr><tr
-                  ><th scope="row">CPU-heavy</th><td>6–9 µs</td></tr
+                ><tr><th scope="row">Light / batching</th><td>+14 to +21 µs</td></tr><tr
+                  ><th scope="row">Aggregate graph</th><td>+48 to +115 µs</td></tr
+                ><tr><th scope="row">Sibling coalescing</th><td>+61 to +78 µs</td></tr><tr
+                  ><th scope="row">CPU-heavy</th><td>+6 to +9 µs</td></tr
                 ></tbody
               >
             </table><p class="figure-note">
-              Rounded paired medians across measured profiles and rates. Source revision <a
-                href="https://github.com/BuildMosaic/Mosaic/commit/129b0c73864e82047e4f8e0b861aee31e4e9dc78">129b0c7</a
-              >; application results were not remeasured for 0.6.0. CPU cost is not HTTP latency.
+              Ranges show additional CPU used by Mosaic versus direct Kotlin across measured profiles and rates, using
+              rounded paired medians. CPU cost is not HTTP latency.
             </p>
           </div>
         </div>
