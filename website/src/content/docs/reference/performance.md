@@ -65,7 +65,7 @@ Application RSS is another measurement: across published application points, pai
 
 ## Methodology and scope
 
-Application results identify measured source revision [`129b0c7`](https://github.com/BuildMosaic/Mosaic/commit/129b0c73864e82047e4f8e0b861aee31e4e9dc78). They were **not remeasured for 0.6.0**; its JMH release comparison is a separate dataset. Do not combine the two into a new application performance claim.
+Application results identify measured source revision [`129b0c7`](https://github.com/BuildMosaic/Mosaic/commit/129b0c73864e82047e4f8e0b861aee31e4e9dc78). They are not a benchmark of the latest release. The JMH release comparisons above are separate datasets and do not update these application measurements.
 
 The application dataset used a Ryzen 9 9900X, Zulu JDK 21.0.11, G1, and Linux 7.2.7. Tests controlled CPU affinity, heap, warmup, service work, and paired sampling. All 168 measured runs passed integrity checks. Results apply to those workloads and settings; they do not measure maximum server capacity or production network I/O.
 
