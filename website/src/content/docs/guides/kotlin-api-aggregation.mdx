@@ -178,6 +178,9 @@ independently reusable response parts discover overlapping dependencies deeper i
 identity and reuse on top of coroutines, rather than making the service calls faster. The
 [performance reference](/reference/performance/) describes its measured overhead.
 
+A backend-for-frontend (BFF) API is one example: separate page sections may need the same order, customer, or product
+data. Each section can compose its own dependencies while sharing work with the others in the request.
+
 Failure handling also needs a deliberate choice. A child failure normally cancels sibling work in `coroutineScope`;
 Mosaic supervises Tile producers and retains their outcomes. An exception that escapes the `withMosaic` block still ends
 the request and cancels unfinished work. See [concurrent work](/concepts/concurrency/) and
