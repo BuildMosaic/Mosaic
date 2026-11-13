@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 
 class InheritedAccessorTest {
   @Test
-  fun `exception subclasses do not claim inherited accessors`() {
+  fun `exceptions only own declared accessors`() {
     val directory = Files.createTempDirectory("mosaic-exception-accessors").toFile()
     val source =
       File(directory, "Failures.kt").apply {
@@ -35,7 +35,7 @@ class InheritedAccessorTest {
   }
 
   @Test
-  fun `inherited Kotlin properties retain base contracts and explicit overrides`() {
+  fun `property overrides retain their effects`() {
     val directory = Files.createTempDirectory("mosaic-inherited-properties").toFile()
     val base =
       File(directory, "Base.kt").apply {
@@ -71,7 +71,9 @@ class InheritedAccessorTest {
       val getter = module.callables.single { it.id == "regression.$owner.<get-value>()" }
       val setter = module.callables.single { it.id == "regression.$owner.<set-value>(kotlin.String)" }
       assertTrue(getter.effects.filterIsInstance<Effect.Call>().any { it.target == "regression.readValue()" })
-      assertTrue(setter.effects.filterIsInstance<Effect.Call>().any { it.target == "regression.writeValue(kotlin.String)" })
+      assertTrue(
+        setter.effects.filterIsInstance<Effect.Call>().any { it.target == "regression.writeValue(kotlin.String)" },
+      )
     }
   }
 }
