@@ -662,7 +662,9 @@ internal class SourceContractExtractor(
         actuals.entries.firstOrNull {
           it.key.kind == IrParameterKind.DispatchReceiver
         }?.value?.dispatch ?: DispatchReceiver.None
-      val virtual = function is IrSimpleFunction && function.modality != Modality.FINAL
+      val virtual =
+        function is IrSimpleFunction && function.modality != Modality.FINAL &&
+          function.parameters.any { it.kind == IrParameterKind.DispatchReceiver }
       if (isCanvasType(
           call.type,
         )

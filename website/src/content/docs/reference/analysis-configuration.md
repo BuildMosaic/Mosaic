@@ -199,9 +199,11 @@ Analysis follows the configured Kotlin/JVM `main` source set, including custom d
 
 Additional Kotlin compiler plugins may run alongside Mosaic in the same compilation. Their presence is not rejected automatically; compilation and analysis failures remain visible if a particular combination is incompatible.
 
+Mixed Java/Kotlin projects can generate Kotlin analysis reports. Java bodies are not analyzed: calls whose behavior cannot be established from available contracts remain `UNVERIFIED`, including Java helpers that carry Canvas capabilities. Compiling Java alongside Kotlin does not certify Java framework lifecycle or dependency wiring.
+
 The plugin rejects:
 
-- Kotlin sources outside the project directory, Kotlin scripts, and mixed Java/Kotlin sources.
+- Kotlin sources outside the project directory and Kotlin scripts.
 - Friend paths, opt-ins, and free compiler arguments.
 - Progressive mode, nondefault JVM interface mode, and no-JDK compilation.
 - KSP and unsupported Kotlin/compiler/project configurations.
