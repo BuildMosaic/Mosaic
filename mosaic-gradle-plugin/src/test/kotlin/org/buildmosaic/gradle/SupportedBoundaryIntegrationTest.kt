@@ -24,7 +24,7 @@ class SupportedBoundaryIntegrationTest {
     val buildFile = File(project, "build.gradle.kts")
     val validBuild = buildFile.readText()
     buildFile.writeText("plugins { java; id(\"org.buildmosaic.analysis\") }")
-    assertTrue(run(project, "tasks", expectFailure = true).output.contains("requires a pure Kotlin/JVM project"))
+    assertTrue(run(project, "tasks", expectFailure = true).output.contains("requires the Kotlin/JVM plugin"))
     buildFile.writeText(validBuild)
     val source = File(project, "src/main/kotlin/Simple.kt")
     source.parentFile.mkdirs()
