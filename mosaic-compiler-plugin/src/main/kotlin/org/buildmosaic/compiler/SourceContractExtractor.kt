@@ -190,7 +190,7 @@ internal class SourceContractExtractor(
               )
             declaration.getter?.let { locators[propertyId(declaration)] = binaryLocator(it, file) }
           }
-          listOfNotNull(declaration.getter, declaration.setter).forEach { accessor ->
+          listOfNotNull(declaration.getter, declaration.setter).filterNot { it.isFakeOverride }.forEach { accessor ->
             val id = symbolId(accessor)
             val site = location(accessor, id)
             val normalizer = Normalizer(file, id, collectFreshTemplates = !stableTile, suppressionScope = suppressions)
