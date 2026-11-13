@@ -145,7 +145,7 @@ abstract class ExtractMosaicTask : DefaultTask() {
       sourceLayout.none {
         it.startsWith("<unsupported>:")
       },
-      "Mosaic extraction supports only src/main/kotlin sources",
+      "Mosaic extraction requires Kotlin sources inside the project directory",
     )
   }
 

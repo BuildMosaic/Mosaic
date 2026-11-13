@@ -96,7 +96,9 @@ class BuildCacheIntegrationTest {
     File(sourceRootA, "BeforeRename.kt").delete()
     val renamed = run(workspaceA, "build", buildCache = true)
     assertEquals(TaskOutcome.SUCCESS, renamed.task(":compileKotlin")?.outcome)
-    assertFalse(File(workspaceA, "build/mosaic-analysis/main/shards/BeforeRename.kt.shard.json").exists())
+    assertFalse(
+      File(workspaceA, "build/mosaic-analysis/main/shards/src/main/kotlin/BeforeRename.kt.shard.json").exists(),
+    )
     val original = SummaryCodec.decode(File(workspaceA, "build/mosaic-analysis/main/summary.json").readBytes())
     assertEquals("producer.First", original.module.keys.single { it.id == "consumer.SelectedKey" }.key.classId)
     val workspaceB = consumer(File(root, "workspace-b"))
@@ -104,7 +106,7 @@ class BuildCacheIntegrationTest {
     useSharedCache(workspaceB)
     val restored = run(workspaceB, "clean build", buildCache = true)
     assertEquals(TaskOutcome.FROM_CACHE, restored.task(":compileKotlin")?.outcome)
-    assertTrue(File(workspaceB, "build/mosaic-analysis/main/shards/Consumer.kt.shard.json").isFile)
+    assertTrue(File(workspaceB, "build/mosaic-analysis/main/shards/src/main/kotlin/Consumer.kt.shard.json").isFile)
     assertEquals(original, SummaryCodec.decode(File(workspaceB, "build/mosaic-analysis/main/summary.json").readBytes()))
 
     producerSource.writeText(producerText("new"))
