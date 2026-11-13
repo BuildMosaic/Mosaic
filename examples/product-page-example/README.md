@@ -44,8 +44,7 @@ Example member response (the demo delivery date is two days from today for the P
 ## Follow the response
 
 Start with [`ProductPageTile`](src/main/kotlin/org/buildmosaic/example/product/ProductPageTiles.kt).
-It starts the independent response sections before awaiting their results. The
-primary product is awaited first, so its absence determines the page-level 404:
+It starts each response section before awaiting results:
 
 ```kotlin
 val ProductPageTile by singleTile {
@@ -79,69 +78,40 @@ ProductPage
     └── ProductOffers (recommended IDs, shared assembly)
 ```
 
-### Reuse at the data and composition layers
+## Shared work
 
-The page's Tile graph is in
+The graph lives in
 [`ProductPageTiles.kt`](src/main/kotlin/org/buildmosaic/example/product/ProductPageTiles.kt),
-starting with the root response and followed by its dependencies.
+root first. Both the main product and recommendation cards use `ProductOffersTile`
+to join catalog details with member-aware prices. Pricing, delivery and
+recommendations share `CustomerTile` for membership and location.
 
-The main product and recommended cards both compose `ProductOffersTile`, which
-joins catalog details with member-aware prices. Its catalog and pricing MultiTiles
-share repeated keys. Product validation also reuses the same catalog result.
+Recommendation selection returns ranked IDs; card assembly keeps that order and
+requests their offers together. Repeated keys reuse the same catalog/pricing work.
+Batching is opportunistic: later recommendation IDs need not join the main
+product's backend call. Each HTTP request has its own Mosaic and cache.
 
-`RecommendationIdsTile` selects related products using the viewed product and the
-customer's location. `RecommendationsTile` projects the shared offers into cards
-in the selection service's ranked order.
+## Services and errors
 
-Pricing, delivery and recommendation selection all compose `CustomerTile`,
-sharing the same membership and location lookup within the request.
+`Services.kt` provides six suspending service contracts and local fixtures.
+`member` lives in Phoenix; `guest` in Seattle, where the travel case is out of
+stock. Reviews, related products and recommendation ranking vary with the inputs.
+Try `/products/case-456?customer=guest` too.
 
-### Batching and request boundaries
+A missing requested product returns 404. Missing required data for a recommendation
+or price returns 502. The endpoint requires all sections rather than returning a
+partial page. Real service clients would own their transport timeouts and retry
+policy.
 
-Mosaic combines keys available before a pending batch starts. It does not wait to
-collect a larger batch. Recommendation IDs are unknown until selection returns,
-so main-product and recommendation lookups need not share one backend call.
-`ProductOffersTile` requests each group of catalog and price keys together; their
-physical backend batch boundaries remain opportunistic. Repeated keys share work
-even when requested from a later branch.
-
-`Application.kt` owns long-lived service clients and creates a new Mosaic for each
-HTTP request. There is no cross-request cache. `Services.kt` separates the six
-suspending service boundaries from composition; real clients belong there, with
-transport timeouts and retry policy owned explicitly by those clients.
-
-The fixtures exercise real input differences: `member` lives in Phoenix and
-`guest` in Seattle. The travel case is not stocked in Seattle, recommendation
-ranking prefers local stock, and reviews/related products vary by product ID.
-Try `/products/case-456?customer=guest` as well as the headphones page. These are
-small local fixtures, not a simulated distributed system or benchmark.
-
-### Failure policy
-
-The primary catalog result is awaited first. Only an absent **requested product** maps
-to HTTP 404. A missing product referenced by a recommendation or a missing required
-price maps to HTTP 502: the page exists, but a downstream lookup is inconsistent.
-All sections remain required; other unexpected failures fail the response rather
-than silently returning partial data.
-
-## Testing the Tiles
+## Tests
 
 [`ProductTileTest.kt`](src/test/kotlin/org/buildmosaic/example/product/ProductTileTest.kt)
-uses **mosaic-test** to execute real Tiles with substituted Tile dependencies and
-small recording services. It verifies the product/location/membership inputs and
-key-based assembly, rather than booting HTTP for each composition assertion.
-For example, the availability test substitutes `CustomerTile` but runs the real
-`AvailabilityTile` against a recording delivery service.
-
+shows **mosaic-test** with substituted Tile dependencies and recording services:
+location/membership forwarding, keyed offer assembly and ranked recommendations.
 [`ProductPageTest.kt`](src/test/kotlin/org/buildmosaic/example/product/ProductPageTest.kt)
-keeps the real composition graph behind HTTP. It checks the wire response,
-request isolation, shared lookups, recommendation order, location-sensitive
-results and the page's 404/502 policy.
-
-## Verify
+covers the HTTP contract and errors, location-sensitive results, and one
+integration case exercising real keyed reuse and bulk lookup.
 
 ```sh
 ./gradlew -p examples :product-page-example:test :product-page-example:ktlintCheck
 ```
-
-Existing order examples are unchanged.

@@ -32,4 +32,4 @@ class ProductNotFound(val id: String) : RuntimeException("Product not found: $id
 
 data class ProductOffer(val product: Product, val price: Price)
 
-class PrimaryProductNotFound(val id: String) : RuntimeException("Product not found: $id")
+class ProductLookupFailed(val id: String) : RuntimeException("Required product data missing: $id")

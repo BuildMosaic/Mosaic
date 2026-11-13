@@ -3,7 +3,7 @@ package org.buildmosaic.example.product
 import java.time.LocalDate
 
 fun interface CatalogService {
-  suspend fun getProducts(ids: Set<String>): Map<String, Product>
+  suspend fun getProducts(ids: Set<String>): Map<String, Product?>
 }
 
 fun interface CustomerService {
@@ -66,12 +66,12 @@ fun demoServices(): ProductServices {
       "98101" to setOf("headphones-123", "stand-789"),
     )
   return ProductServices(
-    catalog = CatalogService { ids -> ids.associateWith { products[it] ?: throw ProductNotFound(it) } },
+    catalog = CatalogService { ids -> ids.associateWith { products[it] } },
     customers = CustomerService { id -> customers.getValue(id) },
     pricing =
       PricingService { ids, member ->
         ids.associateWith { id ->
-          val amount = amounts[id] ?: throw ProductNotFound(id)
+          val amount = amounts[id] ?: throw ProductLookupFailed(id)
           val discounted = member && id == "headphones-123"
           Price(
             amount = if (discounted) "179.99" else amount,
@@ -81,7 +81,7 @@ fun demoServices(): ProductServices {
       },
     delivery =
       DeliveryService { productId, postalCode ->
-        if (productId !in products) throw ProductNotFound(productId)
+        if (productId !in products) throw ProductLookupFailed(productId)
         val inStock = productId in nearbyStock.getValue(postalCode)
         val shippingDays = if (postalCode == "85001") 2L else 5L
         Availability(
@@ -89,7 +89,7 @@ fun demoServices(): ProductServices {
           estimatedDelivery = if (inStock) LocalDate.now().plusDays(shippingDays).toString() else null,
         )
       },
-    reviews = ReviewService { id -> reviews[id] ?: throw ProductNotFound(id) },
+    reviews = ReviewService { id -> reviews[id] ?: throw ProductLookupFailed(id) },
     recommendations =
       RecommendationService { product, postalCode ->
         val related =
@@ -97,7 +97,7 @@ fun demoServices(): ProductServices {
             "headphones-123" -> listOf("case-456", "stand-789")
             "case-456" -> listOf("headphones-123", "stand-789")
             "stand-789" -> listOf("headphones-123", "case-456")
-            else -> throw ProductNotFound(product.id)
+            else -> throw ProductLookupFailed(product.id)
           }
         related.sortedByDescending { it in nearbyStock.getValue(postalCode) }
       },

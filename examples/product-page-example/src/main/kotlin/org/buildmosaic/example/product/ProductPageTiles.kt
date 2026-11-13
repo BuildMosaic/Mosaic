@@ -16,7 +16,6 @@ val ProductPageTile by singleTile {
   val recommendations = composeAsync(RecommendationsTile)
 
   ProductPage(
-    // A missing requested product takes precedence over downstream failures.
     product = product.await(),
     price = offer.await().price,
     availability = availability.await(),
@@ -35,12 +34,7 @@ val ProductsTile by multiTile { ids: Set<String> ->
 
 val ProductTile by singleTile {
   val id = source(ProductId)
-  try {
-    compose(ProductsTile, id)
-  } catch (missing: ProductNotFound) {
-    if (missing.id == id) throw PrimaryProductNotFound(id)
-    throw missing
-  }
+  compose(ProductsTile, id) ?: throw ProductNotFound(id)
 }
 
 val PricesTile by multiTile { ids: Set<String> ->
@@ -53,7 +47,7 @@ val ProductOffersTile by multiTile { ids: Set<String> ->
   val prices = composeAsync(PricesTile, ids)
   ids.associateWith { id ->
     ProductOffer(
-      product = products.getValue(id).await(),
+      product = products.getValue(id).await() ?: throw ProductLookupFailed(id),
       price = prices.getValue(id).await(),
     )
   }

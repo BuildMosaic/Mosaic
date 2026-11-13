@@ -24,10 +24,10 @@ fun main() {
 fun Application.productPageModule(services: ProductServices = demoServices()) {
   install(ContentNegotiation) { json(Json { encodeDefaults = true }) }
   install(StatusPages) {
-    exception<PrimaryProductNotFound> { call, cause ->
+    exception<ProductNotFound> { call, cause ->
       call.respond(HttpStatusCode.NotFound, mapOf("error" to cause.message))
     }
-    exception<ProductNotFound> { call, _ ->
+    exception<ProductLookupFailed> { call, _ ->
       call.respond(HttpStatusCode.BadGateway, mapOf("error" to "A required product lookup failed"))
     }
   }
