@@ -48,7 +48,7 @@ It starts each response section before awaiting results:
 
 ```kotlin
 val ProductPageTile by singleTile {
-  val product = composeAsync(ProductTile)
+  val product = composeAsync(SelectedProductTile)
   val offer = composeAsync(ProductOffersTile, source(ProductId))
   val availability = composeAsync(AvailabilityTile)
   val reviews = composeAsync(ReviewsTile)
@@ -64,18 +64,38 @@ val ProductPageTile by singleTile {
 }
 ```
 
-```text
-ProductPage
-├── Product (validate requested product) ─── Products [catalog]
-├── ProductOffers (requested ID) ──┬─────── Products [catalog, shared]
-│                                 └─────── Prices ─── Customer [membership]
-├── Availability [delivery] ───────────────────────── Customer [location]
-├── Reviews [reviews]
-└── Recommendations
-    ├── RecommendationIds [recommendation service]
-    │   ├── Product (shared with page)
-    │   └── Customer (shared, location)
-    └── ProductOffers (recommended IDs, shared assembly)
+Arrows mean “composes”; blue nodes are shared dependencies.
+
+```mermaid
+flowchart TB
+    page["ProductPageTile<br/>Complete response"]
+    selected["SelectedProductTile<br/>Requested product"]
+    offers["ProductOffersTile<br/>Product + member price"]
+    availability["AvailabilityTile<br/>Delivery service"]
+    reviews["ReviewsTile<br/>Review service"]
+    recommendations["RecommendationsTile<br/>Ranked cards"]
+    ids["RecommendationIdsTile<br/>Recommendation service"]
+    products["ProductsTile<br/>Catalog service · keyed"]
+    prices["PricesTile<br/>Pricing service · keyed"]
+    customer["CustomerTile<br/>Customer service"]
+
+    page --> selected
+    page --> offers
+    page --> availability
+    page --> reviews
+    page --> recommendations
+    selected --> products
+    offers --> products
+    offers --> prices
+    prices --> customer
+    availability --> customer
+    recommendations --> ids
+    recommendations --> offers
+    ids --> selected
+    ids --> customer
+
+    classDef shared fill:#e0f2fe,stroke:#0284c7,color:#0f172a
+    class selected,offers,products,customer shared
 ```
 
 ## Shared work

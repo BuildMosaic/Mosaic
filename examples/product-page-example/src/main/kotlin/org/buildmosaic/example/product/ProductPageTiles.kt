@@ -9,7 +9,7 @@ val ProductId = CanvasKey(String::class, "productId")
 val CustomerId = CanvasKey(String::class, "customerId")
 
 val ProductPageTile by singleTile {
-  val product = composeAsync(ProductTile)
+  val product = composeAsync(SelectedProductTile)
   val offer = composeAsync(ProductOffersTile, source(ProductId))
   val availability = composeAsync(AvailabilityTile)
   val reviews = composeAsync(ReviewsTile)
@@ -32,7 +32,7 @@ val ProductsTile by multiTile { ids: Set<String> ->
   source<CatalogService>().getProducts(ids)
 }
 
-val ProductTile by singleTile {
+val SelectedProductTile by singleTile {
   val id = source(ProductId)
   compose(ProductsTile, id) ?: throw ProductNotFound(id)
 }
@@ -66,7 +66,7 @@ val ReviewsTile by singleTile {
 }
 
 val RecommendationIdsTile by singleTile {
-  val product = composeAsync(ProductTile)
+  val product = composeAsync(SelectedProductTile)
   val customer = composeAsync(CustomerTile)
   source<RecommendationService>().getRecommendations(
     product = product.await(),

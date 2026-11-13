@@ -48,7 +48,7 @@ class ProductTileTest {
 
       mosaicBuilder()
         .withCanvasSource<RecommendationService>(recommendations)
-        .withMockTile(ProductTile, headphones)
+        .withMockTile(SelectedProductTile, headphones)
         .withMockTile(CustomerTile, Customer(member = false, postalCode = "98101"))
         .withMosaic {
           assertEquals(RecommendationIdsTile, listOf(case.id))
