@@ -2,7 +2,6 @@ name: Website
 
 on:
   pull_request:
-    branches: [main, develop]
     paths:
       - 'website/**'
       - 'compatibility/registry.json'

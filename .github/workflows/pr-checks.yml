@@ -2,7 +2,6 @@ name: PR Validation
 
 on:
   pull_request:
-    branches: [ main, develop, feature/tracing-rebuild, 'release/*' ]
 
 jobs:
   validate-pr:
