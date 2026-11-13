@@ -108,7 +108,7 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
     kotlinCompilation: KotlinCompilation<*>,
   ): org.gradle.api.provider.Provider<List<SubpluginOption>> {
     val output = project.layout.buildDirectory.dir("mosaic-analysis/main/shards")
-    val root = project.file("src/main/kotlin")
+    val root = project.projectDir
     val module = project.group.toString() + ":" + project.name
     val selectedCompiler = compilerVersion.get()
     val selectedRevision =
@@ -212,11 +212,8 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
   ): TaskProvider<ExtractMosaicTask> {
     val javaExtension = project.extensions.getByType(JavaPluginExtension::class.java)
     val launcher = project.extensions.getByType(JavaToolchainService::class.java).launcherFor(javaExtension.toolchain)
-    val mainSources =
-      project.extensions.getByType(
-        KotlinJvmProjectExtension::class.java,
-      ).sourceSets.getByName("main").kotlin
-    val sourceRoot = project.file("src/main/kotlin")
+    val mainSources = project.files(compile.map { it.sources })
+    val sourceRoot = project.projectDir
     val shardDirectory = project.layout.buildDirectory.dir("mosaic-analysis/main/shards")
     return project.tasks.register("extractMosaicMain", ExtractMosaicTask::class.java) { task ->
       task.group = "verification"
