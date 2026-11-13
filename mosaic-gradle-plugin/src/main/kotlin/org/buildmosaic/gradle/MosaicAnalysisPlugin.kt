@@ -7,7 +7,6 @@
 package org.buildmosaic.gradle
 
 import org.buildmosaic.analysis.CompilerVersionAdmission
-import org.buildmosaic.analysis.CoreAnalysisRevision
 import org.buildmosaic.analysis.MosaicRule
 import org.buildmosaic.analysis.MosaicRuleSeverity
 import org.buildmosaic.analysis.SourceShardPaths
@@ -17,15 +16,13 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition
-import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.attributes.LibraryElements
 import org.gradle.api.file.FileCollection
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
-import org.gradle.api.provider.ValueSource
-import org.gradle.api.provider.ValueSourceParameters
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.jvm.toolchain.JavaToolchainService
@@ -84,6 +81,12 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
   private lateinit var mosaicVersion: String
   private val coreCompileArtifacts by lazy { selectedCoreArtifacts(project, "compileClasspath") }
   private val coreRuntimeArtifacts by lazy { selectedCoreArtifacts(project, "runtimeClasspath") }
+  private val coreRevision by lazy {
+    project.tasks.register("resolveMosaicCoreRevision", ResolveMosaicCoreRevisionTask::class.java) { task ->
+      task.coreArtifacts.from(coreCompileArtifacts)
+      task.revisionFile.set(project.layout.buildDirectory.file("mosaic-analysis/main/core-revision.txt"))
+    }
+  }
   private val dependencySummaries by lazy {
     project.configurations.getByName("compileClasspath").incoming.artifactView { view ->
       view.attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, MOSAIC_SUMMARY_ARTIFACT_TYPE)
@@ -111,16 +114,13 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
     val root = project.file("src/main/kotlin")
     val module = project.group.toString() + ":" + project.name
     val selectedCompiler = compilerVersion.get()
-    val selectedRevision =
-      project.providers.of(SelectedCoreRevision::class.java) {
-        it.parameters.artifacts.from(coreCompileArtifacts)
-      }
+    val selectedRevision = coreRevision.flatMap { it.revisionFile }.map { it.asFile.readText() }
     return selectedRevision.map { revision ->
       listOf(
         FilesSubpluginOption("output", listOf(output.get().asFile)),
         FilesSubpluginOption("sourceRoot", listOf(root)),
         SubpluginOption("mode", "shards"),
-        SubpluginOption("coreRevision", revision.toString()),
+        SubpluginOption("coreRevision", revision),
         SubpluginOption("module", module),
         SubpluginOption("compilerVersion", selectedCompiler),
       )
@@ -156,9 +156,19 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
     project: Project,
     extension: MosaicAnalysisExtension,
   ) {
+    // Analysis consumes packaged manifests and summaries from the same artifacts as the compiler.
+    project.configurations.named("compileClasspath") { configuration ->
+      configuration.attributes.attribute(
+        LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+        project.objects.named(LibraryElements::class.java, LibraryElements.JAR),
+      )
+    }
     val compile = project.tasks.named("compileKotlin", KotlinJvmCompile::class.java)
     val shardDirectory = project.layout.buildDirectory.dir("mosaic-analysis/main/shards")
-    compile.configure { it.outputs.dir(shardDirectory).withPropertyName("mosaicSourceShards") }
+    compile.configure {
+      it.dependsOn(coreRevision)
+      it.outputs.dir(shardDirectory).withPropertyName("mosaicSourceShards")
+    }
     val extract =
       registerExtraction(project, compile)
     project.tasks.named("jar", Jar::class.java) { jar ->
@@ -293,12 +303,3 @@ private fun selectedCoreArtifacts(
       }
     }
   }.files
-
-/** Reads external semantic state afresh when a configuration-cache entry is checked. */
-internal abstract class SelectedCoreRevision : ValueSource<Int, SelectedCoreRevision.Parameters> {
-  interface Parameters : ValueSourceParameters {
-    val artifacts: ConfigurableFileCollection
-  }
-
-  override fun obtain(): Int = requireNotNull(CoreAnalysisRevision.selected(parameters.artifacts.files))
-}
