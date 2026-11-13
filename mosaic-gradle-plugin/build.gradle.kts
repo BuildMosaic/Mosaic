@@ -38,6 +38,8 @@ val testKitKspRuntime =
 dependencies {
   add(testKitKotlinPlugin.name, "com.google.devtools.ksp:symbol-processing-gradle-plugin:${libs.versions.ksp.get()}")
   add(testKitKspRuntime.name, "com.google.devtools.ksp:symbol-processing-aa-embeddable:${libs.versions.ksp.get()}")
+  // KSP adds this pinned runtime dependency dynamically, outside its published POM.
+  add(testKitKspRuntime.name, "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2")
   compileOnly(project(":mosaic-analysis-core"))
   testImplementation(project(":mosaic-analysis-core"))
   compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin:${libs.versions.kotlin.get()}")
