@@ -92,7 +92,6 @@ fun demoServices(): ProductServices {
     reviews = ReviewService { id -> reviews[id] ?: throw ProductNotFound(id) },
     recommendations =
       RecommendationService { product, postalCode ->
-        // Related items vary by the viewed product; rank locally stocked items first.
         val related =
           when (product.id) {
             "headphones-123" -> listOf("case-456", "stand-789")

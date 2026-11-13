@@ -1,15 +1,9 @@
 package org.buildmosaic.example.product
 
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import org.buildmosaic.core.injection.canvas
-import org.buildmosaic.core.injection.withMosaic
 import org.buildmosaic.test.mosaicBuilder
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 
 class ProductTileTest {
   private val headphones = Product("headphones", "Headphones", "Wireless headphones", emptyList())
@@ -137,40 +131,5 @@ class ProductTileTest {
         .withMosaic {
           assertEquals(RecommendationsTile, expected)
         }
-    }
-
-  @OptIn(ExperimentalCoroutinesApi::class)
-  @Test
-  fun `a second catalog consumer shares work already in flight`() =
-    runTest {
-      val started = CompletableDeferred<Unit>()
-      val release = CompletableDeferred<Unit>()
-      val batches = mutableListOf<Set<String>>()
-      val catalog =
-        CatalogService { ids ->
-          batches += ids.toSet()
-          started.complete(Unit)
-          release.await()
-          ids.associateWith { headphones }
-        }
-      val requestCanvas = canvas { instance<CatalogService>(catalog) }
-
-      requestCanvas.use {
-        it.withMosaic {
-          val first = composeAsync(ProductsTile, headphones.id)
-          started.await()
-          // The first provider is suspended, not merely cached after completion.
-          val second = composeAsync(ProductsTile, headphones.id)
-          runCurrent()
-          assertEquals(listOf(setOf(headphones.id)), batches)
-          assertFalse(first.isCompleted)
-          assertFalse(second.isCompleted)
-
-          release.complete(Unit)
-          assertEquals(headphones, first.await())
-          assertEquals(headphones, second.await())
-          assertEquals(listOf(setOf(headphones.id)), batches)
-        }
-      }
     }
 }

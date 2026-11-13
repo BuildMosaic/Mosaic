@@ -43,7 +43,7 @@ Example member response (the demo delivery date is two days from today for the P
 
 ## Follow the response
 
-Start with [`ProductPageTile`](src/main/kotlin/org/buildmosaic/example/product/ProductPageTile.kt).
+Start with [`ProductPageTile`](src/main/kotlin/org/buildmosaic/example/product/ProductPageTiles.kt).
 It starts the independent response sections before awaiting their results. The
 primary product is awaited first, so its absence determines the page-level 404:
 
@@ -81,23 +81,20 @@ ProductPage
 
 ### Reuse at the data and composition layers
 
-[`ProductTiles.kt`](src/main/kotlin/org/buildmosaic/example/product/ProductTiles.kt)
-owns customer lookup, keyed catalog/pricing access, and `ProductOffersTile`.
-The main product and recommended cards use that same product-plus-member-price
-composition, rather than implementing separate joins. Their underlying catalog
-and pricing MultiTiles also share repeated keys. The initial product validation
-and offer assembly reuse the same catalog result.
+The page's Tile graph is in
+[`ProductPageTiles.kt`](src/main/kotlin/org/buildmosaic/example/product/ProductPageTiles.kt),
+starting with the root response and followed by its dependencies.
 
-[`RecommendationTiles.kt`](src/main/kotlin/org/buildmosaic/example/product/RecommendationTiles.kt)
-separates recommendation selection from card assembly. Selection uses the viewed
-product and the customer's location. Assembly preserves the service's ranking
-while projecting the shared offers into recommendation cards.
+The main product and recommended cards both compose `ProductOffersTile`, which
+joins catalog details with member-aware prices. Its catalog and pricing MultiTiles
+share repeated keys. Product validation also reuses the same catalog result.
 
-Pricing, delivery, and recommendation selection independently compose
-`CustomerTile`, sharing its in-flight work and result in one request. We do not
-add Tiles for trivial field access: membership and postal code belong to the same
-customer lookup. Nor do we fetch reviews/delivery for recommendation cards that
-do not render those fields.
+`RecommendationIdsTile` selects related products using the viewed product and the
+customer's location. `RecommendationsTile` projects the shared offers into cards
+in the selection service's ranked order.
+
+Pricing, delivery and recommendation selection all compose `CustomerTile`,
+sharing the same membership and location lookup within the request.
 
 ### Batching and request boundaries
 
@@ -125,8 +122,7 @@ The primary catalog result is awaited first. Only an absent **requested product*
 to HTTP 404. A missing product referenced by a recommendation or a missing required
 price maps to HTTP 502: the page exists, but a downstream lookup is inconsistent.
 All sections remain required; other unexpected failures fail the response rather
-than silently returning partial data. This example does not add fallback policy
-or hide cancellation exceptions.
+than silently returning partial data.
 
 ## Testing the Tiles
 
@@ -137,12 +133,10 @@ key-based assembly, rather than booting HTTP for each composition assertion.
 For example, the availability test substitutes `CustomerTile` but runs the real
 `AvailabilityTile` against a recording delivery service.
 
-The controlled in-flight test leaves `ProductsTile` real, suspends the catalog
-provider, then requests the same key again before releasing it. HTTP integration
-tests likewise keep the real MultiTiles to verify bulk lookup/deduplication.
-Mocking those MultiTiles would not prove runtime batching. HTTP tests additionally
-cover the wire response, request isolation, parallel branch progress and 404/502
-policies.
+[`ProductPageTest.kt`](src/test/kotlin/org/buildmosaic/example/product/ProductPageTest.kt)
+keeps the real composition graph behind HTTP. It checks the wire response,
+request isolation, shared lookups, recommendation order, location-sensitive
+results and the page's 404/502 policy.
 
 ## Verify
 
