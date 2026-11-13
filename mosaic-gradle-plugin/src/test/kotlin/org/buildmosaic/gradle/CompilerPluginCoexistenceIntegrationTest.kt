@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 
 class CompilerPluginCoexistenceIntegrationTest {
   @Test
-  fun `serialization and Mosaic generate outputs in the same compilation`() {
+  fun `serialization and Mosaic share compilation`() {
     val root = Files.createTempDirectory("mosaic-serialization-").toFile()
     val repository = File(System.getProperty("user.dir")).parentFile
     val compiler = File(repository, "mosaic-compiler-plugin/build/libs/mosaic-compiler-plugin-${mosaicVersion()}.jar")
