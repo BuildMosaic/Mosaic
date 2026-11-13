@@ -1,6 +1,5 @@
 package org.buildmosaic.gradle
 
-import org.buildmosaic.analysis.ANALYSIS_KOTLIN_VERSION
 import org.buildmosaic.analysis.CompilerVersionAdmission
 import org.buildmosaic.analysis.CoreAnalysisRevision
 import org.buildmosaic.analysis.SourceShardCodec
@@ -8,7 +7,6 @@ import org.buildmosaic.analysis.SourceShardPaths
 import org.buildmosaic.analysis.SummaryCodec
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
-import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -53,8 +51,6 @@ abstract class ExtractMosaicTask : DefaultTask() {
   @get:Internal abstract val shardDirectory: DirectoryProperty
 
   @get:Classpath abstract val additionalCompilerPlugins: ConfigurableFileCollection
-
-  @get:Classpath abstract val defaultCompilerArtifacts: ConfigurableFileCollection
 
   @get:Classpath abstract val friendPaths: ConfigurableFileCollection
 
@@ -167,14 +163,6 @@ abstract class ExtractMosaicTask : DefaultTask() {
       "Mosaic compiler API mismatch: Kotlin ${productionCompilerVersion.get()} requires $compilerApi, " +
         "artifact is $artifactApi",
     )
-    val unsupported =
-      additionalCompilerPlugins.files.filterNot {
-        it in compilerPlugins || it in defaultCompilerArtifacts.files
-      }
-    requireSupported(
-      unsupported.isEmpty(),
-      "Mosaic extraction does not support additional Kotlin compiler plugins: ${unsupported.joinToString { it.name }}",
-    )
     requireSupported(friendPaths.files.isEmpty(), "Mosaic extraction does not support Kotlin friend paths")
     requireSupported(
       unsupportedCompilerOptions.get().isEmpty(),
@@ -219,25 +207,3 @@ private fun isMosaicCompilerArtifact(file: File): Boolean =
         }
       } == true
     }
-
-internal fun isDefaultKotlinCompilerArtifact(
-  id: ModuleComponentIdentifier,
-  kotlinPluginVersion: String,
-): Boolean =
-  (id.group == "org.jetbrains" && id.module == "annotations" && id.version == "13.0") ||
-    // The default introspector's published component also selects the host stdlib.
-    (
-      id.group == "org.jetbrains.kotlin" && id.module == "kotlin-stdlib" &&
-        id.version in setOf(kotlinPluginVersion, ANALYSIS_KOTLIN_VERSION)
-    ) ||
-    (
-      id.group == "org.jetbrains.kotlin" && id.version == kotlinPluginVersion && id.module in
-        setOf(
-          "kotlin-scripting-compiler-embeddable",
-          "kotlin-scripting-compiler-impl-embeddable",
-          "kotlin-scripting-jvm",
-          "kotlin-scripting-common",
-          "kotlin-stdlib",
-          "kotlin-script-runtime",
-        )
-    )
