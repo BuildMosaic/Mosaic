@@ -58,4 +58,35 @@ class MosaicGraphIntegrationTest {
     assertTrue(invalidRoot.output.contains("Selected root 'app.absent()' does not resolve"))
     assertFalse(output.exists())
   }
+
+  @Test fun `graph without safe roots remains structural`() {
+    val root = Files.createTempDirectory("mosaic-graph-overview-").toFile()
+    val repository = File(System.getProperty("user.dir")).parentFile
+    val compiler = File(repository, "mosaic-compiler-plugin/build/libs/mosaic-compiler-plugin-${mosaicVersion()}.jar")
+    val core = File(repository, "mosaic-core/build/libs/mosaic-core-${mosaicVersion()}.jar")
+    val app = project(root, "app", compiler, listOf(core), enforcement = "STRICT")
+    File(app, "src/main/kotlin/App.kt").apply {
+      parentFile.mkdirs()
+      writeText(
+        """
+        package app
+        import org.buildmosaic.core.*
+        import org.buildmosaic.core.injection.*
+        val Greeting = singleTile { "hello" }
+        suspend fun respond(context: Canvas): String = context.withMosaic { compose(Greeting) }
+        """.trimIndent(),
+      )
+    }
+    val generated = run(app, "mosaicGraph")
+    assertEquals(TaskOutcome.SUCCESS, generated.task(":mosaicGraph")?.outcome)
+    val document = File(app, "build/reports/mosaic-analysis/graph.md").readText()
+    assertTrue(document.contains("Tile: app.Greeting"), document)
+    assertTrue(document.contains("no application roots were verified"), document)
+    assertFalse(document.contains("## Root:"), document)
+    assertFalse(document.contains("Status: VERIFIED"), document)
+
+    val verification = run(app, "verifyMosaicMain", expectFailure = true)
+    assertEquals(TaskOutcome.FAILED, verification.task(":verifyMosaicMain")?.outcome)
+    assertTrue(verification.output.contains("no safe outermost execution context"), verification.output)
+  }
 }

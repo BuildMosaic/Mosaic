@@ -62,7 +62,7 @@ class RootSelectionResolverTest {
       )
     assertEquals(listOf("needsCanvas"), roots(local, explicit = listOf("needsCanvas")).map { it.id })
     assertEquals(RootSelection.EXPLICIT, roots(local, explicit = listOf("needsCanvas")).single().selection)
-    assertFailsWith<IllegalArgumentException> { roots(local) }
+    assertFailsWith<RootSelectionResolver.AutomaticRootsUnavailableException> { roots(local) }
   }
 
   @Test fun `unrelated unknown and isolated lookup do not create roots`() {
@@ -425,6 +425,7 @@ class RootSelectionResolverTest {
       assertFailsWith<IllegalArgumentException> {
         roots(local, ModuleContract("other", callables = listOf(callable("entry", compose("other-execute")))))
       }
+    assertFalse(conflict is RootSelectionResolver.AutomaticRootsUnavailableException)
     assertTrue(conflict.message.orEmpty().contains("conflicting selected contracts"))
   }
 }
