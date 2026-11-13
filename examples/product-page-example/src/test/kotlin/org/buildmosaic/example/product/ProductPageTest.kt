@@ -136,4 +136,69 @@ class ProductPageTest {
       assertEquals(HttpStatusCode.NotFound, client.get("/products/missing").status)
       assertEquals(HttpStatusCode.OK, client.get("/products/headphones-123").status)
     }
+
+  @Test
+  fun `missing recommendation is an upstream failure not a missing page`() =
+    testApplication {
+      val fixture = demoServices()
+      application {
+        productPageModule(
+          fixture.copy(
+            recommendations = RecommendationService { _, _ -> listOf("missing") },
+          ),
+        )
+      }
+      assertEquals(HttpStatusCode.BadGateway, client.get("/products/headphones-123").status)
+    }
+
+  @Test
+  fun `fixture responses vary with viewed product and customer location`() =
+    testApplication {
+      application { productPageModule() }
+      val client = createClient { install(ContentNegotiation) { json() } }
+      val phoenixCase = client.get("/products/case-456?customer=member").body<ProductPage>()
+      val seattleCase = client.get("/products/case-456?customer=guest").body<ProductPage>()
+      assertTrue(phoenixCase.availability.inStock)
+      assertFalse(seattleCase.availability.inStock)
+      assertEquals(null, seattleCase.availability.estimatedDelivery)
+      assertEquals(72, seattleCase.reviews.count)
+      assertEquals(listOf("headphones-123", "stand-789"), seattleCase.recommendations.map { it.id })
+      val seattleHeadphones = client.get("/products/headphones-123?customer=guest").body<ProductPage>()
+      assertEquals(listOf("stand-789", "case-456"), seattleHeadphones.recommendations.map { it.id })
+    }
+
+  @Test
+  fun `missing primary product remains 404 when pricing fails first`() =
+    testApplication {
+      val fixture = demoServices()
+      val catalogStarted = CompletableDeferred<Unit>()
+      val pricingFinished = CompletableDeferred<Unit>()
+      val events = CopyOnWriteArrayList<String>()
+      application {
+        productPageModule(
+          fixture.copy(
+            catalog =
+              CatalogService { ids ->
+                catalogStarted.complete(Unit)
+                withTimeout(5000) { pricingFinished.await() }
+                events += "catalog missing"
+                throw ProductNotFound(ids.single())
+              },
+            pricing =
+              PricingService { _, _ ->
+                withTimeout(5000) { catalogStarted.await() }
+                try {
+                  events += "pricing failed"
+                  throw IllegalStateException("Pricing unavailable")
+                } finally {
+                  pricingFinished.complete(Unit)
+                }
+              },
+          ),
+        )
+      }
+
+      assertEquals(HttpStatusCode.NotFound, client.get("/products/missing").status)
+      assertEquals(listOf("pricing failed", "catalog missing"), events.toList())
+    }
 }

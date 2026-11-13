@@ -18,6 +18,8 @@ dependencies {
   testImplementation("io.ktor:ktor-server-tests:2.3.12")
   testImplementation("io.ktor:ktor-client-content-negotiation:2.3.12")
   testImplementation(kotlin("test"))
+  testImplementation("org.buildmosaic:mosaic-test:$mosaicVersion")
+  testImplementation(libs.kotlinx.coroutines.test)
 }
 
 kotlin {

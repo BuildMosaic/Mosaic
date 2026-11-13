@@ -29,3 +29,7 @@ data class ProductPage(
 data class Customer(val member: Boolean, val postalCode: String)
 
 class ProductNotFound(val id: String) : RuntimeException("Product not found: $id")
+
+data class ProductOffer(val product: Product, val price: Price)
+
+class PrimaryProductNotFound(val id: String) : RuntimeException("Product not found: $id")
