@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 
 class CompilerOptionsIntegrationTest {
   @Test
-  fun `configured Kotlin compiler settings compile and produce a Mosaic graph`() {
+  fun `compiler settings preserve graph generation`() {
     val root = Files.createTempDirectory("mosaic-compiler-options-").toFile()
     val repository = File(System.getProperty("user.dir")).parentFile
     val compiler = File(repository, "mosaic-compiler-plugin/build/libs/mosaic-compiler-plugin-${mosaicVersion()}.jar")
