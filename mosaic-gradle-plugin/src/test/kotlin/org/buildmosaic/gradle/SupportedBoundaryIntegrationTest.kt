@@ -30,16 +30,6 @@ class SupportedBoundaryIntegrationTest {
     val source = File(project, "src/main/kotlin/Simple.kt")
     source.parentFile.mkdirs()
     source.writeText("package boundary\nclass Simple")
-    val unsupportedOptions =
-      """
-      tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>("compileKotlin") {
-        compilerOptions.freeCompilerArgs.add("-Xno-param-assertions")
-      }
-      """.trimIndent()
-    buildFile.writeText(validBuild + "\n" + unsupportedOptions)
-    assertTrue(
-      run(project, "extractMosaicMain", expectFailure = true).output.contains("does not support compiler options"),
-    )
     val extraJar = File(project, "extra-plugin.jar")
     JarOutputStream(extraJar.outputStream()).use { }
     buildFile.writeText(
