@@ -29,7 +29,15 @@ val testKitKotlinPlugin =
     isCanBeResolved = true
   }
 
+val testKitKspRuntime =
+  configurations.create("mosaicTestKitKspRuntime") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+  }
+
 dependencies {
+  add(testKitKotlinPlugin.name, "com.google.devtools.ksp:symbol-processing-gradle-plugin:${libs.versions.ksp.get()}")
+  add(testKitKspRuntime.name, "com.google.devtools.ksp:symbol-processing-aa-embeddable:${libs.versions.ksp.get()}")
   compileOnly(project(":mosaic-analysis-core"))
   testImplementation(project(":mosaic-analysis-core"))
   compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin:${libs.versions.kotlin.get()}")
@@ -99,6 +107,7 @@ gradlePlugin {
 }
 
 tasks.test {
+  inputs.files(testKitKspRuntime)
   dependsOn(":mosaic-compiler-plugin:jar", ":mosaic-core:jar")
 }
 

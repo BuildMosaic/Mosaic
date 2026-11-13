@@ -266,7 +266,6 @@ private fun unsupportedProjectPlugins(project: Project): List<String> =
     "org.jetbrains.kotlin.multiplatform",
     "com.android.application",
     "com.android.library",
-    "com.google.devtools.ksp",
   ).filter(project.plugins::hasPlugin)
 
 private fun registerAnalysisTransforms(project: Project) {
