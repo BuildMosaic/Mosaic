@@ -27,7 +27,7 @@
     "@fontsource-variable/jetbrains-mono": "5.3.0",
     "@fontsource-variable/public-sans": "5.3.0",
     "@fontsource/barlow": "5.3.0",
-    "astro": "7.3.5",
+    "astro": "7.4.7",
     "astro-expressive-code": "0.44.2"
   },
   "devDependencies": {
