@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
+    "@emnapi/runtime": "1.11.3",
     "@axe-core/playwright": "4.11.1",
     "@playwright/test": "1.64.1",
     "cheerio": "1.2.0",
