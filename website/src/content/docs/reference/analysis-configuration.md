@@ -195,8 +195,6 @@ Dependency summary changes can rerun verification without recompiling unchanged 
 
 Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibility](/reference/compatibility/). The plugin validates the Java toolchain against Kotlin's toolchain. These analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
 
-You can use other Kotlin compiler plugins alongside Mosaic analysis. An incompatible combination can still fail compilation or analysis.
-
 The plugin rejects:
 
 - Nonstandard or generated Kotlin source paths, Kotlin scripts, and mixed Java/Kotlin sources.
