@@ -1,15 +1,13 @@
 package org.buildmosaic.gradle
 
-import org.gradle.testkit.runner.TaskOutcome
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class CompilerPluginCoexistenceIntegrationTest {
   @Test
-  fun `serialization and Mosaic share compilation`() {
+  fun `generates a graph with Kotlin serialization`() {
     val root = Files.createTempDirectory("mosaic-serialization-").toFile()
     val repository = File(System.getProperty("user.dir")).parentFile
     val compiler = File(repository, "mosaic-compiler-plugin/build/libs/mosaic-compiler-plugin-${mosaicVersion()}.jar")
@@ -38,11 +36,10 @@ class CompilerPluginCoexistenceIntegrationTest {
         """.trimIndent(),
       )
     }
-    val result = run(app, "mosaicGraph")
-    assertEquals(TaskOutcome.SUCCESS, result.task(":compileKotlin")?.outcome)
-    assertEquals(TaskOutcome.SUCCESS, result.task(":extractMosaicMain")?.outcome)
+    run(app, "mosaicGraph")
     val graph = File(app, "build/reports/mosaic-analysis/graph.md").readText()
     assertTrue(graph.contains("Tile: app.ProductTile"), graph)
     assertTrue(graph.contains("## Root: app.entry()"), graph)
+    assertTrue(graph.contains("Status: VERIFIED"), graph)
   }
 }

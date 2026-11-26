@@ -181,8 +181,6 @@ Unsupported control flow, general callbacks, arbitrary virtual dispatch, mutable
 
 | Task / artifact     | Effect / location                                                                                                                                                                                  |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `compileKotlin`     | Analyzes your `main` Kotlin sources during normal compilation; stores source-relative internal shards without a separate Mosaic compiler process.                                                  |
-| `extractMosaicMain` | Writes the complete summary to `build/mosaic-analysis/main/summary.json` from current-source shards; Kotlin `NO_SOURCE` produces an explicit empty complete summary.                               |
 | `verifyMosaicMain`  | Verifies APPLICATION roots against selected summaries, or validates LIBRARY export; writes `build/reports/mosaic-analysis/main.txt`.                                                               |
 | `verifyMosaic`      | Aggregates main verification.                                                                                                                                                                      |
 | `check`             | Includes `verifyMosaic`; normal `build` consequently verifies/validates.                                                                                                                           |
@@ -197,7 +195,7 @@ Dependency summary changes can rerun verification without recompiling unchanged 
 
 Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibility](/reference/compatibility/). The plugin validates the Java toolchain against Kotlin's toolchain. These analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
 
-Additional Kotlin compiler plugins may run alongside Mosaic in the same compilation. Their presence is not rejected automatically; compilation and analysis failures remain visible if a particular combination is incompatible.
+You can use other Kotlin compiler plugins alongside Mosaic analysis. An incompatible combination can still fail compilation or analysis.
 
 The plugin rejects:
 
