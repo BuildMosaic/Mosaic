@@ -1,16 +1,16 @@
 <figure class="composition-figure">
   <svg viewBox="0 0 620 290" role="img" aria-labelledby="composition-title composition-desc">
     <title id="composition-title">An order response, composed from shared work</title>
-    <desc id="composition-desc"
-      >OrderPageTile composes OrderSummaryTile and LogisticsTile. OrderSummaryTile composes CustomerTile, LineItemsTile,
+    <desc id="composition-desc">
+      OrderPageTile composes OrderSummaryTile and LogisticsTile. OrderSummaryTile composes CustomerTile, LineItemsTile,
       and OrderTile. Customer and line items also compose the same OrderTile. These are selected static dependencies;
-      arrows point to work a Tile needs.</desc
-    >
-    <defs
-      ><marker id="dependency-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"
-        ><path d="M0 0 L8 4 L0 8" fill="var(--m-blue)"></path></marker
-      ></defs
-    >
+      arrows point to work a Tile needs.
+    </desc>
+    <defs>
+      <marker id="dependency-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+        <path d="M0 0 L8 4 L0 8" fill="var(--m-blue)"></path>
+      </marker>
+    </defs>
     <g class="graph-edges" fill="none" stroke-width="2" marker-end="url(#dependency-arrow)">
       <path data-source="OrderPageTile" data-target="OrderSummaryTile" d="M280 45 L280 62 L230 62 L230 86"></path>
       <path data-source="OrderPageTile" data-target="LogisticsTile" d="M350 45 L350 62 L520 62 L520 86"></path>
@@ -20,33 +20,55 @@
       <path data-source="CustomerTile" data-target="OrderTile" d="M113 199 L113 222 L179 222 L179 240"></path>
       <path data-source="LineItemsTile" data-target="OrderTile" d="M347 199 L347 222 L281 222 L281 240"></path>
     </g>
-    <g class="graph-node" data-tile="OrderPageTile"
-      ><rect x="227" y="9" width="166" height="36"></rect><text x="310" y="32">OrderPageTile</text></g
-    >
-    <g class="graph-node" data-tile="OrderSummaryTile"
-      ><rect x="137" y="86" width="186" height="36"></rect><text x="230" y="109">OrderSummaryTile</text></g
-    >
-    <g class="graph-node" data-tile="LogisticsTile"
-      ><rect x="445" y="86" width="150" height="36"></rect><text x="520" y="109">LogisticsTile</text></g
-    >
-    <g class="graph-node" data-tile="CustomerTile"
-      ><rect x="20" y="163" width="186" height="36"></rect><text x="113" y="186">CustomerTile</text></g
-    >
-    <g class="graph-node" data-tile="LineItemsTile"
-      ><rect x="254" y="163" width="186" height="36"></rect><text x="347" y="186">LineItemsTile</text></g
-    >
-    <g class="graph-node graph-shared" data-tile="OrderTile"
-      ><rect x="155" y="240" width="150" height="36"></rect><text x="230" y="263">OrderTile</text></g
-    >
+    <g class="graph-node" data-tile="OrderPageTile">
+      <rect x="227" y="9" width="166" height="36"></rect>
+      <text x="310" y="32">
+        OrderPageTile
+      </text>
+    </g>
+    <g class="graph-node" data-tile="OrderSummaryTile">
+      <rect x="137" y="86" width="186" height="36"></rect>
+      <text x="230" y="109">
+        OrderSummaryTile
+      </text>
+    </g>
+    <g class="graph-node" data-tile="LogisticsTile">
+      <rect x="445" y="86" width="150" height="36"></rect>
+      <text x="520" y="109">
+        LogisticsTile
+      </text>
+    </g>
+    <g class="graph-node" data-tile="CustomerTile">
+      <rect x="20" y="163" width="186" height="36"></rect>
+      <text x="113" y="186">
+        CustomerTile
+      </text>
+    </g>
+    <g class="graph-node" data-tile="LineItemsTile">
+      <rect x="254" y="163" width="186" height="36"></rect>
+      <text x="347" y="186">
+        LineItemsTile
+      </text>
+    </g>
+    <g class="graph-node graph-shared" data-tile="OrderTile">
+      <rect x="155" y="240" width="150" height="36"></rect>
+      <text x="230" y="263">
+        OrderTile
+      </text>
+    </g>
     <path d="M347 241 L362 256 L347 271 L332 256Z" fill="var(--m-orange)"></path>
-    <text class="graph-note" x="373" y="260">shared work</text>
+    <text class="graph-note" x="373" y="260">
+      shared work
+    </text>
   </svg>
   <div
     class="mobile-composition"
     role="img"
     aria-label="OrderPageTile composes OrderSummaryTile and LogisticsTile. OrderSummaryTile composes CustomerTile, LineItemsTile, and OrderTile. CustomerTile and LineItemsTile also compose the same OrderTile: three callers, executed once per Mosaic. Arrows point to dependencies."
   >
-    <div class="mobile-graph-node mobile-page" data-tile="OrderPageTile"><code>OrderPageTile</code></div>
+    <div class="mobile-graph-node mobile-page" data-tile="OrderPageTile">
+      <code>OrderPageTile</code>
+    </div>
     <svg
       class="mobile-graph-edges mobile-page-edges"
       viewBox="0 0 400 40"
@@ -70,8 +92,12 @@
       <path data-source="OrderPageTile" data-target="OrderSummaryTile" d="M160 0 V20 H100 V40"></path>
       <path data-source="OrderPageTile" data-target="LogisticsTile" d="M240 0 V20 H300 V40"></path>
     </svg>
-    <div class="mobile-graph-node mobile-summary" data-tile="OrderSummaryTile"><code>OrderSummaryTile</code></div>
-    <div class="mobile-graph-node mobile-logistics" data-tile="LogisticsTile"><code>LogisticsTile</code></div>
+    <div class="mobile-graph-node mobile-summary" data-tile="OrderSummaryTile">
+      <code>OrderSummaryTile</code>
+    </div>
+    <div class="mobile-graph-node mobile-logistics" data-tile="LogisticsTile">
+      <code>LogisticsTile</code>
+    </div>
     <svg
       class="mobile-graph-edges mobile-summary-edges"
       viewBox="0 0 400 48"
@@ -90,8 +116,12 @@
     >
       <path data-source="OrderSummaryTile" data-target="OrderTile" d="M100 0 V32 H200 V128"></path>
     </svg>
-    <div class="mobile-graph-node mobile-customer" data-tile="CustomerTile"><code>CustomerTile</code></div>
-    <div class="mobile-graph-node mobile-line-items" data-tile="LineItemsTile"><code>LineItemsTile</code></div>
+    <div class="mobile-graph-node mobile-customer" data-tile="CustomerTile">
+      <code>CustomerTile</code>
+    </div>
+    <div class="mobile-graph-node mobile-line-items" data-tile="LineItemsTile">
+      <code>LineItemsTile</code>
+    </div>
     <svg
       class="mobile-graph-edges mobile-shared-edges"
       viewBox="0 0 400 40"

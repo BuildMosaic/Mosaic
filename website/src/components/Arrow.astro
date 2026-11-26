@@ -14,8 +14,10 @@ const { external = false } = Astro.props;
   stroke="currentColor"
   stroke-width="1.7"
   aria-hidden="true"
-  focusable="false"><path d={external ? 'M5 19 19 5M5 5h14v14' : 'M4 12h16m-6-6 6 6-6 6'}></path></svg
+  focusable="false"
 >
+  <path d={external ? 'M5 19 19 5M5 5h14v14' : 'M4 12h16m-6-6 6 6-6 6'}></path>
+</svg>
 <style>
   .link-arrow {
     display: inline-block;
