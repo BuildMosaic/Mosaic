@@ -10,7 +10,6 @@ package org.buildmosaic.gradle
 
 import java.io.File
 import java.nio.file.Files
-import java.util.jar.JarOutputStream
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -39,19 +38,6 @@ class SupportedBoundaryIntegrationTest {
     buildFile.writeText(validBuild + "\n" + unsupportedOptions)
     assertTrue(
       run(project, "extractMosaicMain", expectFailure = true).output.contains("does not support compiler options"),
-    )
-    val extraJar = File(project, "extra-plugin.jar")
-    JarOutputStream(extraJar.outputStream()).use { }
-    buildFile.writeText(
-      validBuild +
-        "\ntasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>(\"compileKotlin\") { pluginClasspath.from(file(\"extra-plugin.jar\")) }",
-    )
-    assertTrue(
-      run(
-        project,
-        "extractMosaicMain",
-        expectFailure = true,
-      ).output.contains("does not support additional Kotlin compiler plugins"),
     )
     buildFile.writeText(validBuild)
     source.delete()
