@@ -10,7 +10,6 @@ package org.buildmosaic.gradle
 
 import java.io.File
 import java.nio.file.Files
-import java.util.jar.JarOutputStream
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -27,24 +26,7 @@ class SupportedBoundaryIntegrationTest {
     buildFile.writeText("plugins { java; id(\"org.buildmosaic.analysis\") }")
     assertTrue(run(project, "tasks", expectFailure = true).output.contains("requires a pure Kotlin/JVM project"))
     buildFile.writeText(validBuild)
-    val source = File(project, "src/main/kotlin/Simple.kt")
-    source.parentFile.mkdirs()
-    source.writeText("package boundary\nclass Simple")
-    val extraJar = File(project, "extra-plugin.jar")
-    JarOutputStream(extraJar.outputStream()).use { }
-    buildFile.writeText(
-      validBuild +
-        "\ntasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>(\"compileKotlin\") { pluginClasspath.from(file(\"extra-plugin.jar\")) }",
-    )
-    assertTrue(
-      run(
-        project,
-        "extractMosaicMain",
-        expectFailure = true,
-      ).output.contains("does not support additional Kotlin compiler plugins"),
-    )
-    buildFile.writeText(validBuild)
-    source.delete()
+    File(project, "src/main/kotlin").mkdirs()
     File(project, "src/main/kotlin/Script.kts").writeText("println(1)")
     assertTrue(
       run(project, "extractMosaicMain", expectFailure = true).output.contains("does not support Kotlin scripts"),

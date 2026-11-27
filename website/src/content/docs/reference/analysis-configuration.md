@@ -179,15 +179,13 @@ Unsupported control flow, general callbacks, arbitrary virtual dispatch, mutable
 
 ## Tasks and reports
 
-| Task / artifact     | Effect / location                                                                                                                                                                                  |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `compileKotlin`     | Analyzes your `main` Kotlin sources during normal compilation; stores source-relative internal shards without a separate Mosaic compiler process.                                                  |
-| `extractMosaicMain` | Writes the complete summary to `build/mosaic-analysis/main/summary.json` from current-source shards; Kotlin `NO_SOURCE` produces an explicit empty complete summary.                               |
-| `verifyMosaicMain`  | Verifies APPLICATION roots against selected summaries, or validates LIBRARY export; writes `build/reports/mosaic-analysis/main.txt`.                                                               |
-| `verifyMosaic`      | Aggregates main verification.                                                                                                                                                                      |
-| `check`             | Includes `verifyMosaic`; normal `build` consequently verifies/validates.                                                                                                                           |
-| `mosaicGraph`       | Writes `build/reports/mosaic-analysis/graph.md`, with a Mermaid overview and APPLICATION root findings. No finding alone fails graph generation. Invalid configuration/artifacts/roots still fail. |
-| `jar`               | Packages one complete summary at `META-INF/mosaic-analysis/v1/summary.json` for both roles. Shards are never dependency metadata.                                                                  |
+| Task / artifact    | Effect / location                                                                                                                                                                                  |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verifyMosaicMain` | Verifies APPLICATION roots against selected summaries, or validates LIBRARY export; writes `build/reports/mosaic-analysis/main.txt`.                                                               |
+| `verifyMosaic`     | Aggregates main verification.                                                                                                                                                                      |
+| `check`            | Includes `verifyMosaic`; normal `build` consequently verifies/validates.                                                                                                                           |
+| `mosaicGraph`      | Writes `build/reports/mosaic-analysis/graph.md`, with a Mermaid overview and APPLICATION root findings. No finding alone fails graph generation. Invalid configuration/artifacts/roots still fail. |
+| `jar`              | Packages one complete summary at `META-INF/mosaic-analysis/v1/summary.json` for both roles. Shards are never dependency metadata.                                                                  |
 
 Reports show selected roots and receivers, statuses, closed witnesses and source locations, rule severity, Canvas obligations, and uncertainty. Graph and verification reports use the same analysis findings; a loop in the diagram alone does not prove a cyclic result dependency. The graph represents possible static structure, not runtime timing, call counts, cache occupancy, or exact key batches.
 
@@ -197,12 +195,10 @@ Dependency summary changes can rerun verification without recompiling unchanged 
 
 Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibility](/reference/compatibility/). The plugin validates the Java toolchain against Kotlin's toolchain. These analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
 
-Ordinary Kotlin compiler settings, including free compiler arguments, opt-ins, progressive mode, JVM interface mode, and no-JDK compilation, are handled by the normal Kotlin compilation. Mosaic does not reject these settings merely because they are configured. The Kotlin compiler must still accept the configuration and compile the sources; accepting an option is not a guarantee that every combination is compatible with analysis.
-
 The plugin rejects:
 
 - Nonstandard or generated Kotlin source paths, Kotlin scripts, and mixed Java/Kotlin sources.
-- Friend paths, additional compiler plugins and plugin options.
+- Friend paths.
 - KSP and unsupported Kotlin/compiler/project configurations.
 
 Applying analysis without Kotlin/JVM fails configuration. Android, multiplatform, test sources, framework lifecycle inference, and arbitrary virtual dispatch are unsupported. A represented virtual call with an unresolved receiver is `UNVERIFIED`. External inline capability helpers and unavailable binary default expressions retain unknown boundaries. Ordinary Kotlin source resolution and incremental compilation remain Kotlin's responsibility.
