@@ -29,22 +29,11 @@ val testKitKotlinPlugin =
     isCanBeResolved = true
   }
 
-val testKitKspRuntime =
-  configurations.create("mosaicTestKitKspRuntime") {
-    isCanBeConsumed = false
-    isCanBeResolved = true
-  }
-
 dependencies {
-  add(testKitKotlinPlugin.name, "com.google.devtools.ksp:symbol-processing-gradle-plugin:${libs.versions.ksp.get()}")
-  add(testKitKspRuntime.name, "com.google.devtools.ksp:symbol-processing-aa-embeddable:${libs.versions.ksp.get()}")
-  // KSP adds this pinned runtime dependency dynamically, outside its published POM.
-  add(testKitKspRuntime.name, "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2")
   compileOnly(project(":mosaic-analysis-core"))
   testImplementation(project(":mosaic-analysis-core"))
   compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin:${libs.versions.kotlin.get()}")
   add(testKitKotlinPlugin.name, "org.jetbrains.kotlin:kotlin-gradle-plugin:${libs.versions.kotlin.get()}")
-  add(testKitKotlinPlugin.name, "org.jetbrains.kotlin:kotlin-serialization:${libs.versions.kotlin.get()}")
   testImplementation(project(":mosaic-core"))
   testImplementation(project(":mosaic-compiler-plugin"))
   testImplementation(gradleTestKit())
@@ -109,7 +98,6 @@ gradlePlugin {
 }
 
 tasks.test {
-  inputs.files(testKitKspRuntime)
   dependsOn(":mosaic-compiler-plugin:jar", ":mosaic-core:jar")
 }
 

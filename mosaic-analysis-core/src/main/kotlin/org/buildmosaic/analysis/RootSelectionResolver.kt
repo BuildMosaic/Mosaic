@@ -11,6 +11,9 @@ package org.buildmosaic.analysis
 
 /** Selects execution contexts from complete, selected contracts. It never examines names or source files. */
 object RootSelectionResolver {
+  /** Automatic discovery cannot select a complete set of safe execution contexts. */
+  class AutomaticRootsUnavailableException(message: String) : IllegalArgumentException(message)
+
   fun resolve(
     program: ModuleContract,
     selectedDependencies: List<ModuleContract>,
@@ -176,11 +179,13 @@ object RootSelectionResolver {
       val covered = reachable(selected)
       val expected = localExecutionContexts(eligible).filter { it in relevant }
       val uncovered = expected.filterNot { it in covered }
-      require(selected.isNotEmpty() && uncovered.isEmpty()) {
+      if (selected.isEmpty() || uncovered.isNotEmpty()) {
         val detail = uncovered.map(Activation::label).sorted().joinToString().ifEmpty { "none" }
-        "Automatic Mosaic root discovery found no safe outermost execution context for: $detail. " +
-          "Add a selected-contract caller that supplies the Canvas and receiver, " +
-          "or configure mosaicAnalysis.roots explicitly."
+        throw AutomaticRootsUnavailableException(
+          "Automatic Mosaic root discovery found no safe outermost execution context for: $detail. " +
+            "Add a selected-contract caller that supplies the Canvas and receiver, " +
+            "or configure mosaicAnalysis.roots explicitly.",
+        )
       }
       return selected.map(Activation::root).sortedBy { it.id }
     }
