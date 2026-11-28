@@ -98,7 +98,6 @@ object MosaicGraph {
     private val tiles = modules.flatMap { module -> module.tiles.map { it.id to (module.id to it) } }.toMap()
     private val canvases = modules.flatMap { module -> module.canvases.map { it.id to (module.id to it) } }.toMap()
     private val callables = modules.flatMap { module -> module.callables.map { it.id to (module.id to it) } }.toMap()
-    private val overrides = modules.flatMap { it.overrides }
     private val registry = SelectedContractRegistry(modules)
     private val nodes = sortedMapOf<String, String>()
     private val edges =
@@ -145,11 +144,14 @@ object MosaicGraph {
       if (!virtualDispatch) {
         listOf(target)
       } else {
-        overrides.filter { override ->
-          override.baseId == target &&
-            (receiver !is DispatchReceiver.Concrete || override.receiverType == receiver.type)
-        }.map { it.implementationId }
+        possibleOverrides(target, receiver).map { it.implementationId }
       }
+
+    private fun possibleOverrides(
+      target: String,
+      receiver: DispatchReceiver,
+    ): List<ResolvedOverride> =
+      registry.overrides.possibleOverrides(target, (receiver as? DispatchReceiver.Concrete)?.type)
 
     private fun relevant(
       expression: CanvasExpression,
@@ -333,10 +335,7 @@ object MosaicGraph {
       }
       detail(parent, siteNode, "Virtual call: $target", relation)
       val candidates =
-        overrides.filter { override ->
-          override.baseId == target &&
-            (receiver !is DispatchReceiver.Concrete || override.receiverType == receiver.type)
-        }.sortedWith(compareBy({ it.receiverType }, { it.implementationId }))
+        possibleOverrides(target, receiver).sortedWith(compareBy({ it.receiverType }, { it.implementationId }))
       candidates.forEach { override ->
         contractEdge(
           siteNode,
