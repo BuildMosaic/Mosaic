@@ -48,8 +48,6 @@ abstract class ExtractMosaicTask : DefaultTask() {
 
   @get:Classpath abstract val additionalCompilerPlugins: ConfigurableFileCollection
 
-  @get:Classpath abstract val friendPaths: ConfigurableFileCollection
-
   @get:Input abstract val mosaicVersion: Property<String>
 
   @get:Input abstract val moduleId: Property<String>
@@ -155,7 +153,6 @@ abstract class ExtractMosaicTask : DefaultTask() {
       "Mosaic compiler API mismatch: Kotlin ${productionCompilerVersion.get()} requires $compilerApi, " +
         "artifact is $artifactApi",
     )
-    requireSupported(friendPaths.files.isEmpty(), "Mosaic extraction does not support Kotlin friend paths")
     requireSupported(
       unsupportedCompilerOptions.get().isEmpty(),
       "Mosaic extraction does not support compiler options: ${unsupportedCompilerOptions.get().joinToString()}",
