@@ -255,11 +255,6 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
 
   private fun unsupportedCompilerOptions(taskCompile: KotlinJvmCompile): List<String> =
     buildList {
-      taskCompile.compilerOptions.freeCompilerArgs.orNull.orEmpty().forEach { add("free:$it") }
-      taskCompile.compilerOptions.optIn.orNull.orEmpty().forEach { add("optIn:$it") }
-      if (taskCompile.compilerOptions.progressiveMode.orNull == true) add("progressiveMode")
-      if (taskCompile.compilerOptions.noJdk.orNull == true) add("noJdk")
-      taskCompile.compilerOptions.jvmDefault.orNull?.let { add("jvmDefault:$it") }
       if (taskCompile.multiPlatformEnabled.orNull == true) add("multiPlatformEnabled")
     }
 }

@@ -198,8 +198,7 @@ Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is
 The plugin rejects:
 
 - Nonstandard or generated Kotlin source paths, Kotlin scripts, and mixed Java/Kotlin sources.
-- Friend paths, opt-ins, and free compiler arguments.
-- Progressive mode, nondefault JVM interface mode, and no-JDK compilation.
+- Friend paths.
 - KSP and unsupported Kotlin/compiler/project configurations.
 
 Applying analysis without Kotlin/JVM fails configuration. Android, multiplatform, test sources, framework lifecycle inference, and arbitrary virtual dispatch are unsupported. A represented virtual call with an unresolved receiver is `UNVERIFIED`. External inline capability helpers and unavailable binary default expressions retain unknown boundaries. Ordinary Kotlin source resolution and incremental compilation remain Kotlin's responsibility.
