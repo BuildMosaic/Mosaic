@@ -27,7 +27,7 @@ identities; unsupported capability captures remain named unknown.
 | A5 | MosaicReceiverBoundary; inline binary accessor experiment; EC inline getter ordinary/Canvas U |
 | A6 | IrShape Canvas helper prefix; EC getter/function prefix, discard, abort/result, empty/success/unknown prefix |
 | B1 | IrShape lookup follows current and separate Mosaic receivers M/V |
-| B2 | MosaicReceiverBoundary: helper, member extension, Canvas extension; regular parameter U |
+| B2 | MosaicReceiverBoundary: same-file helper with known receiver M/V; member extension and regular parameter U |
 | B3 | EC virtual Canvas method/getter U, final factory V; OverrideDispatchRegression |
 | B4 | OverrideDispatchRegression slots; IrShape renamed slots with ordinary parameter; G enterprise |
 | B5 | OverrideDispatchRegression relay/conflict; IrShape unrelated relay receiver |
@@ -82,7 +82,7 @@ eligibility/target → execution → continuing result. IR temporaries carry ord
 | Template/hook | slot fixture | ordinary call adapter | enterprise concrete receiver | enterprise response | same call adapter; arbitrary factory dispatch U |
 
 Eligibility controls: direct V (enterprise/final); unsupported receiver U
-(Mosaic extensions, virtual method/getter); inline U (ordinary/Canvas getter
+(opaque extension receivers, virtual method/getter); inline U (ordinary/Canvas getter
 and unchanged binary accessor); missing binary U (ordinary/constructor and
 kernel Canvas reference). Defaults apply to functions/constructors only;
 Kotlin accessors cannot declare optional parameters. Setters return Unit.
@@ -90,7 +90,7 @@ Immutable alias, expression/block return, consumed/discarded value, parameter
 renaming, supplied/omitted defaults and source/binary equivalences retain the
 same semantic expectations. Negative roots must reach the named operation.
 
-Unsupported: arbitrary dispatch, Mosaic extension transfer, general defaults,
+Unsupported: arbitrary dispatch, opaque Mosaic receiver transfer, general defaults,
 inline reconstruction, mutable/escaped provenance, lifecycle inference,
 callbacks/delegates/reflection/complex control and complete JVM initialization.
 Keep the final concrete receiver → inherited final template → direct protected
