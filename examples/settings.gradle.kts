@@ -20,3 +20,5 @@ include("ktor-example")
 include("micronaut-example")
 include("tile-library")
 includeBuild("..")
+
+include("product-page-example")
