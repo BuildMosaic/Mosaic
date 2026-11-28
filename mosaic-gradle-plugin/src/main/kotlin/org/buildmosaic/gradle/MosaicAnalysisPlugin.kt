@@ -135,7 +135,7 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
     mosaicVersion = installedMosaicVersion()
     project.afterEvaluate {
       if (!project.plugins.hasPlugin("org.jetbrains.kotlin.jvm")) {
-        throw GradleException("Mosaic analysis requires a pure Kotlin/JVM project")
+        throw GradleException("Mosaic analysis requires the Kotlin/JVM plugin")
       }
     }
     project.plugins.withId("org.jetbrains.kotlin.jvm") {
@@ -221,7 +221,6 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
       task.sources.from(mainSources)
       task.coreCompileArtifacts.from(coreCompileArtifacts)
       task.coreRuntimeArtifacts.from(coreRuntimeArtifacts)
-      task.javaSources.from(project.fileTree("src/main/java") { it.include("**/*.java") })
       task.supportedSourceRoot.set(sourceRoot.absolutePath)
       task.shardFiles.from(
         mainSources.elements.map { sources ->

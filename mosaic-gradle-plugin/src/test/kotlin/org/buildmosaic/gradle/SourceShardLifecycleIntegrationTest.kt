@@ -148,13 +148,6 @@ class SourceShardLifecycleIntegrationTest {
     assertTrue(empty.module.callables.isEmpty())
     assertEquals(TaskOutcome.FAILED, unconfigured.task(":verifyMosaicMain")?.outcome)
     assertTrue(unconfigured.output.contains("Automatic Mosaic root discovery"))
-    val javaSource = File(project, "src/main/java/Extra.java")
-    javaSource.parentFile.mkdirs()
-    javaSource.writeText("public class Extra {}")
-    val unsupported = run(project, "extractMosaicMain", expectFailure = true)
-    assertTrue(unsupported.output.contains("does not support mixed Java/Kotlin sources"))
-    assertFalse(summaryFile.exists())
-    javaSource.delete()
     val roleChangedBuild =
       File(project, "build.gradle.kts").apply {
         writeText(originalBuild)

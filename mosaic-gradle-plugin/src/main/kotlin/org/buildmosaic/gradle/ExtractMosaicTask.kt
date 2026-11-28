@@ -33,10 +33,6 @@ abstract class ExtractMosaicTask : DefaultTask() {
 
   @get:InputFiles
   @get:PathSensitive(PathSensitivity.RELATIVE)
-  abstract val javaSources: ConfigurableFileCollection
-
-  @get:InputFiles
-  @get:PathSensitive(PathSensitivity.RELATIVE)
   abstract val shardFiles: ConfigurableFileCollection
 
   @get:Internal abstract val dependencySummaries: ConfigurableFileCollection
@@ -136,10 +132,6 @@ abstract class ExtractMosaicTask : DefaultTask() {
     requireSupported(
       sources.files.none { it.extension == "kts" },
       "Mosaic extraction does not support Kotlin scripts",
-    )
-    requireSupported(
-      javaSources.files.isEmpty(),
-      "Mosaic extraction does not support mixed Java/Kotlin sources",
     )
     requireSupported(
       sourceLayout.none {
