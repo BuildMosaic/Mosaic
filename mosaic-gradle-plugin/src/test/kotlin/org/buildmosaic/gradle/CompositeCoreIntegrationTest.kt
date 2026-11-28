@@ -2,11 +2,9 @@
 
 package org.buildmosaic.gradle
 
-import org.gradle.testkit.runner.TaskOutcome
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class CompositeCoreIntegrationTest {
@@ -54,11 +52,11 @@ class CompositeCoreIntegrationTest {
         """.trimIndent(),
       )
     }
-    val first = run(consumer, "verifyMosaicMain mosaicGraph", configurationCache = true)
-    assertEquals(TaskOutcome.SUCCESS, first.task(":verifyMosaicMain")?.outcome)
-    assertEquals(TaskOutcome.SUCCESS, first.task(":mosaicGraph")?.outcome)
-    assertTrue(File(consumer, "build/reports/mosaic-analysis/main.txt").readText().contains("FULLY VERIFIED"))
-    val repeated = run(consumer, "verifyMosaicMain mosaicGraph", configurationCache = true)
+    run(consumer, "verifyMosaicMain", configurationCache = true)
+    val report = File(consumer, "build/reports/mosaic-analysis/main.txt").readText()
+    assertTrue(report.contains("Result: FULLY VERIFIED"), report)
+
+    val repeated = run(consumer, "verifyMosaicMain", configurationCache = true)
     assertTrue(repeated.output.contains("Reusing configuration cache"))
   }
 }

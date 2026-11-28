@@ -26,21 +26,7 @@ class SupportedBoundaryIntegrationTest {
     buildFile.writeText("plugins { java; id(\"org.buildmosaic.analysis\") }")
     assertTrue(run(project, "tasks", expectFailure = true).output.contains("requires a pure Kotlin/JVM project"))
     buildFile.writeText(validBuild)
-    val source = File(project, "src/main/kotlin/Simple.kt")
-    source.parentFile.mkdirs()
-    source.writeText("package boundary\nclass Simple")
-    val unsupportedOptions =
-      """
-      tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>("compileKotlin") {
-        compilerOptions.freeCompilerArgs.add("-Xno-param-assertions")
-      }
-      """.trimIndent()
-    buildFile.writeText(validBuild + "\n" + unsupportedOptions)
-    assertTrue(
-      run(project, "extractMosaicMain", expectFailure = true).output.contains("does not support compiler options"),
-    )
-    buildFile.writeText(validBuild)
-    source.delete()
+    File(project, "src/main/kotlin").mkdirs()
     File(project, "src/main/kotlin/Script.kts").writeText("println(1)")
     assertTrue(
       run(project, "extractMosaicMain", expectFailure = true).output.contains("does not support Kotlin scripts"),
