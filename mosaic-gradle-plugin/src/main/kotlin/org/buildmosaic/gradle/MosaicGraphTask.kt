@@ -80,6 +80,8 @@ abstract class MosaicGraphTask : DefaultTask() {
       } else {
         try {
           RootSelectionResolver.resolve(program, dependencies, selectedRoots)
+        } catch (_: RootSelectionResolver.AutomaticRootsUnavailableException) {
+          null
         } catch (failure: IllegalArgumentException) {
           throw GradleException(failure.message ?: "Mosaic root selection failed", failure)
         }
@@ -92,10 +94,24 @@ abstract class MosaicGraphTask : DefaultTask() {
       }
     val document =
       MosaicGraph.render(
-        AnalysisRequest(program, dependencies, selected, policy = policy, ruleSeverities = ruleSeverities.get()),
+        AnalysisRequest(
+          program,
+          dependencies,
+          selected.orEmpty(),
+          policy = policy,
+          ruleSeverities = ruleSeverities.get(),
+        ),
       )
     output.parentFile.mkdirs()
-    output.writeText(document)
+    val notice =
+      if (selected == null) {
+        "\n## Root verification\n\n" +
+          "Automatic root discovery was unavailable. This is a structural overview only; " +
+          "no application roots were verified. Configure `mosaicAnalysis.roots` to include root findings.\n"
+      } else {
+        ""
+      }
+    output.writeText(document + notice)
   }
 
   private fun validateRoots(selectedRoots: List<String>) {
