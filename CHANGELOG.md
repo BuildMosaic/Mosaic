@@ -3,7 +3,7 @@
 Significant user-facing changes to Mosaic are documented here. Earlier versions
 predate this maintained changelog; their release history is not reconstructed here.
 
-## [analysis-1.0.2] - 2026-11-28
+## [analysis-1.1.0] - 2026-11-28
 
 ### Fixed
 
