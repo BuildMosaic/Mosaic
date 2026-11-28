@@ -198,7 +198,7 @@ Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibi
 The plugin rejects:
 
 - Kotlin sources outside the project directory and Kotlin scripts.
-- KSP and unsupported Kotlin/compiler/project configurations.
+- Unsupported Kotlin/compiler/project configurations.
 
 Write Mosaic Tiles and Canvas wiring in Kotlin. Analysis can run in a module that also contains Java, but it does not analyze Java method bodies. Calls without an available contract remain `UNVERIFIED`.
 
