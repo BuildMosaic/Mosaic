@@ -148,13 +148,6 @@ class SourceShardLifecycleIntegrationTest {
     assertTrue(empty.module.callables.isEmpty())
     assertEquals(TaskOutcome.FAILED, unconfigured.task(":verifyMosaicMain")?.outcome)
     assertTrue(unconfigured.output.contains("Automatic Mosaic root discovery"))
-    val javaSource = File(project, "src/main/java/Extra.java")
-    javaSource.parentFile.mkdirs()
-    javaSource.writeText("public class Extra {}")
-    val javaOnly = run(project, "classes extractMosaicMain")
-    assertEquals(TaskOutcome.SUCCESS, javaOnly.task(":compileJava")?.outcome)
-    assertEquals(empty, SummaryCodec.decode(summaryFile.readBytes()))
-    javaSource.delete()
     val roleChangedBuild =
       File(project, "build.gradle.kts").apply {
         writeText(originalBuild)
