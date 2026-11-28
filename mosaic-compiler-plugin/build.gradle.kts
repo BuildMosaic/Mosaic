@@ -26,7 +26,7 @@ abstract class CompilerFixtureArguments : CommandLineArgumentProvider {
     )
 }
 
-description = "Experimental Kotlin IR extraction for Mosaic"
+description = "Kotlin compiler plugin for contract extraction in Mosaic backend orchestration"
 
 plugins {
   id("kotlin.convention")
@@ -134,6 +134,9 @@ tasks.assemble { dependsOn(introspectorJars) }
 tasks.test {
   useJUnitPlatform()
   dependsOn(tasks.jar, ":mosaic-core:jar")
+  // CoreRevisionCompilerTest rewrites the raw runtime sources as a compiler fixture.
+  inputs.dir(rootProject.layout.projectDirectory.dir("mosaic-core/src/main/kotlin"))
+    .withPathSensitivity(PathSensitivity.RELATIVE)
   // The in-process compiler must load the packaged registrar, including its ABI identity.
   classpath = classpath.minus(sourceSets.main.get().output).plus(files(tasks.jar.flatMap { it.archiveFile }))
   val fixtureArguments = objects.newInstance<CompilerFixtureArguments>()

@@ -48,3 +48,31 @@ These snippets use `org.buildmosaic.core.*` and the shared order example's produ
 All strategies reuse the same MultiTile instance and equal keys within one Mosaic. Pending uncached keys may combine before scheduled execution begins, without an intentional wait. A started batch is fixed. Later callers may form another batch, and batches can execute concurrently.
 
 Choose a strategy based on your backend API. Do not make response logic depend on how many batches happen to form. The [performance page](/reference/performance/) includes observed overlapping-key behavior, with its scheduling limitations.
+
+## Use a DataLoader-style lookup
+
+For request-scoped keyed lookups, think of a MultiTile as a reusable loader declaration and the Mosaic as the owner of this request's cache. Reuse that declaration across callers rather than constructing a loader for each branch.
+
+Using the order example's `ProductsByIdTile` and an application Canvas that binds `ProductService`:
+
+```kotlin
+import org.buildmosaic.core.injection.withMosaic
+import org.buildmosaic.library.tile.ProductsByIdTile
+
+// Inside a suspending request handler:
+applicationCanvas.withMosaic {
+  val cart = composeAsync(ProductsByIdTile, listOf("product-1"))
+  val recommendationIds = listOf("product-2", "product-1", "product-2")
+  val recommendations = composeAsync(ProductsByIdTile, recommendationIds)
+
+  println(cart.getValue("product-1").await().name) // Coffee Mug
+  val names = recommendationIds.map { recommendations.getValue(it).await().name }
+  println(names) // [Tea Kettle, Coffee Mug, Tea Kettle]
+}
+```
+
+Iterating `recommendationIds` preserves the response's order and repeated entries; the result map has one entry per distinct key.
+
+`composeAsync` schedules work without an explicit dispatch step. With [opportunistic batching](#separate-reuse-from-batch-shape), these calls may form one or two batches depending on timing, but `ProductsByIdTile` includes each key in at most one batch within this Mosaic. A new `withMosaic` invocation starts with a fresh cache.
+
+Use the [MultiTile reference](/concepts/multitile/) for missing keys, retained failures, and cancellation semantics.
