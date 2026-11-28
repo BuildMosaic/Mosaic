@@ -9,53 +9,49 @@ const { runtime, analysis } = records as {
 const descending = ([a]: [string, unknown], [b]: [string, unknown]) => b.localeCompare(a, undefined, { numeric: true });
 ---
 
-{
-  Object.keys(runtime).length === 0 ? (
-    <p>No certification results are recorded.</p>
-  ) : (
-    <table>
-      <caption>Runtime and Kotlin</caption>
-      <thead>
-        <tr>
-          <th>Runtime</th>
-          <th>Kotlin</th>
-        </tr>
-      </thead>
-      <tbody>
-        {Object.entries(runtime)
-          .sort(descending)
-          .map(([release, kotlin]) => (
-            <tr>
-              <td>{release}</td>
-              <td>{`${kotlin.minKotlin}–${kotlin.maxKotlin}`}</td>
-            </tr>
-          ))}
-      </tbody>
-    </table>
-  )
-}
-{
-  Object.keys(analysis).length > 0 && (
-    <table>
-      <caption>Analysis, Runtime, and Kotlin</caption>
-      <thead>
-        <tr>
-          <th>Analysis</th>
-          <th>Runtime</th>
-          <th>Kotlin/KGP</th>
-        </tr>
-      </thead>
-      <tbody>
-        {Object.entries(analysis)
-          .sort(descending)
-          .map(([release, entry]) => (
-            <tr>
-              <td>{release}</td>
-              <td>{`${entry.minRuntime}–${entry.maxRuntime}`}</td>
-              <td>{`${entry.minKotlin}–${entry.maxKotlin}`}</td>
-            </tr>
-          ))}
-      </tbody>
-    </table>
-  )
-}
+{Object.keys(runtime).length === 0 ? (
+  <p>No certification results are recorded.</p>
+) : (
+  <table>
+    <caption>Runtime and Kotlin</caption>
+    <thead>
+      <tr>
+        <th>Runtime</th>
+        <th>Kotlin</th>
+      </tr>
+    </thead>
+    <tbody>
+      {Object.entries(runtime)
+        .sort(descending)
+        .map(([release, kotlin]) => (
+          <tr>
+            <td>{release}</td>
+            <td>{`${kotlin.minKotlin}–${kotlin.maxKotlin}`}</td>
+          </tr>
+        ))}
+    </tbody>
+  </table>
+)}
+{Object.keys(analysis).length > 0 && (
+  <table>
+    <caption>Analysis, Runtime, and Kotlin</caption>
+    <thead>
+      <tr>
+        <th>Analysis</th>
+        <th>Runtime</th>
+        <th>Kotlin/KGP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {Object.entries(analysis)
+        .sort(descending)
+        .map(([release, entry]) => (
+          <tr>
+            <td>{release}</td>
+            <td>{`${entry.minRuntime}–${entry.maxRuntime}`}</td>
+            <td>{`${entry.minKotlin}–${entry.maxKotlin}`}</td>
+          </tr>
+        ))}
+    </tbody>
+  </table>
+)}

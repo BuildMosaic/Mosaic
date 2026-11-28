@@ -68,6 +68,9 @@ const routes = [
   '/guides/tracing/',
   '/reference/releases/',
   '/concepts/shared-work/',
+  '/concepts/concurrency/',
+  '/guides/frameworks/',
+  '/guides/kotlin-api-aggregation/',
   '/guides/testing/',
   '/reference/compatibility/',
   '/reference/performance/',
@@ -311,7 +314,7 @@ test('documentation search, sidebar, copy, theme, and keyboard code scrolling', 
   await expect(page.locator('#starlight__sidebar')).toBeVisible();
   await page.locator('#starlight__sidebar summary').filter({ hasText: 'Compose responses' }).click();
   await page.locator('#starlight__sidebar a[href="/concepts/shared-work/"]').click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Shared work and identity');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Request-scoped caching and shared work in Kotlin');
   const code = page.locator('.expressive-code pre').first();
   await code.focus();
   await expect(code).toBeFocused();

@@ -5,7 +5,7 @@
   <img alt="Mosaic logo" src="./.github/images/mosaic-logo-light.png" width="240" height="120">
 </picture>
 
-[![Tests](https://github.com/BuildMosaic/Mosaic/workflows/Test%20Badge/badge.svg)](https://github.com/BuildMosaic/Mosaic/actions?query=workflow%3A%22Test+Badge%22)
+[![Tests](https://github.com/BuildMosaic/Mosaic/actions/workflows/pr-checks.yml/badge.svg?event=pull_request)](https://github.com/BuildMosaic/Mosaic/actions/workflows/pr-checks.yml?query=event%3Apull_request)
 [![Build](https://github.com/BuildMosaic/Mosaic/workflows/Build%20Badge/badge.svg)](https://github.com/BuildMosaic/Mosaic/actions?query=workflow%3A%22Build+Badge%22)
 [![Kotlin](https://img.shields.io/badge/kotlin-JVM-blue.svg)](https://kotlinlang.org)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -16,7 +16,8 @@
 
 Mosaic is a Kotlin library for building backends one response at a time. A **Tile** is a
 reusable piece of work that can read request or application data and compose other
-Tiles. A request-scoped Mosaic shares repeated Tile work automatically.
+Tiles. Mosaic's dynamic DAG scheduler uses Kotlin coroutines to execute that work
+as its dependencies are discovered, sharing repeated work within each request.
 
 Find the latest stable Runtime and Analysis versions in the
 [release reference](https://BuildMosaic.org/reference/releases/). For upgrades from
@@ -152,7 +153,9 @@ Import `org.buildmosaic.core.injection.withMosaic`. The calling coroutine owns T
 leaving the block cancels unfinished work and waits for cleanup.
 
 The [complete quick start](https://BuildMosaic.org/start/quick-start/)
-covers application setup, resource ownership, and runtime requirements.
+covers application setup, resource ownership, and runtime requirements. The
+[Kotlin API aggregation guide](https://BuildMosaic.org/guides/kotlin-api-aggregation/)
+walks through the order endpoint and shows how to check its HTTP response.
 
 ## 🔗 **Compatibility**
 

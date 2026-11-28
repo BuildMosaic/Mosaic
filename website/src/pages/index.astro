@@ -26,7 +26,7 @@ const example = (name: string) =>
     .split(/\n(?=val )/)
     .at(-1)!
     .trim();
-const title = 'Mosaic — Composable backend orchestration for Kotlin';
+const title = 'Mosaic | Composable backend orchestration for Kotlin';
 const description =
   'Think from the response up. Compose backend application logic with Kotlin Tiles, request-scoped shared work, and natural batching.';
 ---
@@ -35,33 +35,27 @@ const description =
 <html lang="en" data-theme="dark">
   <head>
     <Analytics />
-    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title}</title><meta name="description" content={description} /><link
-      rel="canonical"
-      href="https://BuildMosaic.org/"
-    />
-    <meta property="og:type" content="website" /><meta property="og:title" content={title} /><meta
-      property="og:description"
-      content={description}
-    /><meta property="og:url" content="https://BuildMosaic.org/" /><meta
-      property="og:site_name"
-      content="Mosaic"
-    /><meta property="og:image" content="https://BuildMosaic.org/social-preview.png" /><meta
-      property="og:image:width"
-      content="1200"
-    /><meta property="og:image:height" content="630" /><meta
-      property="og:image:alt"
-      content="Mosaic. Think from the response up. BuildMosaic.org."
-    />
-    <meta name="twitter:card" content="summary_large_image" /><meta name="twitter:title" content={title} /><meta
-      name="twitter:description"
-      content={description}
-    /><meta name="twitter:image" content="https://BuildMosaic.org/social-preview.png" />
-    <meta name="theme-color" content="#0d192a" /><link
-      rel="icon"
-      type="image/svg+xml"
-      href="/brand/mosaic-mark.svg"
-    /><link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href="https://BuildMosaic.org/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content="https://BuildMosaic.org/" />
+    <meta property="og:site_name" content="Mosaic" />
+    <meta property="og:image" content="https://BuildMosaic.org/social-preview.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Mosaic. Think from the response up. BuildMosaic.org." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content="https://BuildMosaic.org/social-preview.png" />
+    <meta name="theme-color" content="#0d192a" />
+    <link rel="icon" type="image/svg+xml" href="/brand/mosaic-mark.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <script is:inline>
       let preference;
       try {
@@ -76,11 +70,15 @@ const description =
     </script>
   </head>
   <body>
-    <a class="skip-link" href="#main">Skip to content</a>
+    <a class="skip-link" href="#main">
+      Skip to content
+    </a>
     <HomeHeader />
     <main id="main">
       <section class="hero wrap" aria-labelledby="hero-heading">
-        <h1 id="hero-heading">Think from the <span>response up.</span></h1>
+        <h1 id="hero-heading">
+          Think from the <span>response up.</span>
+        </h1>
         <div class="hero-body">
           <div class="hero-intro">
             <p class="hero-descriptor">Composable backend orchestration for Kotlin</p>
@@ -92,13 +90,19 @@ const description =
               Mosaic is a Kotlin library for application logic and response data. Bring your own HTTP framework.
             </p>
             <div class="actions">
-              <a class="button primary" href="/start/quick-start/"
-                >Get started <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"
-                  ><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8"></path></svg
-                ></a
-              ><a class="button secondary" href="https://github.com/BuildMosaic/Mosaic">GitHub</a>
+              <a class="button primary" href="/start/quick-start/">
+                Get started{' '}
+                <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+                  <path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8"></path>
+                </svg>
+              </a>
+              <a class="button secondary" href="https://github.com/BuildMosaic/Mosaic">
+                GitHub
+              </a>
             </div>
-            <a class="release-link" href="/reference/releases/">Runtime {runtimeVersion} <span>· Apache 2.0</span></a>
+            <a class="release-link" href="/reference/releases/">
+              Runtime {runtimeVersion} <span>· Apache 2.0</span>
+            </a>
           </div>
           <div class="hero-composition">
             <Code code={example('OrderPageTile')} lang="kotlin" title="OrderPageTile.kt" />
@@ -106,41 +110,59 @@ const description =
           </div>
         </div>
         <div class="hero-end">
-          <span>Think from the response up, not the database down.</span><a href="#composition"
-            >Follow the composition <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"
-              ><path d="M12 4v15m-6-6 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8"></path></svg
-            ></a
-          >
+          <span>Think from the response up, not the database down.</span>
+          <a href="#composition">
+            Follow the composition{' '}
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M12 4v15m-6-6 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8"></path>
+            </svg>
+          </a>
         </div>
       </section>
       <section id="composition" class="story wrap two-column">
         <div class="section-copy">
-          <h2>Start from what<br />the endpoint returns.</h2><p>
+          <h2>
+            Start from what
+            <br />
+            the endpoint returns.
+          </h2>
+          <p>
             An order page needs a summary and shipping details. Each Tile builds its part of the response and asks for
             the dependencies it needs.
-          </p><p>The endpoint stays small even when the graph behind it grows.</p><a
-            class="text-link"
-            href="/concepts/tiles/">Tiles and composition <Arrow /></a
-          >
+          </p>
+          <p>The endpoint stays small even when the graph behind it grows.</p>
+          <a class="text-link" href="/guides/kotlin-api-aggregation/">
+            Combine backend API calls <Arrow />
+          </a>
         </div>
         <div>
-          <Code code={example('OrderSummaryTile')} lang="kotlin" title="OrderSummaryTile.kt" /><div class="code-note">
-            <h3>Independent work stays independent.</h3><p>
-              <code>composeAsync</code> starts each branch before you await its result. Use <code>compose</code> when the
-              next step needs that value.
-            </p><a href="/concepts/concurrency/">Compose concurrent work</a>
+          <Code code={example('OrderSummaryTile')} lang="kotlin" title="OrderSummaryTile.kt" />
+          <div class="code-note">
+            <h3>Independent work stays independent.</h3>
+            <p>
+              <code>composeAsync</code> starts each branch before you await its result. Use <code>compose</code> when
+              the next step needs that value.
+            </p>
+            <a href="/concepts/concurrency/">Compose concurrent work</a>
           </div>
         </div>
       </section>
       <section class="shared-section">
         <div class="wrap two-column story">
           <div class="section-copy">
-            <h2>Ask twice.<br /><span>Execute once.</span></h2><p>
+            <h2>
+              Ask twice.
+              <br />
+              <span>Execute once.</span>
+            </h2>
+            <p>
               The page needs line items. So does the order total. Both branches reach the same Tile and share its
               in-flight work and result.
-            </p><p>No branch needs to know who else is asking.</p><a class="text-link" href="/concepts/shared-work/"
-              >Shared work and cache identity <Arrow /></a
-            >
+            </p>
+            <p>No branch needs to know who else is asking.</p>
+            <a class="text-link" href="/concepts/shared-work/">
+              Shared work and cache identity <Arrow />
+            </a>
           </div>
           <div class="shared-proof">
             <div
@@ -148,11 +170,15 @@ const description =
               role="img"
               aria-label="OrderSummaryTile and OrderTotalTile both compose the same LineItemsTile; one execution is shared within a Mosaic."
             >
-              <div class="shared-callers"><code>OrderSummaryTile</code><code>OrderTotalTile</code></div><div
-                class="convergence"
-                aria-hidden="true"
-              >
-              </div><div class="shared-producer"><code>LineItemsTile</code><span>One shared execution</span></div>
+              <div class="shared-callers">
+                <code>OrderSummaryTile</code>
+                <code>OrderTotalTile</code>
+              </div>
+              <div class="convergence" aria-hidden="true"></div>
+              <div class="shared-producer">
+                <code>LineItemsTile</code>
+                <span>One shared execution</span>
+              </div>
             </div>
             <Code code={example('OrderTotalTile')} lang="kotlin" title="OrderTotalTile.kt" />
             <p class="figure-note">Same Mosaic. Same Tile instance. A new Mosaic starts fresh.</p>
@@ -161,157 +187,238 @@ const description =
       </section>
       <section class="story wrap two-column">
         <div class="section-copy">
-          <h2>Batch naturally.</h2><p>
+          <h2>Batch naturally.</h2>
+          <p>
             A MultiTile puts keyed work behind one reusable dependency. Overlapping requests reuse equal keys; newly
             pending keys can join a batch before execution starts.
-          </p><p>Ready work is never intentionally delayed. Exact batch boundaries depend on scheduling.</p><a
-            class="text-link"
-            href="/concepts/multitile/">Work with MultiTile <Arrow /></a
-          >
+          </p>
+          <p>Ready work is never intentionally delayed. Exact batch boundaries depend on scheduling.</p>
+          <a class="text-link" href="/concepts/multitile/">
+            Work with MultiTile <Arrow />
+          </a>
         </div>
         <div>
-          <Code code={example('ProductsByIdTile')} lang="kotlin" title="ProductsByIdTile.kt" /><div class="key-reuse">
-            <div><span>First request</span><code>product-1</code></div><div>
-              <span>Next request</span><code class="reused">product-1 <small>reused</small></code><code
-                >product-2 <small>fetched</small></code
-              >
+          <Code code={example('ProductsByIdTile')} lang="kotlin" title="ProductsByIdTile.kt" />
+          <div class="key-reuse">
+            <div>
+              <span>First request</span>
+              <code>product-1</code>
             </div>
-          </div><p class="figure-note">Sequential calls in one Mosaic. Only the new key reaches the fetch block.</p><a
-            class="text-link"
-            href="/concepts/batching/">Choose bulk, per-key, or chunked fetching <Arrow /></a
-          >
+            <div>
+              <span>Next request</span>
+              <code class="reused">
+                product-1 <small>reused</small>
+              </code>
+              <code>
+                product-2 <small>fetched</small>
+              </code>
+            </div>
+          </div>
+          <p class="figure-note">Sequential calls in one Mosaic. Only the new key reaches the fetch block.</p>
+          <a class="text-link" href="/concepts/batching/">
+            Choose bulk, per-key, or chunked fetching <Arrow />
+          </a>
         </div>
       </section>
       <section class="architecture-section">
         <div class="wrap story">
           <div class="architecture-heading">
             <div>
-              <h2>Your composition<br />is architecture.</h2><p>
+              <h2>
+                Your composition
+                <br />
+                is architecture.
+              </h2>
+              <p>
                 The optional analysis plugin turns Tile relationships into a graph. Keep the code as the model, instead
                 of maintaining a second diagram by hand.
               </p>
-            </div><div class="architecture-command">
-              <Code code="./gradlew mosaicGraph" lang="bash" /><a class="text-link" href="/guides/analysis/"
-                >Generate architecture reports <Arrow /></a
-              >
+            </div>
+            <div class="architecture-command">
+              <Code code="./gradlew mosaicGraph" lang="bash" />
+              <a class="text-link" href="/guides/analysis/">
+                Generate architecture reports <Arrow />
+              </a>
             </div>
           </div>
           <figure class="architecture-figure">
-            <a href="/order-architecture.png" aria-label="View the full-size order architecture graph"
-              ><img
+            <a href="/order-architecture.png" aria-label="View the full-size order architecture graph">
+              <img
                 src="/order-architecture.png"
                 width="1364"
                 height="1280"
                 loading="lazy"
                 alt="Generated order architecture: OrderPageTile composes summary and logistics. Three branches share OrderTile. Line items reach products and pricing; the selected graph also shows factory boundaries."
-              /></a
-            ><figcaption>
-              <a href="/order-architecture.png">View full-size graph</a>. Order architecture derived from real <code
-                >mosaicGraph</code
-              > output. Static dependencies, not runtime timing or batch boundaries.
+              />
+            </a>
+            <figcaption>
+              <a href="/order-architecture.png">View full-size graph</a>. Order architecture derived from real{' '}
+              <code>mosaicGraph</code> output. Static dependencies, not runtime timing or batch boundaries.
             </figcaption>
           </figure>
         </div>
       </section>
       <section class="wrap story inspection-grid">
         <div>
-          <h2>See what<br />actually executed.</h2><p>
+          <h2>
+            See what
+            <br />
+            actually executed.
+          </h2>
+          <p>
             Add Mosaic execution spans to your OpenTelemetry traces. Dependency links reveal shared producers and batch
             callers; cache hits create no new spans.
-          </p><Code code={'val applicationCanvas = canvas {\n  tracing { openTelemetry }\n}'} lang="kotlin" /><p
-            class="figure-note"
-          >
-            Your application supplies OpenTelemetry, sampling, export, and shutdown.
-          </p><a class="text-link" href="/guides/tracing/">Trace Tile execution <Arrow /></a>
+          </p>
+          <Code code={'val applicationCanvas = canvas {\n  tracing { openTelemetry }\n}'} lang="kotlin" />
+          <p class="figure-note">Your application supplies OpenTelemetry, sampling, export, and shutdown.</p>
+          <a class="text-link" href="/guides/tracing/">
+            Trace Tile execution <Arrow />
+          </a>
         </div>
         <div>
-          <h2>Test response logic<br />without booting the world.</h2><p>
+          <h2>
+            Test response logic
+            <br />
+            without booting the world.
+          </h2>
+          <p>
             Replace dependency Tiles with fixture values and leave the real response composition running. Test inputs,
             failures, and virtual-time delays in isolation.
-          </p><Code
-            code={'mosaicBuilder()\n  .withMockTile(OrderSummaryTile, summary)\n  .withMockTile(LogisticsTile, logistics)\n  .withMosaic {\n    assertEquals(\n      OrderPageTile, OrderPage(summary, logistics)\n    )\n  }'}
+          </p>
+          <Code
+            code={
+              'mosaicBuilder()\n  .withMockTile(OrderSummaryTile, summary)\n  .withMockTile(LogisticsTile, logistics)\n  .withMosaic {\n    assertEquals(\n      OrderPageTile, OrderPage(summary, logistics)\n    )\n  }'
+            }
             lang="kotlin"
-          /><p class="figure-note">
+          />
+          <p class="figure-note">
             Inside <code>runTest</code>; summary and logistics are fixture values.
-          </p><a class="text-link" href="/guides/testing/">Test your compositions <Arrow /></a>
+          </p>
+          <a class="text-link" href="/guides/testing/">
+            Test your compositions <Arrow />
+          </a>
         </div>
       </section>
       <section class="performance-section">
         <div class="wrap story two-column">
           <div class="section-copy">
-            <h2>Measured cost.<br />Visible tradeoffs.</h2><p>
+            <h2>
+              Measured cost.
+              <br />
+              Visible tradeoffs.
+            </h2>
+            <p>
               Mosaic handles orchestration you would otherwise write yourself. The published application benchmark
               compares it with equivalent optimized Kotlin doing the same downstream work.
-            </p><p>
+            </p>
+            <p>
               For the service-backed aggregate graph at 800 RPS, Mosaic added about 115 µs of CPU/request. Both
               implementations had median HTTP latency of about 21.12 ms.
-            </p><a class="text-link" href="/reference/performance/">Read the evidence and limitations <Arrow /></a>
+            </p>
+            <a class="text-link" href="/reference/performance/">
+              Read the evidence and limitations <Arrow />
+            </a>
           </div>
           <div class="benchmark">
             <table>
-              <caption>Additional CPU per request</caption><thead
-                ><tr><th scope="col">Workload</th><th scope="col">Mosaic − direct Kotlin</th></tr></thead
-              ><tbody
-                ><tr><th scope="row">Light / batching</th><td>14–21 µs</td></tr><tr
-                  ><th scope="row">Aggregate graph</th><td>48–115 µs</td></tr
-                ><tr><th scope="row">Sibling coalescing</th><td>61–78 µs</td></tr><tr
-                  ><th scope="row">CPU-heavy</th><td>6–9 µs</td></tr
-                ></tbody
-              >
-            </table><p class="figure-note">
-              Rounded paired medians across measured profiles and rates. Source revision <a
-                href="https://github.com/BuildMosaic/Mosaic/commit/129b0c73864e82047e4f8e0b861aee31e4e9dc78">129b0c7</a
-              >; application results were not remeasured for 0.6.0. CPU cost is not HTTP latency.
+              <caption>Additional CPU per request</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Workload</th>
+                  <th scope="col">Mosaic CPU overhead</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Light / batching</th>
+                  <td>+14 to +21 µs</td>
+                </tr>
+                <tr>
+                  <th scope="row">Aggregate graph</th>
+                  <td>+48 to +115 µs</td>
+                </tr>
+                <tr>
+                  <th scope="row">Sibling coalescing</th>
+                  <td>+61 to +78 µs</td>
+                </tr>
+                <tr>
+                  <th scope="row">CPU-heavy</th>
+                  <td>+6 to +9 µs</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="figure-note">
+              Ranges show additional CPU used by Mosaic versus direct Kotlin across measured profiles and rates, using
+              rounded paired medians. CPU cost is not HTTP latency.
             </p>
           </div>
         </div>
       </section>
       <section class="wrap story frameworks">
         <div>
-          <h2>Bring your HTTP framework.</h2><p>
-            The same order Tiles run behind Spring Boot, Ktor, and Micronaut.<br />Keep routing and HTTP concerns in
-            your framework. Compose the response with Mosaic.
+          <h2>Bring your HTTP framework.</h2>
+          <p>
+            The same order Tiles run behind Spring Boot, Ktor, and Micronaut.
+            <br />
+            Keep routing and HTTP concerns in your framework. Compose the response with Mosaic.
           </p>
-        </div><div class="framework-links">
-          <a href="https://github.com/BuildMosaic/Mosaic/tree/main/examples/spring-example"
-            ><span>Spring Boot</span><small>Controllers + Canvas</small><Arrow external /></a
-          ><a href="https://github.com/BuildMosaic/Mosaic/tree/main/examples/ktor-example"
-            ><span>Ktor</span><small>Coroutine route handlers</small><Arrow external /></a
-          ><a href="https://github.com/BuildMosaic/Mosaic/tree/main/examples/micronaut-example"
-            ><span>Micronaut</span><small>Controllers + dependency injection</small><Arrow external /></a
-          >
-        </div><p class="figure-note">Runnable framework examples. No published framework adapter is required.</p><a
-          class="text-link"
-          href="/guides/frameworks/">Run an example <Arrow /></a
-        >
+        </div>
+        <div class="framework-links">
+          <a href="https://github.com/BuildMosaic/Mosaic/tree/main/examples/spring-example">
+            <span>Spring Boot</span>
+            <small>Controllers + Canvas</small>
+            <Arrow external />
+          </a>
+          <a href="https://github.com/BuildMosaic/Mosaic/tree/main/examples/ktor-example">
+            <span>Ktor</span>
+            <small>Coroutine route handlers</small>
+            <Arrow external />
+          </a>
+          <a href="https://github.com/BuildMosaic/Mosaic/tree/main/examples/micronaut-example">
+            <span>Micronaut</span>
+            <small>Controllers + dependency injection</small>
+            <Arrow external />
+          </a>
+        </div>
+        <p class="figure-note">Runnable framework examples. No published framework adapter is required.</p>
+        <a class="text-link" href="/guides/frameworks/">
+          Run an example <Arrow />
+        </a>
       </section>
       <section class="final-cta wrap">
-        <h2>Build the response.<br />Compose the rest.</h2><div>
-          <p>Add Mosaic to your Kotlin project.<br />Your first Tile is a few lines away.</p><a
-            class="button primary"
-            href="/start/quick-start/"
-            >Get started <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"
-              ><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8"></path></svg
-            ></a
-          >
+        <h2>
+          Build the response.
+          <br />
+          Compose the rest.
+        </h2>
+        <div>
+          <p>
+            Add Mosaic to your Kotlin project.
+            <br />
+            Your first Tile is a few lines away.
+          </p>
+          <a class="button primary" href="/start/quick-start/">
+            Get started{' '}
+            <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+              <path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8"></path>
+            </svg>
+          </a>
         </div>
       </section>
     </main>
     <footer class="home-footer wrap">
-      <a class="mosaic-brand" href="/" aria-label="Mosaic home"
-        ><img class="brand-light" src="/brand/mosaic-lockup-light.svg" alt="Mosaic" width="180" height="60" /><img
-          class="brand-dark"
-          src="/brand/mosaic-lockup-dark.svg"
-          alt="Mosaic"
-          width="180"
-          height="60"
-        /></a
-      ><div>
-        <a href="/start/overview/">Docs</a><a href="/api/">API</a><a href="https://github.com/BuildMosaic/Mosaic"
-          >GitHub</a
-        ><a href="https://github.com/BuildMosaic/Mosaic/blob/main/LICENSE">Apache 2.0</a>
+      <a class="mosaic-brand" href="/" aria-label="Mosaic home">
+        <img class="brand-light" src="/brand/mosaic-lockup-light.svg" alt="Mosaic" width="180" height="60" />
+        <img class="brand-dark" src="/brand/mosaic-lockup-dark.svg" alt="Mosaic" width="180" height="60" />
+      </a>
+      <div>
+        <a href="/start/overview/">Docs</a>
+        <a href="/api/">API</a>
+        <a href="https://github.com/BuildMosaic/Mosaic">GitHub</a>
+        <a href="https://github.com/BuildMosaic/Mosaic/blob/main/LICENSE">Apache 2.0</a>
         <a href="mailto:nick@buildmosaic.org">nick@buildmosaic.org</a>
-      </div><p>BuildMosaic.org</p>
+      </div>
+      <p>BuildMosaic.org</p>
     </footer>
   </body>
 </html>
