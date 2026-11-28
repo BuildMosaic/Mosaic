@@ -193,11 +193,11 @@ Dependency summary changes can rerun verification without recompiling unchanged 
 
 ## Supported project boundary
 
-Only the tested default pure Kotlin/JVM `main` layout under `src/main/kotlin` is supported. Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibility](/reference/compatibility/). The plugin validates the Java toolchain against Kotlin's toolchain. These analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
+Use a Kotlin compiler/KGP version listed for your Analysis release in [compatibility](/reference/compatibility/). The plugin validates the Java toolchain against Kotlin's toolchain. These analysis restrictions are distinct from [runtime compatibility](/reference/compatibility/).
 
 The plugin rejects:
 
-- Nonstandard or generated Kotlin source paths, Kotlin scripts, and mixed Java/Kotlin sources.
+- Kotlin sources outside the project directory, Kotlin scripts, and mixed Java/Kotlin sources.
 - Friend paths.
 - KSP and unsupported Kotlin/compiler/project configurations.
 

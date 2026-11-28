@@ -26,16 +26,6 @@ internal object SourceShardStorage {
     require(!Files.isSymbolicLink(root.toPath()) && !Files.isSymbolicLink(outputRoot.toPath())) {
       "Mosaic source and shard roots must not be symbolic links"
     }
-    val current =
-      if (Files.isDirectory(root.toPath())) {
-        Files.walk(root.toPath()).use { paths ->
-          paths.filter { it.fileName.toString().endsWith(".kt") && Files.isRegularFile(it) }
-            .map { SourceShardPaths.sourceId(root, it.toFile()) }
-            .toList().toSet()
-        }
-      } else {
-        emptySet()
-      }
     val shardRoot = outputRoot.toPath()
     if (!Files.exists(shardRoot)) return
     Files.walkFileTree(
@@ -46,7 +36,10 @@ internal object SourceShardStorage {
           attrs: BasicFileAttributes,
         ): FileVisitResult {
           val sourceId = SourceShardPaths.sourceIdForShard(outputRoot, file.toFile())
-          if (sourceId != null && sourceId !in current) Files.delete(file)
+          if (sourceId != null) {
+            val source = File(root, sourceId)
+            if (!source.isFile || source.extension != "kt") Files.delete(file)
+          }
           return FileVisitResult.CONTINUE
         }
 

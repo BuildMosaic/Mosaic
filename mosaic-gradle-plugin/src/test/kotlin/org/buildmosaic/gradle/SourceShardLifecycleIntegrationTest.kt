@@ -71,7 +71,7 @@ class SourceShardLifecycleIntegrationTest {
     source.writeText(source.readText().replace("= singleTile { source<String>()", "by singleTile { source<Int>()"))
     run(project, "extractMosaicMain", configurationCache = true)
     assertNotEquals(initial, SummaryCodec.decode(summaryFile.readBytes()))
-    val dependentShard = File(project, "build/mosaic-analysis/main/shards/Dependent.kt.shard.json")
+    val dependentShard = File(project, "build/mosaic-analysis/main/shards/src/main/kotlin/Dependent.kt.shard.json")
     val previousDependent = dependentShard.readText()
     stable.writeText("package deletion\nfun retained(value: Int = 1) = value")
     val signature = run(project, "extractMosaicMain", configurationCache = true)
@@ -84,11 +84,11 @@ class SourceShardLifecycleIntegrationTest {
     run(project, "extractMosaicMain", configurationCache = true)
     val movedSummary = SummaryCodec.decode(summaryFile.readBytes()).module
     assertEquals(1, movedSummary.tiles.count { it.id == "deletion.TemporaryTile" })
-    val emptyShard = File(project, "build/mosaic-analysis/main/shards/Temporary.kt.shard.json")
+    val emptyShard = File(project, "build/mosaic-analysis/main/shards/src/main/kotlin/Temporary.kt.shard.json")
     assertTrue(SourceShardCodec.decode(emptyShard.readBytes()).module.tiles.isEmpty())
     assertFalse(emptyShard.readText().contains(project.absolutePath))
-    assertTrue(File(project, "build/mosaic-analysis/main/shards/north/Foo.kt.shard.json").isFile)
-    assertTrue(File(project, "build/mosaic-analysis/main/shards/south/Foo.kt.shard.json").isFile)
+    assertTrue(File(project, "build/mosaic-analysis/main/shards/src/main/kotlin/north/Foo.kt.shard.json").isFile)
+    assertTrue(File(project, "build/mosaic-analysis/main/shards/src/main/kotlin/south/Foo.kt.shard.json").isFile)
     val renamed = File(source.parentFile, "Renamed.kt")
     renamed.writeText(moved.readText().replace("TemporaryTile", "RenamedTile"))
     moved.delete()
@@ -100,16 +100,16 @@ class SourceShardLifecycleIntegrationTest {
     assertTrue(refreshed.tiles.none { it.id == "deletion.TemporaryTile" })
     assertTrue(refreshed.callables.any { it.id == "deletion.retained(kotlin.Int)" })
     val shardDirectory = File(project, "build/mosaic-analysis/main/shards")
-    assertFalse(File(shardDirectory, "Moved.kt.shard.json").exists())
+    assertFalse(File(shardDirectory, "src/main/kotlin/Moved.kt.shard.json").exists())
     val incrementalShards = shardBytes(project)
     assertEquals(
       setOf(
-        "Temporary.kt.shard.json",
-        "Stable.kt.shard.json",
-        "Dependent.kt.shard.json",
-        "Renamed.kt.shard.json",
-        "north/Foo.kt.shard.json",
-        "south/Foo.kt.shard.json",
+        "src/main/kotlin/Temporary.kt.shard.json",
+        "src/main/kotlin/Stable.kt.shard.json",
+        "src/main/kotlin/Dependent.kt.shard.json",
+        "src/main/kotlin/Renamed.kt.shard.json",
+        "src/main/kotlin/north/Foo.kt.shard.json",
+        "src/main/kotlin/south/Foo.kt.shard.json",
       ),
       incrementalShards.keys,
     )
