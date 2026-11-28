@@ -31,10 +31,11 @@ empty effects, while capability-bearing initialization is unknown. Referenced
 stored-property initialization is extracted through its getter or field read;
 ordinary constants remain harmless. This does not model every JVM class-load
 trigger or exception. Used capability-bearing defaults and defaults whose binary
-body is unavailable are unknown after explicit actuals are evaluated. Mosaic
-extension-helper receiver transfer is not modeled, so those calls are unknown;
-direct Tile `source()` and direct `other.source()` remain supported. Regular
-Mosaic parameters cannot borrow the caller's current Canvas. Property accessors
+body is unavailable are unknown after explicit actuals are evaluated.
+Analysis can follow a directly called, non-inline Mosaic extension with no extra
+arguments when its receiver is known and the helper is in the same source file.
+Other extension receiver transfers remain unknown. Regular Mosaic parameters
+cannot borrow the caller's current Canvas. Property accessors
 use the same receiver and inline safeguards as functions. Omitted constructor
 defaults use the same conservative boundary as function defaults. Reified
 generic array keys use erased JVM array class identity: `Array<String>` and

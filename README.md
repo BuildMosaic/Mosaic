@@ -186,6 +186,7 @@ It checks Canvas bindings and distinguishes **confirmed missing dependencies**
 from paths it can't verify. Analysis selects the appropriate compiler integration
 automatically for its [supported Kotlin versions](https://BuildMosaic.org/reference/compatibility/).
 Runtime composition doesn't depend on it. The graph shows static relationships, not runtime traces.
+Automatic verification does not infer framework-managed request entry points or dependency injection.
 
 [Set up architecture reports and verification →](https://BuildMosaic.org/guides/analysis/)
 

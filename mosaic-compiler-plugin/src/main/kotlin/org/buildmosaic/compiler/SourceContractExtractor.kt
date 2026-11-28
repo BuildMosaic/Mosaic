@@ -92,6 +92,8 @@ import org.jetbrains.kotlin.ir.util.isFakeOverride
 import org.jetbrains.kotlin.ir.visitors.IrVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 
+private const val MAX_SOURCE_HELPER_EXPANSIONS = 128
+
 /** Collects one source file and owns all mutable IR identity and contract state for that file. */
 @OptIn(UnsafeDuringIrConstructionAPI::class)
 internal class SourceContractExtractor(
@@ -102,6 +104,8 @@ internal class SourceContractExtractor(
   private lateinit var locations: SourceLocations
   private val limitations = mutableListOf<String>()
   private val freshTemplates = linkedMapOf<String, TileContract>()
+  private val activeSourceHelpers = mutableSetOf<IrSimpleFunction>()
+  private var sourceHelperExpansions = 0
   private val localTileDelegates =
     mutableMapOf<org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol, org.jetbrains.kotlin.ir.symbols.IrValueSymbol>()
 
@@ -190,7 +194,7 @@ internal class SourceContractExtractor(
               )
             declaration.getter?.let { locators[propertyId(declaration)] = binaryLocator(it, file) }
           }
-          listOfNotNull(declaration.getter, declaration.setter).forEach { accessor ->
+          listOfNotNull(declaration.getter, declaration.setter).filterNot { it.isFakeOverride }.forEach { accessor ->
             val id = symbolId(accessor)
             val site = location(accessor, id)
             val normalizer = Normalizer(file, id, collectFreshTemplates = !stableTile, suppressionScope = suppressions)
@@ -640,6 +644,7 @@ internal class SourceContractExtractor(
       if (getter != null && isKeyType(call.type)) {
         propertyKey(getter, call)?.let { return it }
       }
+      lowerSourceMosaicHelper(call, receiver)?.let { return it }
       val eligibility = callableEligibility(call) { actuals[it]?.callable == true }
       val boundary = (eligibility as? CallableEligibility.Unsupported)?.reason
       if (boundary != null) {
@@ -662,7 +667,9 @@ internal class SourceContractExtractor(
         actuals.entries.firstOrNull {
           it.key.kind == IrParameterKind.DispatchReceiver
         }?.value?.dispatch ?: DispatchReceiver.None
-      val virtual = function is IrSimpleFunction && function.modality != Modality.FINAL
+      val virtual =
+        function is IrSimpleFunction && function.modality != Modality.FINAL &&
+          function.parameters.any { it.kind == IrParameterKind.DispatchReceiver }
       if (isCanvasType(
           call.type,
         )
@@ -708,6 +715,36 @@ internal class SourceContractExtractor(
         key = if (isKeyType(call.type)) Fact.Unknown("Unsupported computed CanvasKey value", site(call)) else null,
         callable = isCallableType(call.type),
       )
+    }
+
+    /**
+     * Specialize only calls whose source lives in this shard. Neither a different
+     * file's body nor a receiver hidden in a binary summary is a stable input here.
+     * Bound per-shard expansion even for acyclic helper chains.
+     */
+    private fun lowerSourceMosaicHelper(
+      call: IrFunctionAccessExpression,
+      receiver: Value,
+    ): Value? {
+      if (receiver.mosaic == null || receiver.mosaicIdentity == MosaicProvenance.Unknown) return null
+      val helper = call.symbol.owner as? IrSimpleFunction ?: return null
+      val parameter = helper.parameters.singleOrNull()?.takeIf(::isMosaicExtensionReceiver) ?: return null
+      if (helper.parent != file || helper.isInline) return null
+      if (helper.correspondingPropertySymbol != null || helper.typeParameters.isNotEmpty()) return null
+      val body = helper.body ?: return null
+      // A normalized body stays in the caller's effect stream. Do not cross a suppression scope.
+      if (suppressionScope.isNotEmpty() || mosaicSuppressions(helper.annotations, helper).isNotEmpty()) return null
+      if (sourceHelperExpansions >= MAX_SOURCE_HELPER_EXPANSIONS || !activeSourceHelpers.add(helper)) return null
+      sourceHelperExpansions++
+      return try {
+        val nested = Normalizer(file, "${valueId(call)}:helper", collectFreshTemplates = collectFreshTemplates)
+        nested.values[parameter.symbol] = receiver
+        val result = nested.body(body)
+        effects += nested.effects
+        Value(canvas = result.canvas.takeIf { isCanvasType(call.type) }, callable = result.callable)
+      } finally {
+        activeSourceHelpers.remove(helper)
+      }
     }
 
     private fun establishMosaic(
@@ -898,6 +935,10 @@ internal class SourceContractExtractor(
     data class Unsupported(val reason: String) : CallableEligibility
   }
 
+  private fun isMosaicExtensionReceiver(parameter: IrValueParameter): Boolean =
+    parameter.kind == IrParameterKind.ExtensionReceiver &&
+      parameter.type.classFqName?.asString() == "org.buildmosaic.core.Mosaic"
+
   /** Shared by execution and structural omission; a body cannot override an unsupported boundary. */
   private fun callableEligibility(
     call: IrFunctionAccessExpression,
@@ -911,9 +952,8 @@ internal class SourceContractExtractor(
         intrinsic is CallableEligibility.Unsupported -> intrinsic.reason
         function is IrSimpleFunction && function.isInline && intrinsic != CallableEligibility.EffectFree ->
           "External inline capability helper ${symbolId(function)} has no pre-inline body"
-        function.parameters.any {
-          it.kind == IrParameterKind.ExtensionReceiver && it.type.classFqName?.asString() == "org.buildmosaic.core.Mosaic"
-        } -> "Mosaic extension receiver transfer is unsupported for ${symbolId(function)}"
+        function.parameters.any(::isMosaicExtensionReceiver) ->
+          "Mosaic extension receiver transfer is unsupported for ${symbolId(function)}"
         (function as? IrSimpleFunction)?.correspondingPropertySymbol?.owner?.let {
           it.isDelegated && tilePropertyEligibility(it) == TilePropertyEligibility.UNSUPPORTED
         } == true -> "Unsupported delegated property accessor"

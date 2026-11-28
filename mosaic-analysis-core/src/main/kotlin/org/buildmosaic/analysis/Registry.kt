@@ -12,7 +12,7 @@ internal class SelectedContractRegistry(modules: List<ModuleContract>) {
   private val canvases = index(modules, { it.canvases }, CanvasContract::id)
   private val tiles = index(modules, { it.tiles }, TileContract::id)
   private val callables = index(modules, { it.callables }, CallableContract::id)
-  private val overrides = modules.flatMap { it.overrides }.groupBy { it.receiverType to it.baseId }
+  val overrides = DirectOverrideIndex(modules.flatMap { it.overrides })
   private val keys = index(modules, { it.keys }, KeyContract::id)
 
   fun canvas(id: String): Resolution<CanvasContract> = resolve(canvases[id])
@@ -26,16 +26,7 @@ internal class SelectedContractRegistry(modules: List<ModuleContract>) {
   fun directOverride(
     receiverType: String,
     baseId: String,
-  ): Resolution<ResolvedOverride> =
-    when (val candidates = overrides[receiverType to baseId].orEmpty()) {
-      emptyList<ResolvedOverride>() -> Resolution.Missing
-      else ->
-        if (candidates.size == 1) {
-          Resolution.Found(candidates.single())
-        } else {
-          Resolution.Conflict(candidates.map { it.implementationId }.sorted())
-        }
-    }
+  ): Resolution<ResolvedOverride> = overrides.directOverride(receiverType, baseId)
 
   fun reusableContractIds(): List<String> =
     buildList {
@@ -62,4 +53,32 @@ internal class SelectedContractRegistry(modules: List<ModuleContract>) {
           id(declaration) to (module.id to declaration)
         }
       }.groupBy({ it.first }, { it.second })
+}
+
+/** Shared target index. A list of possible edges is never proof of one exact edge. */
+internal class DirectOverrideIndex(overrides: List<ResolvedOverride>) {
+  private val byBase =
+    overrides.groupBy { it.baseId }.mapValues { (_, candidates) ->
+      candidates.groupBy { it.receiverType }
+    }
+
+  fun possibleOverrides(
+    baseId: String,
+    receiverType: String?,
+  ): List<ResolvedOverride> {
+    val byReceiver = byBase[baseId].orEmpty()
+    return if (receiverType == null) byReceiver.values.flatten() else byReceiver[receiverType].orEmpty()
+  }
+
+  fun directOverride(
+    receiverType: String,
+    baseId: String,
+  ): Resolution<ResolvedOverride> {
+    val candidates = possibleOverrides(baseId, receiverType)
+    return when (candidates.size) {
+      0 -> Resolution.Missing
+      1 -> Resolution.Found(candidates.single())
+      else -> Resolution.Conflict(candidates.map { it.implementationId }.sorted())
+    }
+  }
 }

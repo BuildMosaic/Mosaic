@@ -31,7 +31,6 @@ import org.gradle.api.tasks.bundling.Jar
 import org.gradle.jvm.toolchain.JavaToolchainService
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.jetbrains.kotlin.gradle.plugin.FilesSubpluginOption
-import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilerPluginSupportPlugin
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
@@ -109,7 +108,7 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
     kotlinCompilation: KotlinCompilation<*>,
   ): org.gradle.api.provider.Provider<List<SubpluginOption>> {
     val output = project.layout.buildDirectory.dir("mosaic-analysis/main/shards")
-    val root = project.file("src/main/kotlin")
+    val root = project.projectDir
     val module = project.group.toString() + ":" + project.name
     val selectedCompiler = compilerVersion.get()
     val selectedRevision =
@@ -136,7 +135,7 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
     mosaicVersion = installedMosaicVersion()
     project.afterEvaluate {
       if (!project.plugins.hasPlugin("org.jetbrains.kotlin.jvm")) {
-        throw GradleException("Mosaic analysis requires a pure Kotlin/JVM project")
+        throw GradleException("Mosaic analysis requires the Kotlin/JVM plugin")
       }
     }
     project.plugins.withId("org.jetbrains.kotlin.jvm") {
@@ -211,23 +210,10 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
     project: Project,
     compile: TaskProvider<KotlinJvmCompile>,
   ): TaskProvider<ExtractMosaicTask> {
-    val kotlinPluginVersion = (project.plugins.getPlugin("org.jetbrains.kotlin.jvm") as KotlinBasePlugin).pluginVersion
-    val defaultCompilerArtifacts =
-      project.configurations.named("kotlinCompilerPluginClasspathMain").flatMap { configuration ->
-        configuration.incoming.artifacts.resolvedArtifacts.map { artifacts ->
-          artifacts.filter { artifact ->
-            val id = artifact.id.componentIdentifier
-            id is ModuleComponentIdentifier && isDefaultKotlinCompilerArtifact(id, kotlinPluginVersion)
-          }.map { it.file }
-        }
-      }
     val javaExtension = project.extensions.getByType(JavaPluginExtension::class.java)
     val launcher = project.extensions.getByType(JavaToolchainService::class.java).launcherFor(javaExtension.toolchain)
-    val mainSources =
-      project.extensions.getByType(
-        KotlinJvmProjectExtension::class.java,
-      ).sourceSets.getByName("main").kotlin
-    val sourceRoot = project.file("src/main/kotlin")
+    val mainSources = project.files(compile.map { it.sources })
+    val sourceRoot = project.projectDir
     val shardDirectory = project.layout.buildDirectory.dir("mosaic-analysis/main/shards")
     return project.tasks.register("extractMosaicMain", ExtractMosaicTask::class.java) { task ->
       task.group = "verification"
@@ -235,7 +221,6 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
       task.sources.from(mainSources)
       task.coreCompileArtifacts.from(coreCompileArtifacts)
       task.coreRuntimeArtifacts.from(coreRuntimeArtifacts)
-      task.javaSources.from(project.fileTree("src/main/java") { it.include("**/*.java") })
       task.supportedSourceRoot.set(sourceRoot.absolutePath)
       task.shardFiles.from(
         mainSources.elements.map { sources ->
@@ -245,8 +230,6 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
         },
       )
       task.additionalCompilerPlugins.from(compile.map { it.pluginClasspath })
-      task.defaultCompilerArtifacts.from(defaultCompilerArtifacts)
-      task.friendPaths.from(compile.map { it.friendPaths })
       task.mosaicVersion.set(mosaicVersion)
       task.moduleId.set(project.provider { project.group.toString() + ":" + project.name })
       task.productionCompilerVersion.set(compilerVersion)
@@ -267,14 +250,6 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
 
   private fun unsupportedCompilerOptions(taskCompile: KotlinJvmCompile): List<String> =
     buildList {
-      taskCompile.pluginOptions.orNull.orEmpty().flatMap { it.allOptions().entries }.forEach { (id, options) ->
-        if (options.isNotEmpty() && id != "org.buildmosaic.analysis") add("plugin:$id:${options.size}")
-      }
-      taskCompile.compilerOptions.freeCompilerArgs.orNull.orEmpty().forEach { add("free:$it") }
-      taskCompile.compilerOptions.optIn.orNull.orEmpty().forEach { add("optIn:$it") }
-      if (taskCompile.compilerOptions.progressiveMode.orNull == true) add("progressiveMode")
-      if (taskCompile.compilerOptions.noJdk.orNull == true) add("noJdk")
-      taskCompile.compilerOptions.jvmDefault.orNull?.let { add("jvmDefault:$it") }
       if (taskCompile.multiPlatformEnabled.orNull == true) add("multiPlatformEnabled")
     }
 }
@@ -284,7 +259,6 @@ private fun unsupportedProjectPlugins(project: Project): List<String> =
     "org.jetbrains.kotlin.multiplatform",
     "com.android.application",
     "com.android.library",
-    "com.google.devtools.ksp",
   ).filter(project.plugins::hasPlugin)
 
 private fun registerAnalysisTransforms(project: Project) {

@@ -3,6 +3,23 @@
 Significant user-facing changes to Mosaic are documented here. Earlier versions
 predate this maintained changelog; their release history is not reconstructed here.
 
+## [analysis-1.0.2] - 2026-11-28
+
+### Fixed
+
+- Extraction follows the configured main Kotlin compilation, including generated
+  Kotlin sources, instead of relying on a conventional source directory.
+  Ordinary compiler options and friend paths no longer block extraction.
+- Mixed Kotlin/Java projects can analyze their Kotlin sources. Java bodies and
+  unsupported calls across the language boundary remain outside the proof.
+- Analysis recognizes supported inherited accessors and direct same-file Mosaic
+  helpers without guessing at arbitrary dispatch or callback behavior.
+
+### Changed
+
+- `mosaicGraph` still produces a structural overview when no safe automatic
+  verification root can be selected. The overview is not a verification result.
+
 ## [runtime-1.1.0] - 2026-10-17
 
 ### Added

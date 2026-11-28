@@ -11,13 +11,17 @@ package org.buildmosaic.analysis
 
 /** Selects execution contexts from complete, selected contracts. It never examines names or source files. */
 object RootSelectionResolver {
+  /** Automatic discovery cannot select a complete set of safe execution contexts. */
+  class AutomaticRootsUnavailableException(message: String) : IllegalArgumentException(message)
+
   fun resolve(
     program: ModuleContract,
     selectedDependencies: List<ModuleContract>,
     explicitRoots: List<String>,
   ): List<SelectedRoot> {
+    val modules = listOf(program) + selectedDependencies
     val declarations =
-      (listOf(program) + selectedDependencies).flatMap { module ->
+      modules.flatMap { module ->
         module.callables.map { it.id to Contract(module.id, it.parameters, shape(it.effects)) } +
           module.canvases.map { it.id to Contract(module.id, it.parameters, shape(it.result)) }
       }
@@ -33,7 +37,7 @@ object RootSelectionResolver {
     require(conflicts.isEmpty()) {
       "Automatic Mosaic root discovery cannot resolve conflicting selected contracts: ${conflicts.joinToString()}"
     }
-    val overrides = (listOf(program) + selectedDependencies).flatMap { it.overrides }
+    val overrides = modules.flatMap { it.overrides }
     val overrideConflicts = overrides.groupBy { it.receiverType to it.baseId }.filterValues { it.size != 1 }.keys
     require(overrideConflicts.isEmpty()) {
       val labels =
@@ -41,7 +45,7 @@ object RootSelectionResolver {
           .joinToString { "${it.first} at ${it.second}" }
       "Automatic Mosaic root discovery cannot resolve conflicting direct overrides: $labels"
     }
-    return Discovery(program.id, declarations.toMap(), overrides).roots()
+    return Discovery(program.id, declarations.toMap(), overrides, DirectOverrideIndex(overrides)).roots()
   }
 
   private data class Contract(
@@ -138,6 +142,7 @@ object RootSelectionResolver {
     private val localOwner: String,
     private val contracts: Map<String, Contract>,
     private val overrides: List<ResolvedOverride>,
+    private val overrideIndex: DirectOverrideIndex,
   ) {
     private val receiverTypes =
       (
@@ -176,11 +181,13 @@ object RootSelectionResolver {
       val covered = reachable(selected)
       val expected = localExecutionContexts(eligible).filter { it in relevant }
       val uncovered = expected.filterNot { it in covered }
-      require(selected.isNotEmpty() && uncovered.isEmpty()) {
+      if (selected.isEmpty() || uncovered.isNotEmpty()) {
         val detail = uncovered.map(Activation::label).sorted().joinToString().ifEmpty { "none" }
-        "Automatic Mosaic root discovery found no safe outermost execution context for: $detail. " +
-          "Add a selected-contract caller that supplies the Canvas and receiver, " +
-          "or configure mosaicAnalysis.roots explicitly."
+        throw AutomaticRootsUnavailableException(
+          "Automatic Mosaic root discovery found no safe outermost execution context for: $detail. " +
+            "Add a selected-contract caller that supplies the Canvas and receiver, " +
+            "or configure mosaicAnalysis.roots explicitly.",
+        )
       }
       return selected.map(Activation::root).sortedBy { it.id }
     }
@@ -250,8 +257,10 @@ object RootSelectionResolver {
       val id =
         if (call.virtual) {
           if (receiver == null) return null
-          overrides.singleOrNull { it.baseId == call.target && it.receiverType == receiver }?.implementationId
-            ?: return null
+          when (val override = overrideIndex.directOverride(receiver, call.target)) {
+            is Resolution.Found -> override.value.implementationId
+            Resolution.Missing, is Resolution.Conflict -> return null
+          }
         } else {
           call.target
         }
