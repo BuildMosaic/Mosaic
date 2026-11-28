@@ -28,20 +28,14 @@ class MosaicReceiverBoundaryTest {
       }
     val module = compileAndExtract(listOf(source), directory, "regression")
     val report = analyze(module)
-    assertTrue(
-      module.tiles.single { it.id == "regression.ExampleTile" }.effects.any {
-        it is Effect.Unknown && it.reason.contains("Mosaic extension receiver")
-      },
-      module.toString(),
-    )
-    assertEquals(RootStatus.UNVERIFIED, report.roots.single().status, report.toString())
-    assertTrue(
-      report.findings.any {
-        it.certainty == Certainty.UNVERIFIED && it.reason.contains("Mosaic extension receiver")
-      },
-    )
+    assertEquals(RootStatus.FAILED, report.roots.single().status, report.toString())
+    assertTrue(report.findings.any { it.certainty == Certainty.MISSING && it.key?.classId == "regression.Metrics" })
     val suppliedReport = analyze(module, target = "regression.suppliedEntry()")
-    assertEquals(RootStatus.UNVERIFIED, suppliedReport.roots.single().status, suppliedReport.toString())
+    assertEquals(RootStatus.VERIFIED, suppliedReport.roots.single().status, suppliedReport.toString())
+    val cycle = analyze(module, target = "regression.loopEntry()")
+    assertTrue(cycle.findings.any { it.rule?.id == "MOSAIC_CYCLIC_TILE_DEPENDENCY" }, cycle.toString())
+    val fresh = analyze(module, target = "regression.freshLoopEntry()")
+    assertTrue(fresh.findings.any { it.rule?.id == "MOSAIC_RECURSIVE_TILE" }, fresh.toString())
     val parameterReport = analyze(module, target = "regression.parameterEntry()")
     assertEquals(RootStatus.UNVERIFIED, parameterReport.roots.single().status, parameterReport.toString())
     assertTrue(
@@ -100,7 +94,7 @@ class MosaicReceiverBoundaryTest {
   }
 
   @Test
-  fun `Canvas Mosaic extension is unknown`() {
+  fun `source helper can return the bound Canvas`() {
     val directory = Files.createTempDirectory("mosaic-canvas-extension").toFile()
     val source =
       File(directory, "Regression.kt").apply {
@@ -109,16 +103,17 @@ class MosaicReceiverBoundaryTest {
           package regression
           import org.buildmosaic.core.*
           import org.buildmosaic.core.injection.*
-          suspend fun Mosaic.expose(): Canvas = canvas { }
-          suspend fun entry(): Canvas = canvas { }.withMosaic { expose() }
+          class Metrics
+          suspend fun Mosaic.expose(): Canvas = canvas
+          suspend fun entry() = canvas { provide<Metrics> { Metrics() } }.withMosaic {
+            expose().source<Metrics>()
+          }
           """.trimIndent(),
         )
       }
     val module = compileAndExtract(listOf(source), directory, "regression")
-    val result = module.canvases.single { it.id == "regression.entry()" }.result as CanvasExpression.WithEffects
     val report = analyze(module)
-    assertEquals(RootStatus.UNVERIFIED, report.roots.single().status, result.toString())
-    assertTrue(report.findings.any { it.reason.contains("Mosaic extension receiver") }, report.toString())
+    assertEquals(RootStatus.VERIFIED, report.roots.single().status, report.toString())
   }
 }
 
@@ -407,6 +402,12 @@ private fun extensionReceiverFixtureSource(): String =
   suspend fun suppliedEntry() = canvas { provide<Metrics> { Metrics() } }.withMosaic { compose(SuppliedTile) }
   suspend fun parameterEntry() = canvas { provide<Metrics> { Metrics() } }.withMosaic { compose(ParameterTile) }
   suspend fun accessorEntry() = canvas { provide<Metrics> { Metrics() } }.withMosaic { compose(AccessorTile) }
+  val LoopTile: Tile<Unit> = singleTile { recurse() }
+  suspend fun Mosaic.recurse() { compose(LoopTile) }
+  suspend fun loopEntry() = canvas {}.withMosaic { compose(LoopTile) }
+  val FreshLoopTile: Tile<Unit> = singleTile { canvas.withMosaic { freshRecurse() } }
+  suspend fun Mosaic.freshRecurse() { compose(FreshLoopTile) }
+  suspend fun freshLoopEntry() = canvas {}.withMosaic { compose(FreshLoopTile) }
   """.trimIndent()
 
 private fun assertBinaryTileProperties(
