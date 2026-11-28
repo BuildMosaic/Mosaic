@@ -230,7 +230,6 @@ class MosaicAnalysisPlugin : KotlinCompilerPluginSupportPlugin {
         },
       )
       task.additionalCompilerPlugins.from(compile.map { it.pluginClasspath })
-      task.friendPaths.from(compile.map { it.friendPaths })
       task.mosaicVersion.set(mosaicVersion)
       task.moduleId.set(project.provider { project.group.toString() + ":" + project.name })
       task.productionCompilerVersion.set(compilerVersion)
