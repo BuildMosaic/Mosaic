@@ -2,7 +2,7 @@ import org.gradle.api.attributes.LibraryElements
 import org.gradle.api.attributes.Usage
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
-description = "A testing framework for tile isolation in Mosaic"
+description = "Isolated Tile testing for Mosaic backend orchestration in Kotlin"
 
 plugins {
   id("kotlin.convention")

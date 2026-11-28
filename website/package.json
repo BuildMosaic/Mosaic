@@ -2,9 +2,9 @@
   "name": "buildmosaic-website",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.34.6",
+  "packageManager": "pnpm@12.23.0",
   "engines": {
-    "node": ">=22.23.3 <23"
+    "node": ">=26.13.1 <27"
   },
   "scripts": {
     "dev": "astro dev --host 127.0.0.1",
@@ -21,22 +21,22 @@
     "qa": "playwright test"
   },
   "dependencies": {
-    "@astrojs/mdx": "8.0.2",
-    "@astrojs/sitemap": "3.7.4",
-    "@astrojs/starlight": "0.42.5",
+    "@astrojs/mdx": "8.1.6",
+    "@astrojs/sitemap": "3.7.6",
+    "@astrojs/starlight": "0.43.1",
     "@fontsource-variable/jetbrains-mono": "5.3.0",
     "@fontsource-variable/public-sans": "5.3.0",
     "@fontsource/barlow": "5.3.0",
-    "astro": "7.3.5",
-    "astro-expressive-code": "0.44.2"
+    "astro": "7.4.13",
+    "astro-expressive-code": "0.44.4"
   },
   "devDependencies": {
-    "@astrojs/check": "0.9.10",
-    "@axe-core/playwright": "4.11.1",
-    "@playwright/test": "1.64.1",
+    "@astrojs/check": "0.9.12",
+    "@axe-core/playwright": "4.14.1",
+    "@playwright/test": "1.65.1",
     "cheerio": "1.2.0",
-    "prettier": "3.9.9",
-    "prettier-plugin-astro": "0.14.1",
-    "typescript": "5.9.3"
+    "prettier": "3.10.1",
+    "prettier-plugin-astro": "1.1.2",
+    "typescript": "6.0.3"
   }
 }
