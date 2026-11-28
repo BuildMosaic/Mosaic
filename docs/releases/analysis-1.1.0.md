@@ -1,8 +1,8 @@
-# Mosaic Analysis 1.0.2
+# Mosaic Analysis 1.1.0
 
 Released November 28, 2026.
 
-Analysis 1.0.2 improves source extraction and gives applications a useful
+Analysis 1.1.0 improves source extraction and gives applications a useful
 architecture overview when automatic verification cannot select a safe root.
 Mosaic Runtime is unchanged.
 
